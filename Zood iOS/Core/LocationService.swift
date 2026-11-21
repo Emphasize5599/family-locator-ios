@@ -36,6 +36,12 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     /// iOS 17+: keeps the app "in use" in the background. Without it, iOS only grants ~10 s of runtime per location
     /// event, so a phone sitting still gets suspended and can't hear location requests on the socket.
     private var backgroundSession: AnyObject?
+    /// True only when the background session was started while the app was on screen. iOS ignores a session
+    /// started during a background relaunch (e.g. after the user swiped the app away), so until the app is
+    /// opened again we can't actually answer requests and must not claim we can.
+    private(set) var liveArmed = false {
+        didSet { if liveArmed != oldValue { onStateChange?() } }
+    }
 
     /// Share when we've moved this far or this long has passed since the last share.
     private let shareDistance: CLLocationDistance = 100
@@ -135,10 +141,15 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     private func updateBackgroundSession() {
         guard #available(iOS 17, *) else { return }
         if isLive {
-            if backgroundSession == nil { backgroundSession = CLBackgroundActivitySession() }
-        } else if let session = backgroundSession as? CLBackgroundActivitySession {
-            session.invalidate()
+            if backgroundSession == nil || (!liveArmed && isForeground) {
+                (backgroundSession as? CLBackgroundActivitySession)?.invalidate()
+                backgroundSession = CLBackgroundActivitySession()
+                liveArmed = isForeground
+            }
+        } else {
+            (backgroundSession as? CLBackgroundActivitySession)?.invalidate()
             backgroundSession = nil
+            liveArmed = false
         }
     }
 

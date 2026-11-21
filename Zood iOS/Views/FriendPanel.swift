@@ -197,8 +197,8 @@ struct FriendPanel: View {
                 Text("\(name) has **Live Requests** turned off, so their phone isn't listening for requests.")
                 Text("Their location still updates on its own whenever they move. To enable Refresh, \(name) can turn on Live Requests in Settings.")
             case .unsupported:
-                Text("\(name) is on an iPhone with **Live Requests** turned off. Zood's servers can't wake an iPhone, so the app has to stay running in the background to hear a request — and theirs isn't.")
-                Text("Their location still updates on its own whenever they move. To enable Refresh, \(name) can turn on Live Requests in the app's Settings and allow location access **Always**.")
+                Text("\(name)'s iPhone isn't listening for requests right now. Zood's servers can't wake an iPhone, so the app has to stay running in the background to hear one. That stops if **Live Requests** is off, or if the app was swiped closed.")
+                Text("Their location still updates on its own whenever they move. To enable Refresh, \(name) can open the app (and turn on Live Requests with location access **Always** if it's off).")
             case .noResponse:
                 Text("Requests only reach phones that currently have the app running in the background. \(name)'s phone may be offline, in Low Power Mode, or the app may have been swiped closed.")
                 Text("Their location will still update the next time they move or open the app.")

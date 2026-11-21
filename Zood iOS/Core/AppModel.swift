@@ -91,7 +91,7 @@ final class AppModel: ObservableObject {
         // Staying awake in the background needs CLBackgroundActivitySession (iOS 17+). Older iPhones get suspended
         // while stationary, so they honestly report that they can't answer Refresh.
         guard #available(iOS 17, *) else { return false }
-        return liveRequestsEnabled && location.hasAlwaysPermission
+        return liveRequestsEnabled && location.hasAlwaysPermission && location.liveArmed
     }
 
     /// Whether this iPhone's iOS version can support Live Requests at all.
