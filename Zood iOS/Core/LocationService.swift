@@ -1,9 +1,13 @@
 import CoreLocation
+import os
 import UIKit
 
+private let log = Logger(subsystem: "com.bensanzone.zood", category: "location")
+
 /// Owns CoreLocation. Two tiers:
-/// - **Baseline**: significant-change + visit monitoring. Cheap, and iOS relaunches the app for these
-///   even after it's been terminated, so friends still get our location when we move.
+/// - **Baseline**: a ~150 m exit geofence around the last shared location, plus significant-change and visit
+///   monitoring as a general fallback. All three are cheap, and iOS relaunches the app for them even after it's been
+///   terminated, so friends still get our location when we move. This is all iOS 15/16 phones get in the background.
 /// - **Live mode**: continuous low-accuracy (Wi-Fi/cell) updates with background updates enabled. This keeps the
 ///   process alive in the background, which keeps the oscar socket open so we can answer location requests.
 @MainActor
@@ -43,6 +47,22 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         didSet { if liveArmed != oldValue { onStateChange?() } }
     }
 
+    /// Exit geofence redrawn around every shared location. Apple recommends ≥ 100 m for reliable region events.
+    private static let geofenceID = "com.bensanzone.zood.last-shared"
+    private let geofenceRadius: CLLocationDistance = 150
+
+    /// CLBackgroundActivitySession (iOS 17+) is what lets live mode keep the app awake. Debug builds can pretend to be
+    /// on iOS 15/16 with the `-simulateIOS16` launch argument, since Xcode 27 can't run those simulators.
+    static var supportsBackgroundSession: Bool {
+        #if DEBUG
+        // `simctl launch` swallows dash arguments, so also accept SIMCTL_CHILD_ZOOD_SIMULATE_IOS16=1.
+        if ProcessInfo.processInfo.arguments.contains("-simulateIOS16")
+            || ProcessInfo.processInfo.environment["ZOOD_SIMULATE_IOS16"] == "1" { return false }
+        #endif
+        if #available(iOS 17, *) { return true }
+        return false
+    }
+
     /// Share when we've moved this far or this long has passed since the last share.
     private let shareDistance: CLLocationDistance = 100
     private let shareInterval: TimeInterval = 10 * 60
@@ -55,6 +75,7 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         manager.pausesLocationUpdatesAutomatically = false
         manager.activityType = .other
         UIDevice.current.isBatteryMonitoringEnabled = true
+        log.notice("launch: background session supported=\(Self.supportsBackgroundSession, privacy: .public) state=\(UIApplication.shared.applicationState.rawValue, privacy: .public) regions=\(self.manager.monitoredRegions.count, privacy: .public)")
     }
 
     var hasAlwaysPermission: Bool { authorization == .authorizedAlways }
@@ -96,6 +117,7 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         manager.stopUpdatingLocation()
         manager.stopMonitoringSignificantLocationChanges()
         manager.stopMonitoringVisits()
+        manager.monitoredRegions.filter { $0.identifier == Self.geofenceID }.forEach { manager.stopMonitoring(for: $0) }
     }
 
     /// Gets a reasonably precise fix (≤ 50 m, or the best we saw within 20 s). Used to answer a friend's request.
@@ -139,7 +161,7 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     }
 
     private func updateBackgroundSession() {
-        guard #available(iOS 17, *) else { return }
+        guard #available(iOS 17, *), Self.supportsBackgroundSession else { return }
         if isLive {
             if backgroundSession == nil || (!liveArmed && isForeground) {
                 (backgroundSession as? CLBackgroundActivitySession)?.invalidate()
@@ -185,6 +207,40 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         }
         lastShared = location
         onShareableLocation?(location)
+        updateGeofence(around: location)
+    }
+
+    /// Replace the exit geofence so leaving the area around where friends last saw us wakes the app, even if it was
+    /// suspended or terminated. Finer-grained than significant-change monitoring (~500 m, cell-tower based).
+    /// Mainly for iOS 15/16, which can't keep live mode awake. Where region monitoring isn't available (it's
+    /// deprecated on iOS 17+ and absent in the simulator) we skip it and rely on significant change and visits.
+    private func updateGeofence(around location: CLLocation) {
+        guard hasAlwaysPermission, CLLocationManager.isMonitoringAvailable(for: CLCircularRegion.self) else {
+            log.notice("geofence skipped: always=\(self.hasAlwaysPermission, privacy: .public) available=\(CLLocationManager.isMonitoringAvailable(for: CLCircularRegion.self), privacy: .public)")
+            return
+        }
+        let region = CLCircularRegion(center: location.coordinate,
+                                      radius: min(max(geofenceRadius, location.horizontalAccuracy), manager.maximumRegionMonitoringDistance),
+                                      identifier: Self.geofenceID)
+        region.notifyOnEntry = false
+        region.notifyOnExit = true
+        // Same identifier replaces the previous region.
+        manager.startMonitoring(for: region)
+        log.notice("geofence set: r=\(Int(region.radius), privacy: .public) m")
+    }
+
+    /// Region exits and visits give us ~10 s of background time; ask for more so the fix and upload can finish.
+    private func handleBackgroundTrigger(_ reason: String) {
+        log.notice("wake: \(reason, privacy: .public)")
+        var taskID = UIBackgroundTaskIdentifier.invalid
+        taskID = UIApplication.shared.beginBackgroundTask(withName: "share-location") {
+            UIApplication.shared.endBackgroundTask(taskID)
+        }
+        Task {
+            _ = await freshFix()   // shares (and redraws the geofence) when it completes
+            try? await Task.sleep(nanoseconds: 5_000_000_000)   // let the upload finish
+            UIApplication.shared.endBackgroundTask(taskID)
+        }
     }
 
     // MARK: CLLocationManagerDelegate
@@ -207,6 +263,7 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         let now = Date()
         if isLive, !isStreaming || now.timeIntervalSince(lastUpdateAt) > 120 { restartStreaming(after: 0) }
         lastUpdateAt = now
+        if !isStreaming { log.notice("wake: significant change") }
         for location in locations where location.horizontalAccuracy >= 0 {
             lastLocation = location
             if wantsFreshFix {
@@ -225,7 +282,17 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     func locationManager(_ manager: CLLocationManager, didVisit visit: CLVisit) {
         if isLive { restartStreaming(after: 0) }
         // Arriving somewhere or leaving: worth a precise update.
-        Task { _ = await freshFix() }
+        handleBackgroundTrigger("visit")
+    }
+
+    func locationManager(_ manager: CLLocationManager, didExitRegion region: CLRegion) {
+        guard region.identifier == Self.geofenceID else { return }
+        if isLive { restartStreaming(after: 0) }
+        handleBackgroundTrigger("left geofence")
+    }
+
+    func locationManager(_ manager: CLLocationManager, monitoringDidFailFor region: CLRegion?, withError error: Error) {
+        log.error("geofence failed: \(error.localizedDescription, privacy: .public)")
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
