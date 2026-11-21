@@ -13,7 +13,11 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     }
     private(set) var accuracyAuthorization: CLAccuracyAuthorization
     private(set) var lastLocation: CLLocation?
-    private(set) var isLive = false
+    /// What the user asked for. Live mode only actually runs once iOS grants "Always".
+    private var liveRequested = false
+    /// While the app is on screen we stream updates regardless of the live setting.
+    private var isForeground = true
+    var isLive: Bool { liveRequested && hasAlwaysPermission }
 
     /// Called for every location that should be shared with friends.
     var onShareableLocation: ((CLLocation) -> Void)?
@@ -25,6 +29,10 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     private var freshFixWaiters: [CheckedContinuation<CLLocation?, Never>] = []
     private var freshFixBest: CLLocation?
     private var freshFixTimeout: Task<Void, Never>?
+    private var restartTask: Task<Void, Never>?
+    /// Whether we've asked CoreLocation for continuous updates (it doesn't tell us if it silently dropped them).
+    private var isStreaming = false
+    private var lastUpdateAt = Date()
 
     /// Share when we've moved this far or this long has passed since the last share.
     private let shareDistance: CLLocationDistance = 100
@@ -65,12 +73,17 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     }
 
     func setLive(_ live: Bool) {
-        isLive = live && hasAlwaysPermission
+        liveRequested = live
+        applyStreamingConfiguration()
+    }
+
+    func setForeground(_ foreground: Bool) {
+        isForeground = foreground
         applyStreamingConfiguration()
     }
 
     func stopAll() {
-        isLive = false
+        liveRequested = false
         manager.stopUpdatingLocation()
         manager.stopMonitoringSignificantLocationChanges()
         manager.stopMonitoringVisits()
@@ -102,13 +115,30 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
             manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
             manager.distanceFilter = 50
         }
-        let stream = isLive || wantsFreshFix
-        manager.allowsBackgroundLocationUpdates = hasAlwaysPermission && stream
+        // Re-evaluated on every call, so granting "Always" later switches live mode on without a restart.
+        let backgroundStream = isLive || wantsFreshFix
+        let stream = hasAnyPermission && (backgroundStream || isForeground)
+        manager.allowsBackgroundLocationUpdates = hasAlwaysPermission && backgroundStream
         manager.showsBackgroundLocationIndicator = false
         if stream {
             manager.startUpdatingLocation()
         } else {
             manager.stopUpdatingLocation()
+        }
+        isStreaming = stream
+    }
+
+    /// Stop and start again. Live mode only keeps the app alive while CoreLocation is actively streaming, and an
+    /// interruption (locationd restart, transient error) can leave the stream dead without telling us, after which
+    /// iOS suspends the app and the socket goes quiet.
+    private func restartStreaming(after delay: UInt64 = 1_000_000_000) {
+        guard restartTask == nil else { return }
+        restartTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: delay)
+            guard let self else { return }
+            self.restartTask = nil
+            self.manager.stopUpdatingLocation()
+            self.applyStreamingConfiguration()
         }
     }
 
@@ -147,6 +177,11 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     }
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        // Any delivery is a chance to re-arm live mode. A long gap means the stream had died and this is a
+        // significant-change wake after a suspension, so restart the stream to stay alive from here on.
+        let now = Date()
+        if isLive, !isStreaming || now.timeIntervalSince(lastUpdateAt) > 120 { restartStreaming(after: 0) }
+        lastUpdateAt = now
         for location in locations where location.horizontalAccuracy >= 0 {
             lastLocation = location
             if wantsFreshFix {
@@ -163,12 +198,20 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     }
 
     func locationManager(_ manager: CLLocationManager, didVisit visit: CLVisit) {
+        if isLive { restartStreaming(after: 0) }
         // Arriving somewhere or leaving: worth a precise update.
         Task { _ = await freshFix() }
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        // kCLErrorLocationUnknown is transient; everything else we just wait out.
+        if (error as? CLError)?.code == .denied { return }
+        // Includes "location unavailable" after a locationd interruption: restart so live mode keeps us alive.
+        restartStreaming()
+    }
+
+    func locationManagerDidPauseLocationUpdates(_ manager: CLLocationManager) {
+        // We disable automatic pausing, but if iOS pauses anyway, resume immediately.
+        restartStreaming(after: 0)
     }
 }
 

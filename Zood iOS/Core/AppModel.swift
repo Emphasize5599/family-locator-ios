@@ -59,6 +59,9 @@ final class AppModel: ObservableObject {
     init() {
         UserDefaults.standard.register(defaults: [Self.liveKey: true])
         liveRequestsEnabled = UserDefaults.standard.bool(forKey: Self.liveKey)
+        // iOS relaunches us in the background after a significant location change; don't assume we're on screen.
+        isForeground = UIApplication.shared.applicationState != .background
+        location.setForeground(isForeground)
         if let saved = CredentialStore.load() {
             credentials = saved
             local = LocalDataStore.load()
@@ -70,7 +73,10 @@ final class AppModel: ObservableObject {
             Task { await self?.upload(location: loc) }
         }
         // Views read permission state through the model, so forward LocationService changes.
-        location.onStateChange = { [weak self] in self?.objectWillChange.send() }
+        location.onStateChange = { [weak self] in
+            self?.objectWillChange.send()
+            Task { await self?.shareCurrentLocation() }
+        }
         if phase == .signedIn { startSession() }
     }
 
@@ -211,6 +217,7 @@ final class AppModel: ObservableObject {
 
     func sceneDidBecomeActive() {
         isForeground = true
+        location.setForeground(true)
         guard phase == .signedIn else { return }
         socket?.start()
         applyLiveMode()
@@ -219,6 +226,7 @@ final class AppModel: ObservableObject {
 
     func sceneDidEnterBackground() {
         isForeground = false
+        location.setForeground(false)
         // Without live mode iOS will suspend us shortly; the socket goes with it and that's expected.
     }
 
