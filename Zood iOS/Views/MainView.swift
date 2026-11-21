@@ -91,6 +91,9 @@ struct MainView: View {
                         }
                     }
                     .buttonStyle(.plain)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(friend.user.username)
+                    .accessibilityAddTraits(.isButton)
                 }
             }
             .padding(.horizontal, 16)

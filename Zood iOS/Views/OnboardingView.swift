@@ -49,6 +49,9 @@ struct OnboardingView: View {
                         .autocorrectionDisabled()
                     SecureField("Password", text: $password)
                         .textContentType(mode == .signUp ? .newPassword : .password)
+                        // The keyboard covers the button on smaller phones, so Return submits too.
+                        .submitLabel(.go)
+                        .onSubmit { if canSubmit { submit() } }
                     if mode == .signUp {
                         TextField("Email (optional)", text: $email)
                             .textContentType(.emailAddress)

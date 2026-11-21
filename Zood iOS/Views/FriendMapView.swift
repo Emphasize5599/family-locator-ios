@@ -26,6 +26,8 @@ struct FriendMapView: UIViewRepresentable {
         map.pointOfInterestFilter = .excludingAll
         map.register(FriendAnnotationView.self, forAnnotationViewWithReuseIdentifier: FriendAnnotationView.reuseID)
         map.setUserTrackingMode(.follow, animated: false)
+        // Keep the Apple Maps logo and Legal link clear of the friend bar overlay.
+        map.layoutMargins = UIEdgeInsets(top: 0, left: 8, bottom: 110, right: 8)
         return map
     }
 
