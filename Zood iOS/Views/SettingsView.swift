@@ -55,7 +55,7 @@ struct SettingsView: View {
                 }
 
                 Section("About") {
-                    Link(destination: URL(string: "https://github.com/Emphasize5599/george")!) {
+                    Link(destination: URL(string: "https://github.com/Emphasize5599/family-locator-ios")!) {
                         Label("Source Code (AGPL-3.0)", systemImage: "chevron.left.forwardslash.chevron.right")
                     }
                     Text("Built on the open-source Zood Location protocol and servers. Not affiliated with Tangled Wires, LLC.")

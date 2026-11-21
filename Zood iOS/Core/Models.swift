@@ -8,6 +8,9 @@ nonisolated enum ZoodJSON {
         let e = JSONEncoder()
         e.keyEncodingStrategy = .convertToSnakeCase
         e.dataEncodingStrategy = .base64
+        // oscar's encodable.Bytes decodes the raw JSON token without unescaping, so base64's "/" must not
+        // be written as "\/" (JSONEncoder's default). Gson in george doesn't escape it either.
+        e.outputFormatting = [.withoutEscapingSlashes]
         return e
     }()
 
