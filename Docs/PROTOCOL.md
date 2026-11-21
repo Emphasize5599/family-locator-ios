@@ -1,0 +1,53 @@
+# Zood client protocol (as implemented by george / oscar)
+
+Server: `https://api.zood.xyz/1/` · JSON keys are snake_case · `byte[]` fields are standard base64 (no wrapping, padded).
+Auth header: `X-Oscar-Access-Token: <token>`. Errors: `{"error_code": Int, "error_message": String}`.
+
+## Crypto (libsodium)
+| Use | Primitive |
+|---|---|
+| Identity keypair | `crypto_box_keypair` (X25519, 32-byte keys) |
+| Messages / drop-box packages | `crypto_box_easy(msg, nonce, receiverPub, senderSec)` → `{cipher_text, nonce}` |
+| Wrapping secret key, symmetric key, backups | `crypto_secretbox_easy` |
+| Password stretch | `crypto_pwhash`, 32-byte output. Signup uses `argon2id13`, ops 30, mem 64 MiB, 16-byte salt. Login must honour whatever alg/ops/mem the server returns (`argon2i13` = sodium alg id 1, `argon2id13` = 2). |
+
+## Sign up — `POST users`
+Body: `username, email?, public_key, password_salt, password_hash_algorithm, password_hash_operations_limit, password_hash_memory_limit, wrapped_secret_key(+_nonce), wrapped_symmetric_key(+_nonce)` (both wrapped with the password hash). Response `{id}` (16 bytes). Then log in normally.
+
+## Log in
+1. `POST sessions/{username}/challenge` → `{user:{public_key, wrapped_secret_key(+_nonce), password_salt, password_hash_*}, challenge, creation_date}`
+2. Stretch password, `secretbox_open` the secret key (failure = wrong password).
+3. `GET public-key` → `{public_key}` (server).
+4. `POST sessions/{username}/challenge-response` with `{challenge: box(challenge), creation_date: box(creation_date)}` (to server pubkey, from our secret key) → `{id, access_token, wrapped_symmetric_key(+_nonce)}`.
+5. `GET users/me/backup` → EncryptedData (secretbox with symmetric key) of Snapshot JSON; error 20 = no backup.
+
+## Snapshot (backup) — `PUT users/me/backup`
+`{friends:[{user_id, sending_box_id, receiving_box_id}], users:[{user_id, public_key, username}], avatar?, schema_version: 1, timestamp(ms)}`. Never write `schema_version > 1` or Android refuses to restore (OutdatedClient).
+
+## Messages (user → user, crypto_box)
+- Send: `POST users/{hexUserId}/messages` `{cipher_text, nonce, urgent, transient}`
+- Fetch: `GET messages` → `[{id, sender_id, cipher_text, nonce, sent_date}]`; delete after processing `DELETE messages/{id}`.
+- Look up a sender: `GET users/{hexId}` → `{username, public_key}`; search: `GET users?username=` → `{id, username, public_key}`.
+
+## UserComm JSON (plaintext inside messages and packages)
+`type` ∈ avatar_request, avatar_update(avatar), location_sharing_grant(drop_box 16B), location_sharing_revocation, location_info(latitude, longitude, time ms, accuracy?, speed?, bearing?, movement?, battery_level?, battery_charging?), location_update_request, location_update_request_received(location_update_request_action: starting|too_soon|finished), device_info (self only!), browse_devices/scream/scream_began (self only).
+Android drops unknown `type`s, ignores unknown fields.
+
+### Fork extension (this project)
+`location_info` (and `location_update_request_received`) carry extra fields:
+- `platform`: `"ios"` | `"android"`
+- `live_requests`: Bool — device currently holds a socket and can answer `location_update_request`.
+Stock Zood ignores them. Absent fields = unknown (treat as stock Android, i.e. supported).
+
+## Location sharing
+- Grant: generate random 16-byte box id = our *sending* box, send `location_sharing_grant{drop_box}` message. Receiver stores it as its *receiving* box for us.
+- Upload: `POST drop-boxes/send` multipart; each part name = hex box id, part body = JSON EncryptedData (crypto_box to that friend).
+- Read: `GET drop-boxes/{hexBoxId}` → raw JSON EncryptedData; decrypt with friend pubkey.
+
+## Socket — `wss://api.zood.xyz/1/sockets`
+Auth: `Sec-Websocket-Protocol: <token>` header **or** `?ticket=` from `POST sessions/expiring-tickets` → `{ticket}` (valid 60 s). iOS uses ticket (server doesn't echo the subprotocol).
+Client → server binary: `[0x01] + boxId` watch, `[0x02] + boxId` ignore, `[0x00]` nop.
+Server → client binary: `[0x01] + boxId(16) + EncryptedData JSON` package; `[0x02] + JSON{id, cipher_text, nonce, sender_id, sent_date, type}` message.
+
+## Push
+Server APNs topic is hardcoded `xyz.zood.michael` and FCM uses the upstream Firebase project → forks get no push. Do **not** register APNs/FCM tokens from forks.
