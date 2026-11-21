@@ -33,6 +33,9 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     /// Whether we've asked CoreLocation for continuous updates (it doesn't tell us if it silently dropped them).
     private var isStreaming = false
     private var lastUpdateAt = Date()
+    /// iOS 17+: keeps the app "in use" in the background. Without it, iOS only grants ~10 s of runtime per location
+    /// event, so a phone sitting still gets suspended and can't hear location requests on the socket.
+    private var backgroundSession: AnyObject?
 
     /// Share when we've moved this far or this long has passed since the last share.
     private let shareDistance: CLLocationDistance = 100
@@ -126,6 +129,17 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
             manager.stopUpdatingLocation()
         }
         isStreaming = stream
+        updateBackgroundSession()
+    }
+
+    private func updateBackgroundSession() {
+        guard #available(iOS 17, *) else { return }
+        if isLive {
+            if backgroundSession == nil { backgroundSession = CLBackgroundActivitySession() }
+        } else if let session = backgroundSession as? CLBackgroundActivitySession {
+            session.invalidate()
+            backgroundSession = nil
+        }
     }
 
     /// Stop and start again. Live mode only keeps the app alive while CoreLocation is actively streaming, and an

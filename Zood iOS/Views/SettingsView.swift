@@ -27,7 +27,11 @@ struct SettingsView: View {
                         Label("Live Requests", systemImage: "antenna.radiowaves.left.and.right")
                     }
                     .tint(.zoodBlue)
-                    if model.liveRequestsEnabled && !model.location.hasAlwaysPermission {
+                    if !model.deviceSupportsLiveRequests {
+                        Label("Live Requests needs iOS 17 or later. Your location still updates as you move.", systemImage: "info.circle")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    } else if model.liveRequestsEnabled && !model.location.hasAlwaysPermission {
                         Button {
                             openURL(URL(string: UIApplication.openSettingsURLString)!)
                         } label: {
