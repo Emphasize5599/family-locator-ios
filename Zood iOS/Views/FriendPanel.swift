@@ -67,7 +67,10 @@ struct FriendPanel: View {
             AvatarView(username: friend.user.username, imageData: friend.avatar, size: 56)
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 8) {
-                    Text(friend.user.username).font(.title2.bold())
+                    Text(friend.user.username)
+                        .font(.title2.bold())
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                     if let platform = friend.device?.platform {
                         Image(systemName: platform == .ios ? "iphone" : "candybarphone")
                             .foregroundStyle(.secondary)
@@ -98,11 +101,15 @@ struct FriendPanel: View {
                 }
             }
             Spacer(minLength: 0)
-            FriendMenu(hasLocation: friend.location != nil,
-                       openInMaps: { openInMaps(friend) },
-                       viewSafetyNumber: { showingSafetyNumber = true },
-                       remove: { confirmingRemove = true })
-                .fixedSize()
+            HStack(spacing: 14) {
+                FriendMenu(hasLocation: friend.location != nil,
+                           openInMaps: { openInMaps(friend) },
+                           viewSafetyNumber: { showingSafetyNumber = true },
+                           remove: { confirmingRemove = true })
+                    .fixedSize()
+                CloseButton(action: onClose)
+                    .fixedSize()
+            }
         }
     }
 
@@ -289,8 +296,7 @@ private struct FriendMenu: UIViewRepresentable {
 
     func makeUIView(context: Context) -> UIButton {
         let button = UIButton(type: .system)
-        let config = UIImage.SymbolConfiguration(textStyle: .title2)
-        button.setImage(UIImage(systemName: "ellipsis.circle", withConfiguration: config), for: .normal)
+        button.setImage(UIImage(systemName: "ellipsis.circle", withConfiguration: panelIconConfig), for: .normal)
         button.tintColor = UIColor(Color.zoodBlueDark)
         button.showsMenuAsPrimaryAction = true
         button.accessibilityLabel = String(localized: "More")
@@ -327,6 +333,36 @@ private struct FriendMenu: UIViewRepresentable {
         var openInMaps: (() -> Void)?
         var viewSafetyNumber: (() -> Void)?
         var remove: (() -> Void)?
+    }
+}
+
+/// Shared by the ⋯ and ✕ buttons so they're always exactly the same size.
+private let panelIconConfig = UIImage.SymbolConfiguration(textStyle: .title2)
+
+/// Closes the friend card. UIKit like `FriendMenu`, with the same symbol configuration, so the two match.
+private struct CloseButton: UIViewRepresentable {
+    let action: () -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeUIView(context: Context) -> UIButton {
+        let button = UIButton(type: .system)
+        button.setImage(UIImage(systemName: "xmark.circle", withConfiguration: panelIconConfig), for: .normal)
+        button.tintColor = .secondaryLabel
+        button.accessibilityLabel = String(localized: "Close")
+        button.addTarget(context.coordinator, action: #selector(Coordinator.tapped), for: .touchUpInside)
+        button.setContentHuggingPriority(.required, for: .horizontal)
+        button.setContentHuggingPriority(.required, for: .vertical)
+        return button
+    }
+
+    func updateUIView(_ button: UIButton, context: Context) {
+        context.coordinator.action = action
+    }
+
+    final class Coordinator: NSObject {
+        var action: (() -> Void)?
+        @objc func tapped() { action?() }
     }
 }
 
