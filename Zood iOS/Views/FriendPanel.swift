@@ -90,7 +90,7 @@ struct FriendPanel: View {
                        openInMaps: { openInMaps(friend) },
                        viewSafetyNumber: { showingSafetyNumber = true },
                        remove: { confirmingRemove = true })
-                .equatable()
+                .fixedSize()
         }
     }
 
@@ -264,33 +264,57 @@ struct FriendPanel: View {
     }
 }
 
-/// The ⋯ menu, split out and `Equatable` on what it actually shows. An open iOS menu visibly redraws whenever its
-/// parent's body runs, and the panel re-renders on every data update; this keeps it still unless its items change.
-private struct FriendMenu: View, Equatable {
+/// The ⋯ menu as a UIKit button + UIMenu. SwiftUI's `Menu` refreshes its open popup whenever the surrounding view
+/// updates (new location, reconnect, …), which made "Remove Friend" flash. A UIMenu only changes when we replace
+/// it, which we do only when its items change. The actions read the latest closures, so they never go stale.
+private struct FriendMenu: UIViewRepresentable {
     let hasLocation: Bool
     let openInMaps: () -> Void
     let viewSafetyNumber: () -> Void
     let remove: () -> Void
 
-    static func == (lhs: FriendMenu, rhs: FriendMenu) -> Bool { lhs.hasLocation == rhs.hasLocation }
+    func makeCoordinator() -> Coordinator { Coordinator() }
 
-    var body: some View {
-        Menu {
-            if hasLocation {
-                Button(action: openInMaps) {
-                    Label("Open in Maps", systemImage: "map")
-                }
-            }
-            Button(action: viewSafetyNumber) {
-                Label("View Safety Number", systemImage: "lock.shield")
-            }
-            Button(role: .destructive, action: remove) {
-                Label("Remove Friend", systemImage: "person.crop.circle.badge.minus")
-            }
-        } label: {
-            Image(systemName: "ellipsis.circle").font(.title2)
+    func makeUIView(context: Context) -> UIButton {
+        let button = UIButton(type: .system)
+        let config = UIImage.SymbolConfiguration(textStyle: .title2)
+        button.setImage(UIImage(systemName: "ellipsis.circle", withConfiguration: config), for: .normal)
+        button.tintColor = UIColor(Color.zoodBlueDark)
+        button.showsMenuAsPrimaryAction = true
+        button.accessibilityLabel = String(localized: "More")
+        button.setContentHuggingPriority(.required, for: .horizontal)
+        button.setContentHuggingPriority(.required, for: .vertical)
+        return button
+    }
+
+    func updateUIView(_ button: UIButton, context: Context) {
+        let coordinator = context.coordinator
+        coordinator.openInMaps = openInMaps
+        coordinator.viewSafetyNumber = viewSafetyNumber
+        coordinator.remove = remove
+        guard coordinator.builtFor != hasLocation else { return }
+        coordinator.builtFor = hasLocation
+        var items: [UIMenuElement] = []
+        if hasLocation {
+            items.append(UIAction(title: String(localized: "Open in Maps"), image: UIImage(systemName: "map")) { [weak coordinator] _ in
+                coordinator?.openInMaps?()
+            })
         }
-        .accessibilityLabel("More")
+        items.append(UIAction(title: String(localized: "View Safety Number"), image: UIImage(systemName: "lock.shield")) { [weak coordinator] _ in
+            coordinator?.viewSafetyNumber?()
+        })
+        items.append(UIAction(title: String(localized: "Remove Friend"), image: UIImage(systemName: "person.crop.circle.badge.minus"),
+                              attributes: .destructive) { [weak coordinator] _ in
+            coordinator?.remove?()
+        })
+        button.menu = UIMenu(children: items)
+    }
+
+    final class Coordinator {
+        var builtFor: Bool?
+        var openInMaps: (() -> Void)?
+        var viewSafetyNumber: (() -> Void)?
+        var remove: (() -> Void)?
     }
 }
 
