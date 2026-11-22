@@ -113,6 +113,10 @@ struct OnboardingView: View {
             }
             .disabled(isWorking)
             .compatOnChange(of: mode) { _ in errorMessage = nil }
+            // An error like "That username is already taken" is about what was submitted; drop it once the person
+            // starts fixing it (but not while a request is in flight).
+            .compatOnChange(of: username) { _ in if !isWorking { errorMessage = nil } }
+            .compatOnChange(of: password) { _ in if !isWorking { errorMessage = nil } }
         }
     }
 
