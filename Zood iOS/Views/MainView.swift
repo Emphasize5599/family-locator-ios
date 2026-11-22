@@ -18,46 +18,48 @@ struct MainView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            FriendMapView(friends: model.friends, command: mapCommand, onSelect: { id in
-                if let friend = model.local.friends[id] { select(friend) }
-            }, onBackgroundTap: {
-                closeFriend()
-            })
-            .ignoresSafeArea()
+        GeometryReader { geometry in
+            ZStack(alignment: .bottom) {
+                FriendMapView(friends: model.friends, command: mapCommand, onSelect: { id in
+                    if let friend = model.local.friends[id] { select(friend) }
+                }, onBackgroundTap: {
+                    closeFriend()
+                })
+                .ignoresSafeArea()
 
-            VStack(spacing: 10) {
-                if !model.isConnected {
-                    banner("Connecting to server…", systemImage: "wifi.exclamationmark")
-                } else if !model.location.hasAnyPermission {
-                    banner("Location access is off, so family can't see you.", systemImage: "location.slash")
-                        .onTapGesture { model.location.requestPermission() }
-                }
-                BackgroundRefreshView()
-                    .padding(.horizontal, 12)
-                if let id = selectedFriendID, model.local.friends[id] != nil {
-                    FriendPanel(friendID: id, onClose: closeFriend)
-                        .id(id)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
-                if model.timedShare != nil {
-                    // Running: a status strip instead of the button (Android's "peeking" sheet).
-                    TimedSharePeekBar { activeSheet = .timedShare }
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                } else if selectedFriendID == nil {
-                    // Android's location-pin button, bottom right above the friend bar.
-                    HStack {
-                        Spacer()
-                        circleButton("mappin.and.ellipse", label: "Timed sharing") { activeSheet = .timedShare }
+                VStack(spacing: 10) {
+                    if !model.isConnected {
+                        banner("Connecting to server…", systemImage: "wifi.exclamationmark")
+                    } else if !model.location.hasAnyPermission {
+                        banner("Location access is off, so family can't see you.", systemImage: "location.slash")
+                            .onTapGesture { model.location.requestPermission() }
                     }
-                    .padding(.horizontal, 16)
-                    .transition(.opacity)
+                    BackgroundRefreshView()
+                        .padding(.horizontal, 12)
+                    if let id = selectedFriendID, model.local.friends[id] != nil {
+                        FriendPanel(friendID: id, maxHeight: geometry.size.height * 0.65, onClose: closeFriend)
+                            .id(id)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
+                    if model.timedShare != nil {
+                        // Running: a status strip instead of the button (Android's "peeking" sheet).
+                        TimedSharePeekBar { activeSheet = .timedShare }
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                    } else if selectedFriendID == nil {
+                        // Android's location-pin button, bottom right above the friend bar.
+                        HStack {
+                            Spacer()
+                            circleButton("mappin.and.ellipse", label: "Timed sharing") { activeSheet = .timedShare }
+                        }
+                        .padding(.horizontal, 16)
+                        .transition(.opacity)
+                    }
+                    friendsBar
                 }
-                friendsBar
+                .padding(.bottom, 8)
+                .animation(.spring(response: 0.35, dampingFraction: 0.85), value: selectedFriendID)
+                .animation(.spring(response: 0.35, dampingFraction: 0.85), value: model.timedShare != nil)
             }
-            .padding(.bottom, 8)
-            .animation(.spring(response: 0.35, dampingFraction: 0.85), value: selectedFriendID)
-            .animation(.spring(response: 0.35, dampingFraction: 0.85), value: model.timedShare != nil)
         }
         .overlay(alignment: .topTrailing) { controls }
         .sheet(item: $activeSheet) { sheet in
@@ -86,7 +88,7 @@ struct MainView: View {
             if ScreenshotTour.isEnabled, let loc = model.friends.first?.location {
                 mapCommand = MapCommand(kind: .focus(latitude: loc.latitude, longitude: loc.longitude))
             }
-            if ScreenshotTour.scene == "friend", let friend = model.friends.first { select(friend) }
+            if ["friend", "friend-long-name"].contains(ScreenshotTour.scene ?? ""), let friend = model.friends.first { select(friend) }
             // Screenshot/UI checks: SIMCTL_CHILD_ZOOD_OPEN_FIRST=1 opens the first friend's card at launch.
             if ProcessInfo.processInfo.environment["ZOOD_OPEN_FIRST"] == "1", let first = model.friends.first { select(first) }
             // End-to-end checks: SIMCTL_CHILD_ZOOD_START_TIMED_SHARE=1 starts a timed share and writes its link to
@@ -167,9 +169,9 @@ struct MainView: View {
                         select(friend)
                     } label: {
                         VStack(spacing: 4) {
-                            AvatarView(username: friend.user.username, imageData: friend.avatar, size: 52)
+                            AvatarView(username: friend.avatarName, imageData: friend.avatar, size: 52)
                                 .opacity(friend.theyShare ? 1 : 0.5)
-                            Text(friend.user.username)
+                            Text(friend.displayName)
                                 .font(.caption)
                                 .lineLimit(1)
                                 .frame(maxWidth: 64)
@@ -177,7 +179,7 @@ struct MainView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(friend.user.username)
+                    .accessibilityLabel(friend.displayName)
                     .accessibilityAddTraits(.isButton)
                 }
             }

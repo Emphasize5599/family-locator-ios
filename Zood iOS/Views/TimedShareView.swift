@@ -4,23 +4,17 @@ import SwiftUI
 /// follow your location until the timer runs out. Adjust the time with − / +, copy or share the link.
 struct TimedShareView: View {
     @EnvironmentObject private var model: AppModel
-    @Environment(\.dismiss) private var dismiss
 
     @State private var showingShareSheet = false
     @State private var copied = false
     @State private var errorMessage: String?
-    /// Measured height of everything in the sheet, so it opens exactly tall enough on any screen size,
-    /// text size, or state (the running state adds an "Ends …" line), instead of a fixed half-height that cut
-    /// off the bottom text on smaller phones.
-    @State private var contentHeight: CGFloat = 520
 
     private var isRunning: Bool { model.timedShare != nil }
 
     var body: some View {
-        GeometryReader { outer in
-            ScrollView {
+        // Shared sheet chrome (title, Done, measured height), like Add Friend and Pending Requests.
+        ContentFittedSheet(title: "Timed Sharing") {
                 VStack(spacing: 22) {
-                    header
                     VStack(spacing: 6) {
                         Text("Temporarily share your location with someone that doesn't have the app by sending them a link.")
                             .font(.subheadline)
@@ -62,37 +56,11 @@ struct TimedShareView: View {
 
                     footer
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 14)
-                .padding(.bottom, 20)
-                .background(GeometryReader { inner in
-                    Color.clear.preference(key: SheetContentHeightKey.self, value: inner.size.height)
-                })
-            }
-            .onPreferenceChange(SheetContentHeightKey.self) { height in
-                // The sheet's height includes the bottom safe area (home indicator) under the content.
-                let fitted = (height + outer.safeAreaInsets.bottom).rounded(.up)
-                if abs(fitted - contentHeight) > 1 { contentHeight = fitted }
-            }
+                .frame(maxWidth: .infinity)
         }
-        .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
-        .compatFittedDetent(height: contentHeight)
         .sheet(isPresented: $showingShareSheet) {
             if let url = model.timedShareURL { ActivityView(items: [url]) }
         }
-    }
-
-    /// Title + Done, drawn in the content (not a navigation bar) so it's part of the measured height.
-    private var header: some View {
-        ZStack {
-            Text("Timed Sharing").font(.headline)
-            HStack {
-                Spacer()
-                Button("Done") { dismiss() }
-                    .font(.body.weight(.semibold))
-            }
-        }
-        .padding(.top, 6)
     }
 
     // MARK: Countdown
@@ -199,11 +167,6 @@ struct TimedShareView: View {
             withAnimation { copied = false }
         }
     }
-}
-
-private struct SheetContentHeightKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
 
 /// Shown above the friend bar while a timed share runs (Android's "peeking" sheet). Tap to open the controls.

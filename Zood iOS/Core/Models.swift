@@ -114,6 +114,8 @@ nonisolated struct Snapshot: Codable, Sendable {
         var userId: Data
         var sendingBoxId: Data?
         var receivingBoxId: Data?
+        var nickname: String?
+        var sharedNickname: String?
     }
     struct User: Codable, Sendable {
         var userId: Data
@@ -123,6 +125,7 @@ nonisolated struct Snapshot: Codable, Sendable {
     var friends: [Friend] = []
     var users: [User] = []
     var avatar: Data?
+    var nickname: String?
     /// Android refuses to restore snapshots newer than its DB schema (1).
     var schemaVersion: Int = 1
     var timestamp: Int64 = 0
@@ -151,6 +154,7 @@ nonisolated enum CommType: String, Sendable {
     // Fork extension: "can you answer location requests right now?" and the reply. Carries no location.
     case deviceStatusRequest = "device_status_request"
     case deviceStatus = "device_status"
+    case nicknameUpdate = "nickname_update"
     case unknown
 }
 
@@ -180,6 +184,8 @@ nonisolated struct UserComm: Codable, Sendable {
     // Fork extension: stock Zood ignores these, our iOS and Android forks read them.
     var platform: Platform?
     var liveRequests: Bool?
+    /// Empty string explicitly clears a shared nickname; absent means an older sender.
+    var nickname: String?
 
     init(type: CommType) {
         self.type = type
@@ -187,7 +193,7 @@ nonisolated struct UserComm: Codable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case type, dropBox, avatar, latitude, longitude, time, accuracy, speed, bearing, movement
-        case batteryLevel, batteryCharging, locationUpdateRequestAction, debugData, platform, liveRequests
+        case batteryLevel, batteryCharging, locationUpdateRequestAction, debugData, platform, liveRequests, nickname
     }
 
     init(from decoder: Decoder) throws {
@@ -207,6 +213,7 @@ nonisolated struct UserComm: Codable, Sendable {
         locationUpdateRequestAction = try? c.decodeIfPresent(UpdateRequestAction.self, forKey: .locationUpdateRequestAction)
         debugData = try? c.decodeIfPresent(String.self, forKey: .debugData)
         platform = try? c.decodeIfPresent(Platform.self, forKey: .platform)
+        nickname = try? c.decodeIfPresent(String.self, forKey: .nickname)
         liveRequests = try? c.decodeIfPresent(Bool.self, forKey: .liveRequests)
     }
 
@@ -228,6 +235,7 @@ nonisolated struct UserComm: Codable, Sendable {
         try c.encodeIfPresent(debugData, forKey: .debugData)
         try c.encodeIfPresent(platform, forKey: .platform)
         try c.encodeIfPresent(liveRequests, forKey: .liveRequests)
+        try c.encodeIfPresent(nickname, forKey: .nickname)
     }
 
     /// Same validity rules george applies in `UserComm.isValid()`.
@@ -240,6 +248,7 @@ nonisolated struct UserComm: Codable, Sendable {
             if let b = batteryLevel, !(-1...100).contains(b) { return false }
             return (-90...90).contains(lat) && (-180...180).contains(lng) && t > 0
         case .locationUpdateRequestReceived: return locationUpdateRequestAction != nil
+        case .nicknameUpdate: return nickname != nil
         case .unknown: return false
         default: return true
         }

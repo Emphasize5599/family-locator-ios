@@ -12,8 +12,8 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 BUNDLE = 'com.bensanzone.zood'
-SCENES = ['onboarding', 'map', 'friend', 'add-friend', 'requests', 'requests-empty',
-          'safety-number', 'timed-share', 'settings', 'settings-support',
+SCENES = ['onboarding', 'map', 'friend', 'friend-long-name', 'add-friend', 'requests', 'requests-empty',
+          'safety-number', 'timed-share', 'friend-nickname', 'account', 'settings', 'settings-support',
           'blocked-users', 'blocked-empty', 'delete-account']
 
 
@@ -85,7 +85,9 @@ def main():
             phones = [d for d in types if d['name'].startswith('iPhone')]
             phone = next((d for d in reversed(phones) if 'Pro' in d['name'] and 'Max' not in d['name']), phones[-1])
             device = sim('create', 'Family Locator Screenshot Tour', phone['identifier'], runtime['identifier'])
-    sim('boot', device, check=False)
+    # Keep this 8 GB development Mac responsive and make every tour start from a cold boot.
+    sim('shutdown', 'all', check=False)
+    sim('boot', device)
     # Some runtimes report a migration error while still completing boot. Installation below is authoritative.
     try:
         sim('bootstatus', device, '-b', check=False, timeout=30)
@@ -149,6 +151,8 @@ def main():
                 sim('ui', device, 'appearance', previous_appearance, check=False)
         except subprocess.TimeoutExpired:
             failures.append({'error': 'Simulator timed out during cleanup'})
+        finally:
+            sim('shutdown', device, check=False)
     gallery(out, captures)
     (out / 'manifest.json').write_text(json.dumps({'device': device, 'captures': captures, 'failures': failures}, indent=2))
     with zipfile.ZipFile(out / 'family-locator-ui-tour.zip', 'w', zipfile.ZIP_DEFLATED) as archive:

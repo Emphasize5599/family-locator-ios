@@ -33,10 +33,21 @@ extension View {
 
     /// Sheet that opens exactly `height` tall (still expandable to full) on iOS 16+; full height on iOS 15.
     /// If the height changes while it's open, the sheet follows it, unless the person dragged it to full height.
+    /// While typing (`allowsFullHeight` false) the sheet stays at `height`, so iOS doesn't jump it to full height.
     @ViewBuilder
-    func compatFittedDetent(height: CGFloat) -> some View {
+    func compatFittedDetent(height: CGFloat, allowsFullHeight: Bool = true) -> some View {
         if #available(iOS 16, *) {
-            modifier(FittedDetent(height: height))
+            modifier(FittedDetent(height: height, allowsFullHeight: allowsFullHeight))
+        } else {
+            self
+        }
+    }
+
+    /// Full-height sheet that leaves the map behind it alone (see `PresentationDetent.fullHeight`). iOS 16+.
+    @ViewBuilder
+    func compatFullHeightSheet() -> some View {
+        if #available(iOS 16, *) {
+            presentationDetents([.fullHeight])
         } else {
             self
         }
@@ -109,18 +120,27 @@ struct ImagePicker: UIViewControllerRepresentable {
 }
 
 @available(iOS 16, *)
+extension PresentationDetent {
+    /// Full height without `.large`: on iOS 16–18 a sheet at `.large` shrinks the screen behind it into a receding
+    /// card, which makes the full-screen map look like it zooms out while the sheet is dragged up. A custom detent
+    /// just short of the maximum preserves the map's visual position while the person moves the panel.
+    static let fullHeight = PresentationDetent.fraction(0.999)
+}
+
+@available(iOS 16, *)
 private struct FittedDetent: ViewModifier {
     let height: CGFloat
-    @State private var selection: PresentationDetent?
+    let allowsFullHeight: Bool
+    @State private var isExpanded = false
 
     func body(content: Content) -> some View {
         content
-            .presentationDetents([.height(height), .large], selection: Binding(
-                get: { selection ?? .height(height) },
-                set: { selection = $0 }
+            .presentationDetents(allowsFullHeight ? [.height(height), .fullHeight] : [.height(height)], selection: Binding(
+                get: { allowsFullHeight && isExpanded ? .fullHeight : .height(height) },
+                set: { isExpanded = $0 == .fullHeight }
             ))
-            .compatOnChange(of: height) { newHeight in
-                if selection != .large { selection = .height(newHeight) }
+            .compatOnChange(of: allowsFullHeight) { allowed in
+                if !allowed { isExpanded = false }
             }
     }
 }
@@ -129,9 +149,19 @@ private struct FittedDetent: ViewModifier {
 /// ScrollView keeps large text and short screens usable; people can still expand to full height.
 struct ContentFittedSheet<Content: View>: View {
     let title: LocalizedStringKey
+    var showsCloseButton = false
     @ViewBuilder var content: () -> Content
     @Environment(\.dismiss) private var dismiss
-    @State private var contentHeight: CGFloat = 480
+    /// Measured content height, without any bottom inset.
+    @State private var contentHeight: CGFloat = 450
+    /// On-screen keyboard height, 0 when hidden.
+    @State private var keyboardHeight: CGFloat = 0
+
+    // Detent heights exclude the safe area: iOS adds the home-indicator/keyboard inset itself.
+    // Adding that inset again can accidentally save the keyboard's height as empty sheet space.
+    private var sheetHeight: CGFloat {
+        max(160, contentHeight.rounded(.up))
+    }
 
     var body: some View {
         GeometryReader { outer in
@@ -140,24 +170,39 @@ struct ContentFittedSheet<Content: View>: View {
                     HStack {
                         Text(title).font(.headline)
                         Spacer()
-                        Button("Done") { dismiss() }.frame(minHeight: 44)
+                        if showsCloseButton {
+                            CloseButton { dismiss() }.frame(minWidth: 44, minHeight: 44)
+                        } else {
+                            Button("Done") { dismiss() }.frame(minHeight: 44)
+                        }
                     }
                     content()
                 }
-                .padding(24)
+                .padding(.horizontal, 24)
+                .padding(.top, 24)
+                .padding(.bottom, keyboardHeight > 0 ? 8 : 24)
                 .frame(maxWidth: .infinity)
                 .background(GeometryReader { geometry in
                     Color.clear.preference(key: FittedSheetHeightKey.self, value: geometry.size.height)
                 })
             }
             .onPreferenceChange(FittedSheetHeightKey.self) { height in
-                guard height > 0 else { return }
-                let fitted = max(160, (height + outer.safeAreaInsets.bottom).rounded(.up))
-                if abs(fitted - contentHeight) > 1 { contentHeight = fitted }
+                guard height > 0, abs(height - contentHeight) > 1 else { return }
+                contentHeight = height
             }
         }
         .background(Color(.systemGroupedBackground).ignoresSafeArea())
-        .compatFittedDetent(height: contentHeight)
+        .compatFittedDetent(height: sheetHeight, allowsFullHeight: keyboardHeight == 0)
+        .task {
+            for await note in NotificationCenter.default.notifications(named: UIResponder.keyboardWillShowNotification) {
+                keyboardHeight = (note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect)?.height ?? 0
+            }
+        }
+        .task {
+            for await _ in NotificationCenter.default.notifications(named: UIResponder.keyboardWillHideNotification) {
+                keyboardHeight = 0
+            }
+        }
     }
 }
 

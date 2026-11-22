@@ -12,6 +12,7 @@ struct OnboardingView: View {
 
     @State private var mode: Mode = .signIn
     @State private var username = ""
+    @State private var nickname = ""
     @State private var password = ""
     @State private var showPassword = false
     @State private var email = ""
@@ -74,6 +75,7 @@ struct OnboardingView: View {
                         .accessibilityLabel(showPassword ? Text("Hide password") : Text("Show password"))
                     }
                     if mode == .signUp {
+                        TextField("Nickname (optional)", text: $nickname).textContentType(.nickname)
                         TextField("Email (optional)", text: $email)
                             .textContentType(.emailAddress)
                             .keyboardType(.emailAddress)
@@ -145,6 +147,7 @@ struct OnboardingView: View {
             do {
                 if mode == .signUp {
                     try await model.signUp(username: normalizedUsername, password: password, email: email)
+                    if Nickname.normalized(nickname) != nil { await model.setMyNickname(nickname) }
                 } else {
                     try await model.logIn(username: normalizedUsername, password: password)
                 }

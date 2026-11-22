@@ -7,3 +7,9 @@ When the user asks you to run a screenshot tour from the Xcode assistant, make i
 - Publish scene captures through `DeviceInteractionSynthesize` so they appear in that named session. The standalone runner's file-based scene requests can drive the same installed Debug app.
 - Keep the HTML gallery/ZIP as a portable companion. CLI and GitHub runs alone cannot populate Xcode's device-interaction panel.
 - Report the actual side-panel coverage if tools prevent publishing the full tour. Close the session after capture to release resources.
+
+# Verification resources
+
+- Run only one simulator or emulator at a time, including across iOS and Android. Shut down the current one before starting another.
+- Always cold boot. Android runs must disable loading and saving Quick Boot snapshots.
+- Finish memory-heavy release optimization and stop its build service before simulator verification on this 8 GB Mac.

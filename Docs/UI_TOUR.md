@@ -28,7 +28,7 @@ python3 Tools/screenshot-tour.py /private/tmp/zood-ui-tour --scenes safety-numbe
 python3 Tools/screenshot-tour.py /private/tmp/zood-ui-tour --no-build --derived-data /private/tmp/zood-tour-derived
 ```
 
-`--device UUID` selects another simulator. Prefer the dedicated simulator: the script changes appearance/status bar temporarily and installs the Debug bundle. It does not erase the simulator. Relaunch without tour flags to return to normal behavior. Output files are overwritten by matching scene names; the gallery/ZIP only include the current run's captures unless `--append` is passed to retain and update a previous gallery.
+`--device UUID` selects another simulator. Prefer the dedicated simulator: the script changes appearance/status bar temporarily and installs the Debug bundle. It does not erase the simulator. To limit memory use, it shuts down other simulators, cold boots the selected simulator, and shuts it down after capture. Run Android emulator checks separately. Relaunch without tour flags to return to normal behavior. Output files are overwritten by matching scene names; the gallery/ZIP only include the current run's captures unless `--append` is passed to retain and update a previous gallery.
 
 ## GitHub
 
@@ -36,9 +36,9 @@ Actions → **UI screenshot tour** → Run workflow. Download the `family-locato
 
 ## Coverage and isolation
 
-Scenes: onboarding, map, friend panel, Add Friend, pending requests (populated/empty), Safety Number, Timed Sharing, Settings (top/support), blocked users (populated/empty), Delete Account. Each is captured in light, dark, and the largest accessibility text category. These are viewport captures; long screens scroll normally in the app. This is an explicit scene tour, not automatic discovery of every alert, system picker or menu.
+Scenes: onboarding, map, friend panel (normal/long nickname), nickname editor, Account, Add Friend, pending requests (populated/empty), Safety Number, Timed Sharing, Settings (top/support), blocked users (populated/empty), Delete Account. Each is captured in light, dark, and the largest accessibility text category. These are viewport captures; long screens scroll normally in the app. This is an explicit scene tour, not automatic discovery of every alert, system picker or menu.
 
-Debug-only `ZOOD_SCREENSHOT_TOUR` supplies an in-memory model before loading Keychain/local accounts and skips session/location startup. Backend API calls are rejected in tour mode, controls are read-only, and each file-based scene request receives a unique readiness marker after presentation. This prevents screenshots of a normal login session if an incompatible build is installed. Map tiles and address lookup still use Apple services and may vary with network availability. No family data, passwords, live sharing links, or real account keys belong in the screenshots. Fixtures cannot log in or upload locations.
+Debug-only `ZOOD_SCREENSHOT_TOUR` supplies an in-memory model before loading Keychain/local accounts and skips session/location startup. Backend API calls are rejected in tour mode, controls are read-only by default, and each file-based scene request receives a unique readiness marker after presentation. This prevents screenshots of a normal login session if an incompatible build is installed. Map tiles and address lookup still use Apple services and may vary with network availability. No family data, passwords, live sharing links, or real account keys belong in the screenshots. Fixtures cannot log in or upload locations. `ZOOD_TOUR_INTERACTIVE=1` enables local UI interactions for manual verification; local friend/safety writes and backup uploads remain disabled.
 
 Release builds ignore tour flags and contain no fixture account/view implementation. The runner requires a Debug build, even when using `--no-build`; a Release build will fail readiness rather than capture personal screens.
 

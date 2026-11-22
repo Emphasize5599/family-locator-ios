@@ -22,7 +22,7 @@ Body: `username, email?, public_key, password_salt, password_hash_algorithm, pas
 5. `GET users/me/backup` → EncryptedData (secretbox with symmetric key) of Snapshot JSON; error 20 = no backup.
 
 ## Snapshot (backup) — `PUT users/me/backup`
-`{friends:[{user_id, sending_box_id, receiving_box_id}], users:[{user_id, public_key, username}], avatar?, schema_version: 1, timestamp(ms)}`. Never write `schema_version > 1` or Android refuses to restore (OutdatedClient).
+`{friends:[{user_id, sending_box_id, receiving_box_id, nickname?, shared_nickname?}], nickname?, users:[{user_id, public_key, username}], avatar?, schema_version: 1, timestamp(ms)}`. Never write `schema_version > 1` or Android refuses to restore (OutdatedClient).
 
 ## Messages (user → user, crypto_box)
 - Send: `POST users/{hexUserId}/messages` `{cipher_text, nonce, urgent, transient}`
@@ -58,3 +58,11 @@ Server → client binary: `[0x01] + boxId(16) + EncryptedData JSON` package; `[0
 
 ## Push
 Server APNs topic is hardcoded `xyz.zood.michael` and FCM uses the upstream Firebase project → forks get no push. Do **not** register APNs/FCM tokens from forks.
+
+## Nicknames (Family Locator clients)
+
+Usernames and encryption keys remain the account identity. `nickname` is optional display metadata carried inside encrypted user communications and location packages. Missing means an older client; an empty string explicitly clears a previous shared name. `nickname_update` pushes a profile change without requiring movement or a photo. Profile requests also return this message when no avatar exists. Older Zood clients ignore the field and discard the unknown message type.
+
+Display priority is the account owner's private friend nickname, then the friend's advertised nickname, then `@username`. Receiving a profile change updates only the advertised value. Removing the private override reveals the latest advertised value. Both clients normalize empty/control-only values and bound name length.
+
+The encrypted Snapshot adds optional top-level `nickname` (own shared name), and `nickname` (private override) / `shared_nickname` on friends. Schema remains 1: older clients ignore these optional fields, but saving a backup from an older client can omit them. Android stores local names in account-scoped preferences to avoid changing the SQLite schema; iOS keeps them with local friend records. Private overrides must never be included in messages to friends.

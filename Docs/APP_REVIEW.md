@@ -9,7 +9,7 @@ The app now has an in-app deletion flow, published privacy/support/license links
 | Item | Evidence / next action |
 | --- | --- |
 | SDK required-reason API | Resolved in 1.1.6: rebuilt libsodium 1.0.22 for iOS 15 with upstream Apple RNG selection commit `f6bd9140861ab6806f4a99923888b65477fc4e33` backported. Final arm64 Release imports `arc4random_buf` and no longer imports `fstat`. No inaccurate File Timestamp reason was added. App Store Connect validation remains pending signing. |
-| User-generated content / abuse handling | Incoming grants now require approval before showing photos/locations. Requests offer Approve, Deny and Block. Friends offer Remove & Block above Remove Friend; Settings lists blocked users and Report a Problem. Blocks are account-scoped on this iPhone, survive logout, and do not control other clients or the backend. Reports open a pre-filled public GitHub issue (https://github.com/Emphasize5599/family-locator-ios/issues) without attaching location or secrets. The publisher must monitor GitHub Issues, respond promptly, and arrange escalation with Zood for service-level abuse; client controls alone do not establish complete guideline 1.2 compliance. |
+| User-generated content / abuse handling | Incoming grants now require approval before showing photos/locations. Requests offer Approve, Deny and Block. Friends offer Remove & Block above Remove Friend; Settings → Account lists blocked users; Settings → Privacy & Support has Report a Problem. Blocks are account-scoped on this iPhone, survive logout, and do not control other clients or the backend. Report a Problem opens the public GitHub Issues page (https://github.com/Emphasize5599/family-locator-ios/issues), which loads without signing in; filing an issue requires a GitHub account. Nothing is attached automatically. The publisher must monitor GitHub Issues, respond promptly, and arrange escalation with Zood for service-level abuse; client controls alone do not establish complete guideline 1.2 compliance. |
 | Rights and operator responsibilities | The project is AGPL-3.0 and interoperates with a third-party service. Source/license links and an independence disclaimer are included. ZOOD is a registered US trademark of Tangled Wires, LLC (Reg. No. 5,886,683, Class 9, location-sharing software), and guideline 4.1(c) forbids another developer's icon without approval, so the Zood icon was replaced with an original Family Circle icon (light, dark and tinted). "Zood" appears only in descriptive compatibility text, never in the app name, subtitle, keywords or icon. Guideline 5.2.2 still applies to using api.zood.xyz: retain evidence of permission from the service operator if Apple requests it. |
 | Submission metadata | Public support is GitHub Issues (https://github.com/Emphasize5599/family-locator-ios/issues), which is also the App Store Connect Support URL; no public support email is published. Enter the publisher's real private review-contact name, phone and email, support details, age-rating answers, screenshots, description, privacy-policy URL and App Privacy answers. No live App Store Connect record was available to inspect. Do not select Kids Category without the additional requirements for that category. |
 | Encryption | The previous unverified `ITSAppUsesNonExemptEncryption = NO` assertion was removed. Answer Apple's encryption questions based on the actual libsodium/crypto_box/secretbox/Argon2 implementation and obtain any required determination. |
@@ -17,7 +17,7 @@ The app now has an in-app deletion flow, published privacy/support/license links
 
 ## Changes made
 
-- Settings > Delete Account uses the real authenticated `DELETE /1/users/me` endpoint. Username entry and a final destructive confirmation explain permanent deletion. A failed request remains an error; local logout is not presented as deletion.
+- Settings > Account > Delete Account uses the real authenticated `DELETE /1/users/me` endpoint. Username entry and a final destructive confirmation explain permanent deletion. A failed request remains an error; local logout is not presented as deletion.
 - Logout/deletion cancel pending backup work, resolve location waiters, stop monitoring and streaming, clear cached fixes, cancel restart tasks and invalidate the background location session. Signed-out views cannot restart location activity just by becoming active.
 - Permission changes reapply the streaming configuration, including when access is revoked.
 - Onboarding and Settings link to the Family Locator privacy policy and support. Settings also links to open-source notices.
@@ -49,7 +49,7 @@ Background location is used for location sharing and receiving a fresh fix when 
 
 Timed Sharing is reached using the map-pin button above the friends bar. Its link contains the decryption key; anyone with the link can view shared locations. The timer stops new updates; previously delivered locations may remain visible. Stop the share using its toggle. Do not put a live timed-sharing link in public review materials.
 
-Privacy Policy, Contact & Support (GitHub Issues), Report a Problem, Open-Source Licenses, Background App Refresh status and Delete Account are accessible in Settings. Delete Account permanently deletes the shared Zood account and encrypted backup; it is not a deactivate-only flow. The username and final confirmation are intentional safeguards.
+Contact & Support and Report a Problem (both GitHub Issues), Privacy Policy, Open-Source Licenses and Background App Refresh status are in Settings; Blocked Users, Log Out and Delete Account are in Settings → Account (tap the profile tile). Delete Account permanently deletes the shared Zood account and encrypted backup; it is not a deactivate-only flow. The username and final confirmation are intentional safeguards.
 
 ## Public URLs
 
@@ -96,8 +96,20 @@ The article is a useful checklist, not Apple policy or evidence that AI-written 
 
 ## Screenshot tour and compact sheets
 
-Safety Number, Add Friend, Pending Requests and Timed Sharing measure content and adjust their sheet height on iOS 16+, remaining scrollable for large text/short screens. iOS 15 retains its full-height sheet fallback. Settings remains a full scrollable form. Reporting lives in Settings > Privacy & Support and opens a pre-filled public GitHub issue; Contact & Support opens GitHub Issues.
+Safety Number, Add Friend, Pending Requests and Timed Sharing measure content and adjust their sheet height on iOS 16+, remaining scrollable for large text/short screens. iOS 15 retains its full-height sheet fallback. Settings remains a full scrollable form. Report a Problem and Contact & Support (Settings > Privacy & Support) both open GitHub Issues.
 
 The Debug-only screenshot tour uses fictional in-memory fixtures and rejects Zood API calls. It captures light/dark/large-text variants into an HTML gallery/viewer and ZIP. See [UI_TOUR.md](UI_TOUR.md). Tour fixtures are not a substitute for the real private reviewer account, runtime behavior checks, or accurate App Store screenshots.
 
 Final simulator checks confirmed the displayed Remove & Block / Remove Friend order and Settings-only reporting. The fitted-sheet check caught and fixed an initial zero-height measurement; subsequent Safety Number screenshots show all digits and the Share action. Xcode BuildProject and the final unsigned Release build pass after these changes. Tour output is a 39-screen matrix (13 scenes × light, dark, largest accessibility text), with per-scene readiness and retained light/dark captures when updating variants. The hosted GitHub workflow is supplied but not yet run here.
+
+## Nicknames and account navigation (1.1.9)
+
+The optional shared nickname is encrypted profile metadata. A private friend nickname never goes to that friend; it is part of the account's encrypted backup. App Privacy answers should account for optional names as well as usernames, photos and location. The username remains visible in Settings and in each friend's View Username menu; nicknames never substitute for identity or safety checks.
+
+The Account submenu contains the shared-name editor, Blocked Users, Log Out and Delete Account. Change Photo is a separate blue-text action in the profile tile. Report a Problem opens the publicly readable issues list; posting still requires GitHub authentication.
+
+### Verification limits for this change
+
+Production-model integration checks pass for nickname precedence, clearing, legacy message/backup decoding, optional encrypted-backup fields and copied @handle lookup. The existing Keychain pending/block/unblock/account-isolation checks also pass.
+
+Earlier iPhone 11 captures verified nickname saving, View Username/copy, wider name/address layout, empty-request text, and stable map scale at expanded sheet endpoints. Final keyboard padding, X-discard, accessibility scrolling and Account changes compile but remain unverified through the UI: iPhone 11, SE and Pro Max simulator connections failed, including after a CoreSimulatorService restart and a single cold boot. Only iOS 27.2 simulator runtimes are installed; the reported iOS 17.1.2 device behavior still needs a physical-device check. All sessions were closed and simulators shut down. Diagnostic captures are not presented as final screenshots.

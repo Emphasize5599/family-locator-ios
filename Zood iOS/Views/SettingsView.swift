@@ -6,19 +6,25 @@ struct SettingsView: View {
     @Environment(\.openURL) private var openURL
 
     @State private var showingPhotoPicker = false
-    @State private var confirmingLogOut = false
 
     var body: some View {
         CompatNavigationStack {
             ScrollViewReader { proxy in
             Form {
                 Section {
-                    HStack(spacing: 14) {
-                        AvatarView(username: model.credentials?.username ?? "?", imageData: model.local.myAvatar, size: 56)
-                        VStack(alignment: .leading) {
-                            Text(model.credentials?.username ?? "").font(.headline)
-                            Button("Change Photo") { showingPhotoPicker = true }
-                                .font(.subheadline)
+                    // The tile opens the Account page; Change Photo is its own blue-text button inside it.
+                    NavigationLink {
+                        AccountView(onLogOut: { dismiss() }).environmentObject(model)
+                    } label: {
+                        HStack(spacing: 14) {
+                            AvatarView(username: model.credentials?.username ?? "?", imageData: model.local.myAvatar, size: 56)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("@\(model.credentials?.username ?? "")").font(.headline)
+                                Button("Change Photo") { showingPhotoPicker = true }
+                                    .font(.subheadline)
+                                    .buttonStyle(.borderless)
+                                    .frame(minHeight: 44)
+                            }
                         }
                     }
                 }
@@ -64,35 +70,24 @@ struct SettingsView: View {
                 }
 
                 Section("Privacy & Support") {
-                    NavigationLink("Blocked Users") { BlockedUsersView().environmentObject(model) }
                     Link(destination: AppInformation.issuesURL) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Contact & Support")
                             Text("GitHub Issues (public)").font(.caption).foregroundStyle(.secondary)
                         }
                     }
+                    Link("Report a Problem", destination: AppInformation.issuesURL)
                     Link("Privacy Policy", destination: AppInformation.privacyPolicyURL)
-                    Link("Report a Problem", destination: AppInformation.reportURL())
-                    Link("Open-Source Licenses", destination: AppInformation.licensesURL)
                 }
 
                 .id("support")
 
                 Section("About") {
-                    Link(destination: URL(string: "https://github.com/Emphasize5599/family-locator-ios")!) {
-                        Label("Source Code (AGPL-3.0)", systemImage: "chevron.left.forwardslash.chevron.right")
-                    }
+                    Link("Open-Source Licenses", destination: AppInformation.licensesURL)
+                    Link("Source Code (AGPL-3.0)", destination: URL(string: "https://github.com/Emphasize5599/family-locator-ios")!)
                     Text("Built on the open-source Zood Location protocol and servers. Not affiliated with Tangled Wires, LLC.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
-                }
-
-                Section {
-                    Button("Log Out", role: .destructive) { confirmingLogOut = true }
-                    NavigationLink("Delete Account") {
-                        DeleteAccountView().environmentObject(model)
-                    }
-                    .foregroundStyle(Color.zoodRed)
                 }
             }
             .task {
@@ -111,14 +106,6 @@ struct SettingsView: View {
                     Button("Done") { dismiss() }
                 }
             }
-            .confirmationDialog("Log out?", isPresented: $confirmingLogOut, titleVisibility: .visible) {
-                Button("Log Out", role: .destructive) {
-                    model.logOut()
-                    dismiss()
-                }
-            } message: {
-                Text("Your friends are backed up to your account and will come back when you sign in again.")
-            }
             .sheet(isPresented: $showingPhotoPicker) {
                 ImagePicker { data in
                     showingPhotoPicker = false
@@ -127,6 +114,7 @@ struct SettingsView: View {
                 }
             }
         }
+        .compatFullHeightSheet()
     }
 
     private var permissionDescription: String {
@@ -151,5 +139,54 @@ struct SettingsView: View {
                                   height: image.size.height * target.height / side))
         }
         return resized.jpegData(compressionQuality: 0.8)
+    }
+}
+
+/// Account submenu: blocked users, log out and account deletion, entered from the profile tile in Settings.
+struct AccountView: View {
+    @EnvironmentObject private var model: AppModel
+    /// Closes Settings after logging out.
+    let onLogOut: () -> Void
+    @State private var confirmingLogOut = false
+    @State private var nickname = ""
+    @State private var savingNickname = false
+
+    var body: some View {
+        Form {
+            Section {
+                TextField("Nickname (optional)", text: $nickname).textContentType(.nickname)
+                Button(savingNickname ? "Saving…" : "Save Nickname") {
+                    savingNickname = true
+                    Task {
+                        await model.setMyNickname(nickname)
+                        savingNickname = false
+                    }
+                }
+                .disabled(savingNickname || Nickname.normalized(nickname) == model.local.myNickname)
+            } footer: {
+                Text("Updates for friends using your shared name. Names they've set for you stay unchanged.")
+            }
+            Section {
+                NavigationLink("Blocked Users") { BlockedUsersView().environmentObject(model) }
+            }
+            Section {
+                Button("Log Out", role: .destructive) { confirmingLogOut = true }
+                NavigationLink("Delete Account") {
+                    DeleteAccountView().environmentObject(model)
+                }
+                .foregroundStyle(Color.zoodRed)
+            }
+        }
+        .onAppear { nickname = model.local.myNickname ?? "" }
+        .navigationTitle(model.credentials?.username ?? String(localized: "Account"))
+        .navigationBarTitleDisplayMode(.inline)
+        .confirmationDialog("Log out?", isPresented: $confirmingLogOut, titleVisibility: .visible) {
+            Button("Log Out", role: .destructive) {
+                model.logOut()
+                onLogOut()
+            }
+        } message: {
+            Text("Your friends are backed up to your account and will come back when you sign in again.")
+        }
     }
 }

@@ -11,17 +11,24 @@ struct RequestsView: View {
 
     var body: some View {
         ContentFittedSheet(title: "Pending Requests") {
-            VStack(spacing: 16) {
+            VStack(alignment: .leading, spacing: 16) {
                 Text("Approve people before their location and profile photo appear. Approving does not share your location back.")
                     .font(.subheadline).foregroundStyle(.secondary)
                 if requests.isEmpty {
                     Label("No pending requests", systemImage: "bell")
                         .padding()
+                        .frame(maxWidth: .infinity)
                 }
                 ForEach(requests) { request in
                     VStack(alignment: .leading, spacing: 16) {
-                        Label(request.user.username, systemImage: "person.crop.circle")
+                        Label(request.nickname ?? "@\(request.user.username)", systemImage: "person.crop.circle")
                             .font(.headline)
+                        if request.nickname != nil {
+                            // Consent is tied to an account, so show its username even when a shared name exists.
+                            Text("@\(request.user.username)")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
                         Text("Wants to share their location with you.")
                         Button { perform { try await model.approveRequest(request) } } label: { Text("Approve").frame(maxWidth: .infinity, minHeight: 44) }
                             .buttonStyle(.borderedProminent)
@@ -35,8 +42,10 @@ struct RequestsView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20))
                 }
-                Text("Deny dismisses this request. Block also prevents future requests from this person on this iPhone.")
-                    .font(.footnote).foregroundStyle(.secondary)
+                if !requests.isEmpty {
+                    Text("Deny dismisses this request. Block also prevents future requests from this person on this iPhone.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
                 if let error { Text(error).foregroundStyle(Color.zoodRed) }
             }
             .disabled(busy)

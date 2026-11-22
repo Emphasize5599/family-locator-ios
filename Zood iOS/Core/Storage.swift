@@ -93,6 +93,13 @@ nonisolated struct Friend: Codable, Hashable, Sendable, Identifiable {
     var location: FriendLocation?
     var device: FriendDevice?
     var avatar: Data?
+    /// A private name chosen on this account; always wins over the name the friend shares.
+    var nickname: String?
+    /// Their latest name received inside encrypted messages, never used as an account identifier.
+    var sharedNickname: String?
+
+    var displayName: String { nickname ?? sharedNickname ?? "@\(user.username)" }
+    var avatarName: String { nickname ?? sharedNickname ?? user.username }
 
     var id: Data { user.userID }
     var weShare: Bool { sendingBoxID != nil }
@@ -102,6 +109,7 @@ nonisolated struct Friend: Codable, Hashable, Sendable, Identifiable {
 nonisolated struct LocalData: Codable, Sendable {
     var users: [Data: ZoodUser] = [:]
     var friends: [Data: Friend] = [:]
+    var myNickname: String?
     var myAvatar: Data?
     var lastLocationUpload: Date?
 }
@@ -121,6 +129,9 @@ nonisolated enum LocalDataStore {
     }
 
     static func save(_ local: LocalData) {
+        #if DEBUG
+        guard ProcessInfo.processInfo.environment["ZOOD_SCREENSHOT_TOUR"] == nil else { return }
+        #endif
         guard let data = try? JSONEncoder().encode(local) else { return }
         try? data.write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
     }
@@ -135,6 +146,7 @@ nonisolated enum LocalDataStore {
 nonisolated struct PendingRequest: Codable, Identifiable, Sendable {
     var user: ZoodUser
     var boxID: Data
+    var nickname: String?
     var id: Data { user.userID }
 }
 
@@ -176,5 +188,23 @@ nonisolated enum SafetyStore {
     static func delete(for userID: Data) {
         SecItemDelete([kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service, kSecAttrAccount as String: userID.base64EncodedString()] as CFDictionary)
+    }
+}
+
+/// Names are presentation only; account lookup and safety numbers always use the immutable username.
+nonisolated enum Nickname {
+    static func normalized(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let clean = String(value.unicodeScalars.filter { $0.properties.generalCategory != .control })
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return clean.isEmpty ? nil : String(clean.prefix(64))
+    }
+}
+
+/// Displayed @handles must paste back into account lookup without changing the server's account identity.
+nonisolated enum Username {
+    static func forLookup(_ value: String) -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (trimmed.hasPrefix("@") ? String(trimmed.dropFirst()) : trimmed).lowercased()
     }
 }

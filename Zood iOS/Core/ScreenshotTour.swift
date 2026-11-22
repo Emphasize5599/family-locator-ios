@@ -43,7 +43,7 @@ struct ScreenshotTourView: View {
     var body: some View {
         ScreenshotTourSceneView(request: request)
             .dynamicTypeSize(request.largeText ? .accessibility5 : .large)
-            .allowsHitTesting(false)
+            .allowsHitTesting(ProcessInfo.processInfo.environment["ZOOD_TOUR_INTERACTIVE"] == "1")
             .task {
                 let file = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("tour-request.json")
                 while !Task.isCancelled {
@@ -80,7 +80,7 @@ private struct ScreenshotTourSceneView: View {
             showingSheet = false
             sheetAppeared = false
             do { try await Task.sleep(nanoseconds: 450_000_000) } catch { return }
-            let needsSheet = !["map", "friend", "onboarding"].contains(scene)
+            let needsSheet = !["map", "friend", "friend-long-name", "onboarding"].contains(scene)
             showingSheet = needsSheet
             if needsSheet {
                 for _ in 0..<50 {
@@ -98,6 +98,8 @@ private struct ScreenshotTourSceneView: View {
     @ViewBuilder private var sheetContent: some View {
             switch scene {
             case "add-friend": AddFriendView()
+            case "friend-nickname": FriendNicknameView(friend: ScreenshotTour.friend)
+            case "account": CompatNavigationStack { AccountView(onLogOut: {}) }
             case "requests", "requests-empty": RequestsView()
             case "safety-number": SafetyNumberView(friend: ScreenshotTour.friend)
             case "timed-share": TimedShareView()

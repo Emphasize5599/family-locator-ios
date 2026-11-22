@@ -147,7 +147,7 @@ struct FriendMapView: UIViewRepresentable {
 final class FriendAnnotation: NSObject, MKAnnotation {
     var friend: Friend
     @objc dynamic var coordinate: CLLocationCoordinate2D
-    var title: String? { friend.user.username }
+    var title: String? { friend.displayName }
 
     init(friend: Friend, coordinate: CLLocationCoordinate2D) {
         self.friend = friend
@@ -174,8 +174,8 @@ final class FriendAnnotationView: MKAnnotationView {
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
     func configure(with friend: Friend) {
-        image = Self.render(username: friend.user.username, avatar: friend.avatar, size: size)
-        accessibilityLabel = friend.user.username
+        image = Self.render(username: friend.avatarName, avatar: friend.avatar, size: size)
+        accessibilityLabel = friend.displayName
     }
 
     static func render(username: String, avatar: Data?, size: CGFloat) -> UIImage {

@@ -7,6 +7,7 @@ import SwiftUI
 struct FriendPanel: View {
     @EnvironmentObject private var model: AppModel
     let friendID: Data
+    var maxHeight: CGFloat = .infinity
     var onClose: () -> Void = {}
 
     @State private var address: String?
@@ -15,7 +16,9 @@ struct FriendPanel: View {
     @State private var confirmingBlock = false
     @State private var blockError: String?
     @State private var showingSafetyNumber = false
+    @State private var editingNickname = false
     @State private var dragOffset: CGFloat = 0
+    @State private var contentHeight: CGFloat = 320
 
     /// Which "why?" tile is expanded.
     private enum Explanation: Equatable {
@@ -25,30 +28,35 @@ struct FriendPanel: View {
 
     var body: some View {
         if let friend = model.local.friends[friendID] {
-            VStack(alignment: .leading, spacing: 16) {
-                header(friend)
-                actions(friend)
-                if let explanation {
-                    explanationTile(explanation, friend: friend)
-                        .transition(.move(edge: .top).combined(with: .opacity))
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    header(friend)
+                        .gesture(closeGesture)
+                    actions(friend)
+                    if let explanation {
+                        explanationTile(explanation, friend: friend)
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                    }
                 }
+                .padding(18)
+                .background(GeometryReader { geometry in
+                    Color.clear.preference(key: FriendPanelHeightKey.self, value: geometry.size.height)
+                })
             }
-            .padding(18)
+            .onPreferenceChange(FriendPanelHeightKey.self) { contentHeight = $0 }
+            // Keep the friend bar and warnings reachable on short screens and at accessibility sizes.
+            // A flexible height lets the surrounding stack give the card only the space that remains.
+            .frame(minHeight: 0, idealHeight: min(contentHeight, maxHeight), maxHeight: min(contentHeight, maxHeight))
             .floatingSurface(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
             .padding(.horizontal, 12)
             // Swipe down to close, like dismissing a sheet.
             .offset(y: max(0, dragOffset))
-            .gesture(
-                DragGesture(minimumDistance: 12)
-                    .onChanged { dragOffset = $0.translation.height }
-                    .onEnded { value in
-                        if value.translation.height > 60 { onClose() }
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { dragOffset = 0 }
-                    }
-            )
             .task(id: friend.location) { await lookUpAddress(friend.location) }
             // Re-check a cached "can't answer requests" before showing Unsupported (it may be out of date).
             .task(id: friendID) { await model.refreshDeviceStatusIfNeeded(friend) }
+            .sheet(isPresented: $editingNickname) {
+                FriendNicknameView(friend: friend).environmentObject(model)
+            }
             .sheet(isPresented: $showingSafetyNumber) {
                 SafetyNumberView(friend: friend).environmentObject(model)
             }
@@ -76,56 +84,75 @@ struct FriendPanel: View {
         }
     }
 
+    private var closeGesture: some Gesture {
+        DragGesture(minimumDistance: 12)
+            .onChanged { dragOffset = $0.translation.height }
+            .onEnded { value in
+                if value.translation.height > 60 { onClose() }
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { dragOffset = 0 }
+            }
+    }
+
     // MARK: Header
 
     private func header(_ friend: Friend) -> some View {
-        HStack(alignment: .top, spacing: 14) {
-            AvatarView(username: friend.user.username, imageData: friend.avatar, size: 56)
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 8) {
-                    Text(friend.user.username)
-                        .font(.title2.bold())
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                    if let platform = friend.device?.platform {
-                        Image(systemName: platform == .ios ? "iphone" : "candybarphone")
-                            .foregroundStyle(.secondary)
-                            .accessibilityLabel(platform == .ios ? "iPhone" : "Android")
-                    }
-                }
-                if let loc = friend.location {
-                    HStack(spacing: 10) {
-                        if let level = loc.batteryLevel {
-                            Label("\(level)%", systemImage: batterySymbol(level: level, charging: loc.batteryCharging == true))
-                        }
-                        if let movement = loc.movement, movement != "unknown", movement != "stationary" {
-                            Label(movement.replacingOccurrences(of: "_", with: " ").capitalized, systemImage: "figure.walk")
-                        }
-                    }
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    if let address {
-                        Text(address).font(.subheadline)
-                    }
-                    Text("Updated \(loc.time.relativeDescription)")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                } else if friend.theyShare {
-                    Text("Waiting for their first location…").font(.subheadline).foregroundStyle(.secondary)
-                } else {
-                    Text("Not sharing their location with you").font(.subheadline).foregroundStyle(.secondary)
-                }
-            }
-            Spacer(minLength: 0)
-            HStack(spacing: 14) {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 14) {
+                AvatarView(username: friend.avatarName, imageData: friend.avatar, size: 56)
+                Spacer(minLength: 0)
                 FriendMenu(hasLocation: friend.location != nil,
+                           username: friend.user.username,
                            openInMaps: { openInMaps(friend) },
                            viewSafetyNumber: { showingSafetyNumber = true },
                            remove: { confirmingRemove = true },
                            block: { confirmingBlock = true })
-                    .fixedSize()
+                    .frame(width: 44, height: 44)
                 CloseButton(action: onClose)
-                    .fixedSize()
+                    .frame(width: 44, height: 44)
+            }
+            HStack(spacing: 8) {
+                Text(friend.displayName)
+                    .font(.title2.bold())
+                    .fixedSize(horizontal: false, vertical: true)
+                Button { editingNickname = true } label: {
+                    Image(systemName: "pencil").frame(minWidth: 44, minHeight: 44)
+                }
+                .accessibilityLabel("Edit friend's nickname")
+                if let platform = friend.device?.platform {
+                    PlatformBadge(platform: platform)
+                }
+                Spacer(minLength: 0)
+            }
+            // Addresses need the whole card width. Keeping them in the name column made the
+            // menu controls and short timestamp dictate wrapping instead of the tile's padding.
+            if let loc = friend.location {
+                HStack(spacing: 10) {
+                    if let level = loc.batteryLevel {
+                        Label("\(level)%", systemImage: batterySymbol(level: level, charging: loc.batteryCharging == true))
+                    }
+                    if let movement = loc.movement, movement != "unknown", movement != "stationary" {
+                        Label(movement.replacingOccurrences(of: "_", with: " ").capitalized, systemImage: "figure.walk")
+                    }
+                }
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                if let address {
+                    Text(address)
+                        .font(.subheadline)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Text("Updated \(loc.time.relativeDescription)")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            } else if friend.theyShare {
+                Text("Waiting for their first location…")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("Not sharing their location with you")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -310,6 +337,7 @@ struct FriendPanel: View {
 /// it, which we do only when its items change. The actions read the latest closures, so they never go stale.
 private struct FriendMenu: UIViewRepresentable {
     let hasLocation: Bool
+    let username: String
     let openInMaps: () -> Void
     let viewSafetyNumber: () -> Void
     let remove: () -> Void
@@ -322,6 +350,7 @@ private struct FriendMenu: UIViewRepresentable {
         button.setImage(UIImage(systemName: "ellipsis.circle", withConfiguration: panelIconConfig), for: .normal)
         button.tintColor = UIColor(Color.zoodBlueDark)
         button.showsMenuAsPrimaryAction = true
+        if #available(iOS 16, *) { button.preferredMenuElementOrder = .fixed }
         button.accessibilityLabel = String(localized: "More")
         button.setContentHuggingPriority(.required, for: .horizontal)
         button.setContentHuggingPriority(.required, for: .vertical)
@@ -342,17 +371,21 @@ private struct FriendMenu: UIViewRepresentable {
                 coordinator?.openInMaps?()
             })
         }
+        items.append(UIMenu(title: String(localized: "View Username"), children: [
+            UIAction(title: "@\(username)", image: UIImage(systemName: "doc.on.doc")) { _ in
+                UIPasteboard.general.string = "@\(username)"
+            }
+        ]))
         items.append(UIAction(title: String(localized: "View Safety Number"), image: UIImage(systemName: "lock.shield")) { [weak coordinator] _ in
             coordinator?.viewSafetyNumber?()
-        })
-        // UIKit presents this bottom-anchored menu in reverse order; keep Block visually above Remove.
-        items.append(UIAction(title: String(localized: "Remove Friend"), image: UIImage(systemName: "person.crop.circle.badge.minus"),
-                              attributes: .destructive) { [weak coordinator] _ in
-            coordinator?.remove?()
         })
         items.append(UIAction(title: String(localized: "Remove & Block"), image: UIImage(systemName: "hand.raised"), attributes: .destructive) { [weak coordinator] _ in
             coordinator?.block?()
         })
+        items.append(UIAction(title: String(localized: "Remove Friend"), image: UIImage(systemName: "person.crop.circle.badge.minus"), attributes: .destructive) { [weak coordinator] _ in
+            coordinator?.remove?()
+        })
+        if #unavailable(iOS 16) { items.reverse() }
         button.menu = UIMenu(children: items)
     }
 
@@ -365,39 +398,17 @@ private struct FriendMenu: UIViewRepresentable {
     }
 }
 
-/// Shared by the ⋯ and ✕ buttons so they're always exactly the same size.
-private let panelIconConfig = UIImage.SymbolConfiguration(textStyle: .title2)
-
-/// Closes the friend card. UIKit like `FriendMenu`, with the same symbol configuration, so the two match.
-private struct CloseButton: UIViewRepresentable {
-    let action: () -> Void
-
-    func makeCoordinator() -> Coordinator { Coordinator() }
-
-    func makeUIView(context: Context) -> UIButton {
-        let button = UIButton(type: .system)
-        button.setImage(UIImage(systemName: "xmark.circle", withConfiguration: panelIconConfig), for: .normal)
-        button.tintColor = .secondaryLabel
-        button.accessibilityLabel = String(localized: "Close")
-        button.addTarget(context.coordinator, action: #selector(Coordinator.tapped), for: .touchUpInside)
-        button.setContentHuggingPriority(.required, for: .horizontal)
-        button.setContentHuggingPriority(.required, for: .vertical)
-        return button
-    }
-
-    func updateUIView(_ button: UIButton, context: Context) {
-        context.coordinator.action = action
-    }
-
-    final class Coordinator: NSObject {
-        var action: (() -> Void)?
-        @objc func tapped() { action?() }
-    }
-}
-
 private extension Array where Element: Hashable {
     func removingDuplicates() -> [Element] {
         var seen = Set<Element>()
         return filter { seen.insert($0).inserted }
+    }
+}
+
+private struct FriendPanelHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 320
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }

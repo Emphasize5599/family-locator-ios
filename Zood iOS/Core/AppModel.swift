@@ -129,8 +129,13 @@ final class AppModel: ObservableObject {
     func configureTourScene(_ scene: String) {
         guard ScreenshotTour.isEnabled else { return }
         safety = SafetyState()
+        var fixture = ScreenshotTour.friend
+        if scene == "friend-long-name" {
+            fixture.nickname = "Alex Golden Gate Family"
+        }
+        local.friends[fixture.id] = fixture
         if scene != "requests-empty" {
-            safety.pending[ScreenshotTour.requester.id] = PendingRequest(user: ScreenshotTour.requester, boxID: Data(repeating: 7, count: 16))
+            safety.pending[ScreenshotTour.requester.id] = PendingRequest(user: ScreenshotTour.requester, boxID: Data(repeating: 7, count: 16), nickname: "Taylor")
         }
         if scene != "blocked-empty" { safety.blocked[ScreenshotTour.blocked.id] = ScreenshotTour.blocked }
     }
@@ -139,7 +144,7 @@ final class AppModel: ObservableObject {
     var api: OscarAPI { OscarAPI(accessToken: credentials?.accessToken) }
 
     var friends: [Friend] {
-        local.friends.values.sorted { $0.user.username < $1.user.username }
+        local.friends.values.sorted { $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending }
     }
 
     /// The live flag we advertise. Only true if the setting is on *and* iOS will actually let us stay alive.
@@ -177,7 +182,7 @@ final class AppModel: ObservableObject {
     }
 
     func logIn(username: String, password: String) async throws {
-        let username = username.trimmingCharacters(in: .whitespaces).lowercased()
+        let username = Username.forLookup(username)
         let anon = OscarAPI()
         let challenge = try await anon.authChallenge(username: username)
         guard let algorithm = PasswordHashConfig.Algorithm(rawValue: challenge.user.passwordHashAlgorithm) else {
@@ -376,7 +381,16 @@ final class AppModel: ObservableObject {
 
     private func handle(_ comm: UserComm, from user: ZoodUser) async {
         guard safety.blocked[user.userID] == nil else { return }
+        // A friend's profile may change while the map is open. Refresh only the shared name:
+        // a name chosen by this account remains private and must never be overwritten remotely.
+        if let nickname = comm.nickname, let friend = local.friends[user.userID],
+           friend.sharedNickname != Nickname.normalized(nickname) {
+            updateFriend(user.userID) { $0.sharedNickname = Nickname.normalized(nickname) }
+            scheduleBackup()
+        }
         switch comm.type {
+        case .nicknameUpdate:
+            break
         case .locationInfo:
             guard local.friends[user.userID]?.theyShare == true else { return }
             if let friend = local.friends[user.userID], let status = requestStatuses[user.userID] {
@@ -407,7 +421,7 @@ final class AppModel: ObservableObject {
             // Existing approved senders can rotate their box. Everyone else needs consent.
             guard local.friends[user.userID]?.theyShare == true else {
                 var next = safety
-                next.pending[user.userID] = PendingRequest(user: user, boxID: box)
+                next.pending[user.userID] = PendingRequest(user: user, boxID: box, nickname: Nickname.normalized(comm.nickname))
                 do { try saveSafety(next) } catch { safetyError = error.localizedDescription }
                 return
             }
@@ -445,7 +459,11 @@ final class AppModel: ObservableObject {
             updateFriend(user.userID) { Self.recordDevice(from: comm, into: &$0) }
             probingDevices.remove(user.userID)
         case .avatarRequest:
-            guard let avatar = local.myAvatar, local.friends[user.userID]?.weShare == true else { return }
+            guard let friend = local.friends[user.userID] else { return }
+            var profile = UserComm(type: .nicknameUpdate)
+            profile.nickname = local.myNickname ?? ""
+            try? await send(profile, to: user, urgent: false, transient: false)
+            guard friend.weShare, let avatar = local.myAvatar else { return }
             var update = UserComm(type: .avatarUpdate)
             update.avatar = avatar
             try? await send(update, to: user, urgent: false, transient: false)
@@ -507,6 +525,9 @@ final class AppModel: ObservableObject {
 
     private func send(_ comm: UserComm, to user: ZoodUser, urgent: Bool, transient: Bool) async throws {
         guard let credentials else { return }
+        var comm = comm
+        // Empty is an explicit reset. Omitting the field means an older client and preserves the cached name.
+        comm.nickname = local.myNickname ?? ""
         let encrypted = try Crypto.box(try comm.jsonData(), receiverPublicKey: user.publicKey,
                                        senderSecretKey: credentials.keyPair.secretKey)
         try await api.sendMessage(to: user.userID, OutboundMessage(cipherText: encrypted.cipherText, nonce: encrypted.nonce,
@@ -526,6 +547,8 @@ final class AppModel: ObservableObject {
         comm.batteryCharging = Battery.isCharging
         comm.platform = .ios
         comm.liveRequests = advertisesLiveRequests
+        // Empty is an explicit reset. Omitting the field means an older client and preserves the cached name.
+        comm.nickname = local.myNickname ?? ""
         guard let json = try? comm.jsonData() else { return }
 
         var packages: [Data: EncryptedData] = [:]
@@ -624,7 +647,7 @@ final class AppModel: ObservableObject {
     // MARK: - Friends
 
     func addFriend(username: String) async throws {
-        let username = username.trimmingCharacters(in: .whitespaces).lowercased()
+        let username = Username.forLookup(username)
         guard username != credentials?.username else { throw FriendError.cantAddSelf }
         let result = try await api.searchUser(username: username)
         let user = ZoodUser(userID: result.id, username: result.username, publicKey: result.publicKey)
@@ -677,6 +700,10 @@ final class AppModel: ObservableObject {
     }
 
     private func saveSafety(_ state: SafetyState) throws {
+        if ScreenshotTour.isEnabled {
+            safety = state
+            return
+        }
         guard let id = credentials?.userID else { return }
         try SafetyStore.save(state, for: id)
         safety = state
@@ -693,7 +720,10 @@ final class AppModel: ObservableObject {
               safety.pending[request.id]?.boxID == request.boxID else { return }
         try denyRequest(request)
         local.users[request.id] = request.user
-        upsertFriend(request.user) { $0.receivingBoxID = request.boxID }
+        upsertFriend(request.user) {
+            $0.receivingBoxID = request.boxID
+            $0.sharedNickname = request.nickname
+        }
         socket?.watch(request.boxID)
         scheduleBackup()
         if let pkg = try? await api.pickUpPackage(boxID: request.boxID) {
@@ -780,6 +810,24 @@ final class AppModel: ObservableObject {
         return .supported
     }
 
+    func setFriendNickname(_ value: String, for id: Data) {
+        updateFriend(id) { $0.nickname = Nickname.normalized(value) }
+        scheduleBackup()
+    }
+
+    func setMyNickname(_ value: String) async {
+        local.myNickname = Nickname.normalized(value)
+        LocalDataStore.save(local)
+        scheduleBackup()
+        var update = UserComm(type: .nicknameUpdate)
+        update.nickname = local.myNickname ?? ""
+        // Names belong to the friendship, even when location sharing is one-way.
+        for friend in friends {
+            try? await send(update, to: friend.user, urgent: false, transient: false)
+        }
+        await shareCurrentLocation()
+    }
+
     func setMyAvatar(_ jpeg: Data) async {
         local.myAvatar = jpeg
         LocalDataStore.save(local)
@@ -823,6 +871,7 @@ final class AppModel: ObservableObject {
     // MARK: - Backup
 
     private func scheduleBackup() {
+        guard !ScreenshotTour.isEnabled else { return }
         backupTask?.cancel()
         backupTask = Task {
             try? await Task.sleep(nanoseconds: 3_000_000_000)
@@ -836,8 +885,9 @@ final class AppModel: ObservableObject {
         var snapshot = Snapshot()
         snapshot.users = local.users.values.map { .init(userId: $0.userID, publicKey: $0.publicKey, username: $0.username) }
         snapshot.friends = local.friends.values.map {
-            .init(userId: $0.user.userID, sendingBoxId: $0.sendingBoxID, receivingBoxId: $0.receivingBoxID)
+            .init(userId: $0.user.userID, sendingBoxId: $0.sendingBoxID, receivingBoxId: $0.receivingBoxID, nickname: $0.nickname, sharedNickname: $0.sharedNickname)
         }
+        snapshot.nickname = local.myNickname
         snapshot.avatar = local.myAvatar
         snapshot.timestamp = Int64(Date().timeIntervalSince1970 * 1000)
         guard let json = try? ZoodJSON.encoder.encode(snapshot),
@@ -852,8 +902,9 @@ final class AppModel: ObservableObject {
         }
         for f in snapshot.friends {
             guard let user = data.users[f.userId] else { continue }
-            data.friends[f.userId] = Friend(user: user, sendingBoxID: f.sendingBoxId, receivingBoxID: f.receivingBoxId)
+            data.friends[f.userId] = Friend(user: user, sendingBoxID: f.sendingBoxId, receivingBoxID: f.receivingBoxId, nickname: Nickname.normalized(f.nickname), sharedNickname: Nickname.normalized(f.sharedNickname))
         }
+        data.myNickname = Nickname.normalized(snapshot.nickname)
         data.myAvatar = snapshot.avatar
         return data
     }
