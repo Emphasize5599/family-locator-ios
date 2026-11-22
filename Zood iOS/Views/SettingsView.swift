@@ -62,6 +62,12 @@ struct SettingsView: View {
                     }
                 }
 
+                Section("Privacy & Support") {
+                    Link("Privacy Policy", destination: AppInformation.privacyPolicyURL)
+                    Link("Support", destination: AppInformation.supportURL)
+                    Link("Open-Source Licenses", destination: AppInformation.licensesURL)
+                }
+
                 Section("About") {
                     Link(destination: URL(string: "https://github.com/Emphasize5599/family-locator-ios")!) {
                         Label("Source Code (AGPL-3.0)", systemImage: "chevron.left.forwardslash.chevron.right")
@@ -73,6 +79,10 @@ struct SettingsView: View {
 
                 Section {
                     Button("Log Out", role: .destructive) { confirmingLogOut = true }
+                    NavigationLink("Delete Account") {
+                        DeleteAccountView().environmentObject(model)
+                    }
+                    .foregroundStyle(Color.zoodRed)
                 }
             }
             .navigationTitle("Settings")

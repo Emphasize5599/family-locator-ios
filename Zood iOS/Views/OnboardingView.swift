@@ -110,6 +110,12 @@ struct OnboardingView: View {
                     }
                     .disabled(!canSubmit)
                 }
+                Section {
+                    Text("Your location is shared only after you choose a friend or start a timed share. You can view friends without enabling your own location.")
+                        .font(.footnote)
+                    Link("Privacy Policy", destination: AppInformation.privacyPolicyURL)
+                    Link("Support", destination: AppInformation.supportURL)
+                }
             }
             .disabled(isWorking)
             .compatOnChange(of: mode) { _ in errorMessage = nil }

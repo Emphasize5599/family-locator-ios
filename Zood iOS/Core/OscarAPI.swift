@@ -39,8 +39,17 @@ nonisolated struct OscarAPI: Sendable {
     static let host = "api.zood.xyz"
     static let baseURL = URL(string: "https://\(host)/1/")!
 
+    private static let privateSession: URLSession = {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.urlCache = nil
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+        configuration.httpShouldSetCookies = false
+        return URLSession(configuration: configuration)
+    }()
+
     var accessToken: String?
-    var session: URLSession = .shared
+    // Authentication responses and encrypted account packages must not enter a persistent URL cache.
+    var session: URLSession = Self.privateSession
 
     // MARK: Auth
 
@@ -72,6 +81,11 @@ nonisolated struct OscarAPI: Sendable {
 
     func saveBackup(_ data: EncryptedData) async throws {
         try await sendIgnoringBody("PUT", "users/me/backup", body: data)
+    }
+
+    /// Permanently deletes the authenticated account and its encrypted backup.
+    func deleteAccount() async throws {
+        try await sendIgnoringBody("DELETE", "users/me")
     }
 
     // MARK: Users

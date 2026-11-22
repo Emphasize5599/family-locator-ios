@@ -19,6 +19,8 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     private(set) var lastLocation: CLLocation?
     /// What the user asked for. Live mode only actually runs once iOS grants "Always".
     private var liveRequested = false
+    /// Signed-out users must not be monitored, even when location permission was granted previously.
+    private var isEnabled = false
     /// While the app is on screen we stream updates regardless of the live setting.
     private var isForeground = true
     var isLive: Bool { liveRequested && hasAlwaysPermission }
@@ -99,6 +101,7 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     }
 
     func startBaseline() {
+        isEnabled = true
         guard hasAnyPermission else { return }
         if CLLocationManager.significantLocationChangeMonitoringAvailable() {
             manager.startMonitoringSignificantLocationChanges()
@@ -125,7 +128,21 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     }
 
     func stopAll() {
+        isEnabled = false
         liveRequested = false
+        isTimedSharing = false
+        restartTask?.cancel()
+        restartTask = nil
+        freshFixTimeout?.cancel()
+        freshFixTimeout = nil
+        let waiters = freshFixWaiters
+        freshFixWaiters = []
+        freshFixBest = nil
+        waiters.forEach { $0.resume(returning: nil) }
+        lastLocation = nil
+        lastShared = nil
+        isStreaming = false
+        updateBackgroundSession()
         manager.stopUpdatingLocation()
         manager.stopMonitoringSignificantLocationChanges()
         manager.stopMonitoringVisits()
@@ -134,7 +151,7 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
 
     /// Gets a reasonably precise fix (≤ 50 m, or the best we saw within 20 s). Used to answer a friend's request.
     func freshFix() async -> CLLocation? {
-        guard hasAnyPermission else { return nil }
+        guard isEnabled, hasAnyPermission else { return nil }
         return await withCheckedContinuation { continuation in
             freshFixWaiters.append(continuation)
             guard freshFixWaiters.count == 1 else { return }
@@ -142,6 +159,7 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
             applyStreamingConfiguration()
             freshFixTimeout = Task { [weak self] in
                 try? await Task.sleep(nanoseconds: 20_000_000_000)
+                guard !Task.isCancelled else { return }
                 self?.finishFreshFix(with: self?.freshFixBest ?? self?.lastLocation)
             }
         }
@@ -160,7 +178,7 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         }
         // Re-evaluated on every call, so granting "Always" later switches live mode on without a restart.
         let backgroundStream = isLive || wantsFreshFix || isTimedSharing
-        let stream = hasAnyPermission && (backgroundStream || isForeground)
+        let stream = isEnabled && hasAnyPermission && (backgroundStream || isForeground)
         // A timed share keeps going in the background even with While Using permission; that requires (and
         // shows) the system's background location indicator.
         manager.allowsBackgroundLocationUpdates = (hasAlwaysPermission && backgroundStream) || (isTimedSharing && hasAnyPermission)
@@ -196,7 +214,7 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         guard restartTask == nil else { return }
         restartTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: delay)
-            guard let self else { return }
+            guard !Task.isCancelled, let self, self.isEnabled else { return }
             self.restartTask = nil
             self.manager.stopUpdatingLocation()
             self.applyStreamingConfiguration()
@@ -214,6 +232,7 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     }
 
     private func share(_ location: CLLocation, force: Bool = false) {
+        guard isEnabled else { return }
         if !force, isTimedSharing, let lastShared {
             // Timed share: time-based, so the person following the link sees steady updates.
             guard location.timestamp.timeIntervalSince(lastShared.timestamp) >= timedShareInterval else { return }
@@ -248,6 +267,7 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
 
     /// Region exits and visits give us ~10 s of background time; ask for more so the fix and upload can finish.
     private func handleBackgroundTrigger(_ reason: String) {
+        guard isEnabled else { return }
         log.notice("wake: \(reason, privacy: .public)")
         let task = BackgroundTask()
         task.id = UIApplication.shared.beginBackgroundTask(withName: "share-location") { task.end() }
@@ -263,16 +283,18 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         authorization = manager.authorizationStatus
         accuracyAuthorization = manager.accuracyAuthorization
+        guard isEnabled else { return }
         if authorization == .authorizedWhenInUse {
             manager.requestAlwaysAuthorization()
         }
         if hasAnyPermission {
             startBaseline()
-            applyStreamingConfiguration()
         }
+        applyStreamingConfiguration()
     }
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        guard isEnabled else { return }
         // Any delivery is a chance to re-arm live mode. A long gap means the stream had died and this is a
         // significant-change wake after a suspension, so restart the stream to stay alive from here on.
         let now = Date()

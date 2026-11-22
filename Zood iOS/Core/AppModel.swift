@@ -219,7 +219,14 @@ final class AppModel: ObservableObject {
         }
     }
 
+    func deleteAccount() async throws {
+        try await api.deleteAccount()
+        logOut()
+    }
+
     func logOut() {
+        backupTask?.cancel()
+        backupTask = nil
         stopTimedShare()
         socket?.stop()
         socket = nil

@@ -158,7 +158,7 @@ struct TimedShareView: View {
                 .font(.footnote)
                 .foregroundStyle(Color.zoodOrange)
         } else {
-            Text("Anyone with the link can see where you are until the timer runs out. Your location is end-to-end encrypted; the key is in the link itself.")
+            Text("Anyone with the link can view your shared location. The timer stops new updates; the last location may remain visible. Your location is end-to-end encrypted, with the key in the link.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
