@@ -22,7 +22,7 @@ enum SafetyNumber {
 
 struct SafetyNumberView: View {
     @EnvironmentObject private var model: AppModel
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let friend: Friend
 
     @State private var showingShare = false
@@ -34,8 +34,7 @@ struct SafetyNumberView: View {
     }
 
     var body: some View {
-        CompatNavigationStack {
-            ScrollView {
+        ContentFittedSheet(title: "Safety Number") {
                 VStack(spacing: 20) {
                     Image(systemName: "lock.shield.fill")
                         .font(.system(size: 48))
@@ -45,8 +44,8 @@ struct SafetyNumberView: View {
                         .multilineTextAlignment(.center)
                         .foregroundStyle(.secondary)
                     if let safetyNumber {
-                        Text(safetyNumber)
-                            .font(.system(.title3, design: .monospaced))
+                        Text(dynamicTypeSize.isAccessibilitySize ? safetyNumber.replacingOccurrences(of: "  ", with: "\n") : safetyNumber)
+                            .font(.system(.body, design: .monospaced))
                             .multilineTextAlignment(.center)
                             .lineSpacing(6)
                             .textSelection(.enabled)
@@ -61,28 +60,16 @@ struct SafetyNumberView: View {
                         .multilineTextAlignment(.center)
                         .foregroundStyle(.secondary)
                 }
-                .padding(24)
-            }
-            .navigationTitle("Safety Number")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
+                Button {
+                    showingShare = true
+                } label: {
+                    Label("Share Safety Number", systemImage: "square.and.arrow.up").frame(minHeight: 44)
                 }
-                ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        showingShare = true
-                    } label: {
-                        Image(systemName: "square.and.arrow.up")
-                    }
-                    .accessibilityLabel("Share safety number")
-                    .disabled(safetyNumber == nil)
-                }
-            }
+                .disabled(safetyNumber == nil)
+        }
             .sheet(isPresented: $showingShare) {
                 // Same wording as Android's share_safety_number_msg.
                 ActivityView(items: ["Our Zood Location safety number:\n\(safetyNumber ?? "")"])
             }
-        }
     }
 }

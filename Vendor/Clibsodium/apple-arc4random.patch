@@ -1,0 +1,17 @@
+--- a/src/libsodium/randombytes/sysrandom/randombytes_sysrandom.c
++++ b/src/libsodium/randombytes/sysrandom/randombytes_sysrandom.c
+@@ -78 +78,13 @@
+-#if defined(__OpenBSD__) || defined(__CloudABI__) || defined(__wasi__)
++#if defined(__APPLE__) &&                                             \
++    ((defined(__ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__) &&       \
++      __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ >= 101200) ||     \
++     (defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__) &&      \
++      __ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__ >= 100000) ||    \
++     (defined(__ENVIRONMENT_TV_OS_VERSION_MIN_REQUIRED__) &&          \
++      __ENVIRONMENT_TV_OS_VERSION_MIN_REQUIRED__ >= 100000) ||        \
++     (defined(__ENVIRONMENT_WATCH_OS_VERSION_MIN_REQUIRED__) &&       \
++      __ENVIRONMENT_WATCH_OS_VERSION_MIN_REQUIRED__ >= 30000))
++# define HAVE_SAFE_APPLE_ARC4RANDOM 1
++#endif
++
++#if defined(__OpenBSD__) || defined(__CloudABI__) || defined(__wasi__) || defined(HAVE_SAFE_APPLE_ARC4RANDOM)

@@ -180,6 +180,9 @@ nonisolated struct OscarAPI: Sendable {
     }
 
     private func perform(_ request: URLRequest) async throws -> Data {
+        #if DEBUG
+        guard ProcessInfo.processInfo.environment["ZOOD_SCREENSHOT_TOUR"] == nil else { throw URLError(.notConnectedToInternet) }
+        #endif
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw OscarError.invalidResponse }
         guard (200..<300).contains(http.statusCode) else {

@@ -50,6 +50,8 @@ final class AppModel: ObservableObject {
     @Published private(set) var credentials: Credentials?
     @Published private(set) var local = LocalData()
     @Published private(set) var isConnected = false
+    @Published private(set) var safety = SafetyState()
+    @Published var safetyError: String?
     @Published private(set) var requestStatuses: [Data: UpdateRequestStatus] = [:]
     /// The running timed share, if any (see `TimedShare`).
     @Published private(set) var timedShare: TimedShare?
@@ -85,13 +87,26 @@ final class AppModel: ObservableObject {
     init() {
         UserDefaults.standard.register(defaults: [Self.liveKey: true])
         liveRequestsEnabled = UserDefaults.standard.bool(forKey: Self.liveKey)
+        #if DEBUG
+        if ScreenshotTour.isEnabled {
+            phase = .signedIn
+            credentials = ScreenshotTour.credentials
+            local.friends[ScreenshotTour.friend.id] = ScreenshotTour.friend
+            local.users[ScreenshotTour.friend.id] = ScreenshotTour.friend.user
+            configureTourScene(ScreenshotTour.scene ?? "map")
+            isConnected = true
+            return
+        }
+        #endif
         // iOS relaunches us in the background after a significant location change; don't assume we're on screen.
         isForeground = UIApplication.shared.applicationState != .background
         location.setForeground(isForeground)
         if let saved = CredentialStore.load() {
             credentials = saved
             local = LocalDataStore.load()
+            safety = SafetyStore.load(for: saved.userID)
             phase = .signedIn
+            local.friends = local.friends.filter { safety.blocked[$0.key] == nil }
         } else {
             phase = .signedOut
         }
@@ -109,6 +124,17 @@ final class AppModel: ObservableObject {
             if let share = TimedShareStore.load() { activate(share) }
         }
     }
+
+    #if DEBUG
+    func configureTourScene(_ scene: String) {
+        guard ScreenshotTour.isEnabled else { return }
+        safety = SafetyState()
+        if scene != "requests-empty" {
+            safety.pending[ScreenshotTour.requester.id] = PendingRequest(user: ScreenshotTour.requester, boxID: Data(repeating: 7, count: 16))
+        }
+        if scene != "blocked-empty" { safety.blocked[ScreenshotTour.blocked.id] = ScreenshotTour.blocked }
+    }
+    #endif
 
     var api: OscarAPI { OscarAPI(accessToken: credentials?.accessToken) }
 
@@ -198,6 +224,8 @@ final class AppModel: ObservableObject {
 
         try CredentialStore.save(creds)
         credentials = creds
+        safety = SafetyStore.load(for: creds.userID)
+        restored.friends = restored.friends.filter { safety.blocked[$0.key] == nil }
         local = restored
         LocalDataStore.save(local)
         phase = .signedIn
@@ -221,6 +249,7 @@ final class AppModel: ObservableObject {
 
     func deleteAccount() async throws {
         try await api.deleteAccount()
+        if let id = credentials?.userID { SafetyStore.delete(for: id) }
         logOut()
     }
 
@@ -235,6 +264,8 @@ final class AppModel: ObservableObject {
         LocalDataStore.delete()
         credentials = nil
         local = LocalData()
+        safety = SafetyState()
+        safetyError = nil
         requestStatuses = [:]
         probingDevices = []
         lastProbe = [:]
@@ -264,6 +295,7 @@ final class AppModel: ObservableObject {
     }
 
     func sceneDidBecomeActive() {
+        guard !ScreenshotTour.isEnabled else { return }
         isForeground = true
         if timedShare?.isExpired == true { stopTimedShare() }
         location.setForeground(true)
@@ -281,6 +313,7 @@ final class AppModel: ObservableObject {
 
     /// Pull anything we missed while disconnected.
     func refresh() async {
+        guard !ScreenshotTour.isEnabled else { return }
         guard phase == .signedIn else { return }
         if let messages = try? await api.messages() {
             for message in messages { await process(message) }
@@ -322,7 +355,7 @@ final class AppModel: ObservableObject {
 
         // Messages from our own account are for the web client's device browser and Android's "scream" feature,
         // neither of which this app supports.
-        if message.senderId == credentials.userID { return }
+        if message.senderId == credentials.userID || safety.blocked[message.senderId] != nil { return }
         guard let sender = await user(for: message.senderId),
               let plain = try? Crypto.boxOpen(message.cipherText, nonce: message.nonce,
                                               senderPublicKey: sender.publicKey,
@@ -342,8 +375,10 @@ final class AppModel: ObservableObject {
     }
 
     private func handle(_ comm: UserComm, from user: ZoodUser) async {
+        guard safety.blocked[user.userID] == nil else { return }
         switch comm.type {
         case .locationInfo:
+            guard local.friends[user.userID]?.theyShare == true else { return }
             if let friend = local.friends[user.userID], let status = requestStatuses[user.userID] {
                 let time = Date(timeIntervalSince1970: Double(comm.time ?? 0) / 1000)
                 requestStatuses[user.userID] = status.receivingLocation(at: time, previousTime: friend.location?.time)
@@ -369,11 +404,23 @@ final class AppModel: ObservableObject {
             }
         case .locationSharingGrant:
             guard let box = comm.dropBox else { return }
+            // Existing approved senders can rotate their box. Everyone else needs consent.
+            guard local.friends[user.userID]?.theyShare == true else {
+                var next = safety
+                next.pending[user.userID] = PendingRequest(user: user, boxID: box)
+                do { try saveSafety(next) } catch { safetyError = error.localizedDescription }
+                return
+            }
             upsertFriend(user) { $0.receivingBoxID = box }
             socket?.watch(box)
             scheduleBackup()
             if let pkg = try? await api.pickUpPackage(boxID: box) { await processPackage(pkg, from: user) }
         case .locationSharingRevocation:
+            if safety.pending[user.userID] != nil {
+                var next = safety
+                next.pending[user.userID] = nil
+                do { try saveSafety(next) } catch { safetyError = error.localizedDescription }
+            }
             updateFriend(user.userID) { friend in
                 friend.receivingBoxID = nil
                 friend.location = nil
@@ -586,16 +633,26 @@ final class AppModel: ObservableObject {
     }
 
     enum FriendError: LocalizedError {
-        case cantAddSelf
-        var errorDescription: String? { "You can't add yourself." }
+        case cantAddSelf, blocked
+        var errorDescription: String? {
+            switch self {
+            case .cantAddSelf: return "You can't add yourself."
+            case .blocked: return "Unblock this person in Settings before sharing with them."
+            }
+        }
     }
 
     func startSharing(with user: ZoodUser) async throws {
+        guard safety.blocked[user.userID] == nil else { throw FriendError.blocked }
         // Re-send the existing box if we already have one, exactly like FriendshipManager does.
         let box = local.friends[user.userID]?.sendingBoxID ?? Crypto.randomBytes(ZoodConstants.dropBoxIDLength)
         var grant = UserComm(type: .locationSharingGrant)
         grant.dropBox = box
         try await send(grant, to: user, urgent: false, transient: false)
+        guard safety.blocked[user.userID] == nil else {
+            try? await send(UserComm(type: .locationSharingRevocation), to: user, urgent: false, transient: false)
+            throw FriendError.blocked
+        }
         upsertFriend(user) { $0.sendingBoxID = box }
         scheduleBackup()
         if let avatar = local.myAvatar {
@@ -617,6 +674,54 @@ final class AppModel: ObservableObject {
         local.friends[friend.id] = nil
         LocalDataStore.save(local)
         scheduleBackup()
+    }
+
+    private func saveSafety(_ state: SafetyState) throws {
+        guard let id = credentials?.userID else { return }
+        try SafetyStore.save(state, for: id)
+        safety = state
+    }
+
+    func denyRequest(_ request: PendingRequest) throws {
+        var next = safety
+        next.pending[request.id] = nil
+        try saveSafety(next)
+    }
+
+    func approveRequest(_ request: PendingRequest) async throws {
+        guard safety.blocked[request.id] == nil,
+              safety.pending[request.id]?.boxID == request.boxID else { return }
+        try denyRequest(request)
+        local.users[request.id] = request.user
+        upsertFriend(request.user) { $0.receivingBoxID = request.boxID }
+        socket?.watch(request.boxID)
+        scheduleBackup()
+        if let pkg = try? await api.pickUpPackage(boxID: request.boxID) {
+            await processPackage(pkg, from: request.user)
+        }
+        try? await send(UserComm(type: .avatarRequest), to: request.user, urgent: false, transient: false)
+    }
+
+    func blockUser(_ user: ZoodUser) async throws {
+        var next = safety
+        next.pending[user.userID] = nil
+        next.blocked[user.userID] = user
+        // Persist the block before awaiting network work, so arriving grants cannot re-add them.
+        try saveSafety(next)
+        let friend = local.friends[user.userID]
+        local.friends[user.userID] = nil
+        requestStatuses[user.userID] = nil
+        LocalDataStore.save(local)
+        scheduleBackup()
+        if friend?.weShare == true {
+            try? await send(UserComm(type: .locationSharingRevocation), to: user, urgent: false, transient: false)
+        }
+    }
+
+    func unblockUser(_ user: ZoodUser) throws {
+        var next = safety
+        next.blocked[user.userID] = nil
+        try saveSafety(next)
     }
 
     func requestLocationUpdate(from friend: Friend) async {
@@ -642,6 +747,7 @@ final class AppModel: ObservableObject {
     /// Re-reads their latest location package, then asks their phone directly. A phone that's listening replies
     /// at once; if nothing comes back in a few seconds, it really can't be reached right now.
     func refreshDeviceStatusIfNeeded(_ friend: Friend) async {
+        guard !ScreenshotTour.isEnabled else { return }
         guard friend.theyShare, friend.device?.liveRequests == false, !probingDevices.contains(friend.id) else { return }
         if let last = lastProbe[friend.id], Date().timeIntervalSince(last) < 60 { return }
         lastProbe[friend.id] = Date()

@@ -124,3 +124,44 @@ private struct FittedDetent: ViewModifier {
             }
     }
 }
+
+/// Compact sheets measure their content instead of assuming half the screen is enough.
+/// ScrollView keeps large text and short screens usable; people can still expand to full height.
+struct ContentFittedSheet<Content: View>: View {
+    let title: LocalizedStringKey
+    @ViewBuilder var content: () -> Content
+    @Environment(\.dismiss) private var dismiss
+    @State private var contentHeight: CGFloat = 480
+
+    var body: some View {
+        GeometryReader { outer in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    HStack {
+                        Text(title).font(.headline)
+                        Spacer()
+                        Button("Done") { dismiss() }.frame(minHeight: 44)
+                    }
+                    content()
+                }
+                .padding(24)
+                .frame(maxWidth: .infinity)
+                .background(GeometryReader { geometry in
+                    Color.clear.preference(key: FittedSheetHeightKey.self, value: geometry.size.height)
+                })
+            }
+            .onPreferenceChange(FittedSheetHeightKey.self) { height in
+                guard height > 0 else { return }
+                let fitted = max(160, (height + outer.safeAreaInsets.bottom).rounded(.up))
+                if abs(fitted - contentHeight) > 1 { contentHeight = fitted }
+            }
+        }
+        .background(Color(.systemGroupedBackground).ignoresSafeArea())
+        .compatFittedDetent(height: contentHeight)
+    }
+}
+
+private struct FittedSheetHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+}

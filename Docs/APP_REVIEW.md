@@ -8,10 +8,10 @@ The app now has an in-app deletion flow, published privacy/support/license links
 
 | Item | Evidence / next action |
 | --- | --- |
-| SDK required-reason API | The linked Release executable imports `_fstat`. The bundled libsodium `randombytes_sysrandom` object uses it to verify `/dev/random` or `/dev/urandom` device type. Apple's File Timestamp category includes `fstat`; the documented app-container reason does not accurately describe that system-device access. No misleading reason was added. Obtain an upstream Apple-platform binary using its supported `arc4random` path without the fallback, or a supported/approved declaration, then inspect the final executable and run App Store Connect validation. Do not merely add `C617.1` to hide the warning. |
-| User-generated content / abuse handling | Users exchange profile photos and usernames. Removing a friend stops future outgoing sharing, but is not a durable block against unsolicited incoming messages. There is no report/moderation workflow. Evaluate guideline 1.2 with the service operator; provide appropriate blocking/reporting and a real response process before public distribution. A public GitHub issue is not a private channel for sensitive location or abuse reports. |
-| Rights and operator responsibilities | The project is AGPL-3.0 and interoperates with a third-party service. Source/license links and an independence disclaimer are included. Confirm rights for the existing icon/branding, App Store distribution obligations, and continued use of the backend; this audit does not establish those rights or third-party retention guarantees. |
-| Submission metadata | Enter the publisher's real review-contact name, phone and email, support details, age-rating answers, screenshots, description, privacy-policy URL and App Privacy answers. No live App Store Connect record was available to inspect. Do not select Kids Category without the additional requirements for that category. |
+| SDK required-reason API | Resolved in 1.1.6: rebuilt libsodium 1.0.22 for iOS 15 with upstream Apple RNG selection commit `f6bd9140861ab6806f4a99923888b65477fc4e33` backported. Final arm64 Release imports `arc4random_buf` and no longer imports `fstat`. No inaccurate File Timestamp reason was added. App Store Connect validation remains pending signing. |
+| User-generated content / abuse handling | Incoming grants now require approval before showing photos/locations. Requests offer Approve, Deny and Block. Friends offer Remove & Block above Remove Friend; Settings lists blocked users and Report a Problem. Blocks are account-scoped on this iPhone, survive logout, and do not control other clients or the backend. Reports prepare email to bens@sanzone.net without attaching location or secrets. The publisher must monitor that mailbox, respond promptly, and arrange escalation with Zood for service-level abuse; client controls alone do not establish complete guideline 1.2 compliance. |
+| Rights and operator responsibilities | The project is AGPL-3.0 and interoperates with a third-party service. Source/license links and an independence disclaimer are included. The publisher believes the code license covers the icon and knows of no terms prohibiting third-party infrastructure access; the icon is retained. An open-source code license is not proof of trademark rights, and no prohibition was established. Retain evidence of applicable asset licenses/service permissions if Apple requests it; this audit does not establish those rights or third-party retention guarantees. |
+| Submission metadata | Public support email is bens@sanzone.net. Enter the publisher's real private review-contact name, phone and email, support details, age-rating answers, screenshots, description, privacy-policy URL and App Privacy answers. No live App Store Connect record was available to inspect. Do not select Kids Category without the additional requirements for that category. |
 | Encryption | The previous unverified `ITSAppUsesNonExemptEncryption = NO` assertion was removed. Answer Apple's encryption questions based on the actual libsodium/crypto_box/secretbox/Argon2 implementation and obtain any required determination. |
 | Physical-device validation | Test Always/While Using/denied/approximate location, background updates, Live Requests, Low Power Mode, force-quit/relaunch, timed-share expiry, logout and deletion on supported iPhones. Simulator/API checks do not establish background reliability. |
 
@@ -54,7 +54,7 @@ Privacy Policy, Support, Open-Source Licenses, Background App Refresh status and
 ## Public URLs
 
 - Privacy: https://github.com/Emphasize5599/family-locator-ios/blob/main/Docs/PRIVACY.md
-- Support: https://github.com/Emphasize5599/family-locator-ios/issues
+- Support: mailto:bens@sanzone.net (use the public privacy-policy page as an HTTPS Support URL if App Store Connect requires one)
 - Licenses: https://github.com/Emphasize5599/family-locator-ios/blob/main/Docs/LICENSES.md
 - Service policy: https://www.zood.xyz/privacy/mobile-apps
 
@@ -73,3 +73,29 @@ Privacy Policy, Support, Open-Source Licenses, Background App Refresh status and
 - Privacy manifest parsed successfully; final bundle inspection is part of packaging.
 - Device-interaction verification was attempted in a dedicated simulator session. The build succeeded, but install/launch stalled and captures remained on SpringBoard (`NotRun`). A launch retry did not recover it. The session was closed. No claim is made that login, Settings, deletion confirmation or logout was verified through the UI.
 - Signing, Organizer validation and TestFlight processing were not possible with the current account setup.
+
+## Additional submission checks from the supplied review article
+
+The article is a useful checklist, not Apple policy or evidence that AI-written apps have a special rejection rate. Its claims about mandatory 5.5-inch screenshots, unconditional payment-link bans, and reviewers being unable to create accounts are too broad. Use Apple's current platform/territory rules and App Store Connect requirements.
+
+- Supply accurate App Privacy answers; a bundled privacy manifest does not fill out the nutrition label. Do not over-declare invented collection either.
+- Use real screenshots of this build; sample contacts must be clearly fictional. A fresh simulator is a test technique, not a requirement that screenshots contain no configured data. Follow current [screenshot specifications](https://developer.apple.com/help/app-store-connect/reference/app-information/screenshot-specifications), not the article's old size list.
+- Complete the current age-rating questionnaire based on actual capabilities, including user-generated usernames/photos. Support/privacy links do not turn the app into an unrestricted browser. Do not guess an age rating or Kids Category.
+- This is a native encrypted location-sharing app with background location, Maps, per-person consent and controls, not a repackaged website. Explain that utility accurately; minimum functionality is still Apple's judgment.
+- No purchases or digital-payment flows exist, so StoreKit/payment changes are unnecessary.
+- Test supported OS versions and physical devices, safe areas, large text, tap targets, cold launch, denied permissions and offline/error states. TestFlight testing remains pending signing; it is useful validation, not a guarantee of review approval.
+- Supply the already-verified demo credentials in private review fields, explain static sample data and background location, and keep the backend/demo available throughout review. Private review-contact phone and name remain App Store Connect entries for the publisher.
+
+## Validation for 1.1.6 (build 8)
+
+- Final unsigned arm64 Release build passed through `xcodebuild`, linking the checked-in local Clibsodium package. Executable inspection confirms no `_fstat`, with `_arc4random_buf` present; minimum iOS remains 15.0. The privacy manifest parses successfully.
+- Production Keychain checks passed for pending request persistence, block/unblock updates, isolation between two temporary accounts, and decoding the existing local friends format. Temporary Keychain entries were removed afterward.
+- Simulator UI verification passed real demo login, saved sample location display with location permission denied, Requests empty state, friend More menu, Safety Number, support/contact links and Blocked Users empty state. It caught UIKit reversing the bottom-anchored menu; action order was adjusted accordingly. No reviewer friendship/block state was modified. Populated pending request actions and physical-device background behavior remain manual checks.
+- The shared Zood iOS build/run/archive scheme is checked in. After reopening the workspace, Xcode lists the scheme as active and BuildProject passes with the local dependency.
+- TestFlight/App Store signing and Organizer validation remain pending the publisher's developer-account setup. Unsigned and ad-hoc fakesigned IPAs are review/testing artifacts, not TestFlight uploads.
+
+## Screenshot tour and compact sheets
+
+Safety Number, Add Friend, Pending Requests and Timed Sharing measure content and adjust their sheet height on iOS 16+, remaining scrollable for large text/short screens. iOS 15 retains its full-height sheet fallback. Settings remains a full scrollable form. Reporting lives in Settings > Privacy & Support, preparing email to bens@sanzone.net.
+
+The Debug-only screenshot tour uses fictional in-memory fixtures and rejects Zood API calls. It captures light/dark/large-text variants into an HTML gallery/viewer and ZIP. See [UI_TOUR.md](UI_TOUR.md). Tour fixtures are not a substitute for the real private reviewer account, runtime behavior checks, or accurate App Store screenshots.

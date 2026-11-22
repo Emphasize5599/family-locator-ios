@@ -6,26 +6,28 @@ struct ContentView: View {
 
     var body: some View {
         Group {
-            switch model.phase {
-            case .signedOut:
-                OnboardingView()
-            case .signedIn:
-                MainView()
-            }
+            #if DEBUG
+            if ScreenshotTour.isEnabled { ScreenshotTourView() }
+            else { appContent }
+            #else
+            appContent
+            #endif
         }
-        #if DEBUG
-        // Layout checks on fresh simulators: SIMCTL_CHILD_ZOOD_LAYOUT_CHECK=timedshare shows the timed sharing sheet
-        // even when signed out.
-        .sheet(isPresented: .constant(ProcessInfo.processInfo.environment["ZOOD_LAYOUT_CHECK"] == "timedshare")) {
-            TimedShareView().environmentObject(model)
-        }
-        #endif
         .compatOnChange(of: scenePhase) { phase in
             switch phase {
             case .active: model.sceneDidBecomeActive()
             case .background: model.sceneDidEnterBackground()
             default: break
             }
+        }
+    }
+
+    @ViewBuilder private var appContent: some View {
+        switch model.phase {
+        case .signedOut:
+            OnboardingView()
+        case .signedIn:
+            MainView()
         }
     }
 }

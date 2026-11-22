@@ -129,3 +129,52 @@ nonisolated enum LocalDataStore {
         try? FileManager.default.removeItem(at: url)
     }
 }
+
+// Account-scoped safety choices stay on this device across logout. They are deliberately
+// separate from the shared Android backup, whose clients do not understand blocking.
+nonisolated struct PendingRequest: Codable, Identifiable, Sendable {
+    var user: ZoodUser
+    var boxID: Data
+    var id: Data { user.userID }
+}
+
+nonisolated struct SafetyState: Codable, Sendable {
+    var pending: [Data: PendingRequest] = [:]
+    var blocked: [Data: ZoodUser] = [:]
+}
+
+nonisolated enum SafetyStore {
+    private static let service = "com.bensanzone.zood.safety"
+
+    static func load(for userID: Data) -> SafetyState {
+        let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service, kSecAttrAccount as String: userID.base64EncodedString(),
+            kSecReturnData as String: true, kSecMatchLimit as String: kSecMatchLimitOne]
+        var item: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
+              let data = item as? Data,
+              let state = try? JSONDecoder().decode(SafetyState.self, from: data) else { return SafetyState() }
+        return state
+    }
+
+    static func save(_ state: SafetyState, for userID: Data) throws {
+        let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service, kSecAttrAccount as String: userID.base64EncodedString()]
+        let data = try JSONEncoder().encode(state)
+        let status = SecItemUpdate(query as CFDictionary, [kSecValueData as String: data] as CFDictionary)
+        if status == errSecItemNotFound {
+            var attributes = query
+            attributes[kSecValueData as String] = data
+            attributes[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+            let added = SecItemAdd(attributes as CFDictionary, nil)
+            guard added == errSecSuccess else { throw NSError(domain: NSOSStatusErrorDomain, code: Int(added)) }
+        } else if status != errSecSuccess {
+            throw NSError(domain: NSOSStatusErrorDomain, code: Int(status))
+        }
+    }
+
+    static func delete(for userID: Data) {
+        SecItemDelete([kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service, kSecAttrAccount as String: userID.base64EncodedString()] as CFDictionary)
+    }
+}

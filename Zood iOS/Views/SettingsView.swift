@@ -10,6 +10,7 @@ struct SettingsView: View {
 
     var body: some View {
         CompatNavigationStack {
+            ScrollViewReader { proxy in
             Form {
                 Section {
                     HStack(spacing: 14) {
@@ -63,10 +64,15 @@ struct SettingsView: View {
                 }
 
                 Section("Privacy & Support") {
+                    NavigationLink("Blocked Users") { BlockedUsersView().environmentObject(model) }
+                    Text(AppInformation.contactEmail).font(.footnote).textSelection(.enabled)
                     Link("Privacy Policy", destination: AppInformation.privacyPolicyURL)
+                    Link("Report a Problem", destination: AppInformation.reportURL())
                     Link("Support", destination: AppInformation.supportURL)
                     Link("Open-Source Licenses", destination: AppInformation.licensesURL)
                 }
+
+                .id("support")
 
                 Section("About") {
                     Link(destination: URL(string: "https://github.com/Emphasize5599/family-locator-ios")!) {
@@ -84,6 +90,15 @@ struct SettingsView: View {
                     }
                     .foregroundStyle(Color.zoodRed)
                 }
+            }
+            .task {
+                #if DEBUG
+                if ScreenshotTour.scene == "settings-support" {
+                    try? await Task.sleep(nanoseconds: 300_000_000)
+                    proxy.scrollTo("support", anchor: .top)
+                }
+                #endif
+            }
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)

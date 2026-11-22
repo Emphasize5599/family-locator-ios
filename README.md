@@ -21,8 +21,11 @@ with an "Unsupported ⓘ" explanation.
 See [Docs/PROTOCOL.md](Docs/PROTOCOL.md) for the wire protocol.
 
 ## Building
-Xcode 27, iOS 15.0+. Depends on [swift-sodium](https://github.com/jedisct1/swift-sodium) (`Clibsodium` product)
-via Swift Package Manager.
+Xcode 27, iOS 15.0+. Links the local `Vendor/Clibsodium` Swift package, containing upstream libsodium 1.0.22 with its official Apple RNG selection backport rebuilt for iOS 15+ and its simulators. Reproduce the binary with `Tools/build-libsodium.sh` (source archive checksum pinned in the script). See [dependency build notes](Vendor/Clibsodium/README.md).
 
 ## License
 AGPL-3.0, the same as Zood. Zood is a trademark of Tangled Wires, LLC; this project isn't affiliated with them.
+
+## Screenshot tour
+
+Run `python3 Tools/screenshot-tour.py` for a light/dark/large-text gallery of native screens using fictional data. See [UI tour instructions](Docs/UI_TOUR.md) for the viewer, ZIP, and on-demand GitHub workflow.

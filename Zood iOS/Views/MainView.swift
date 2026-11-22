@@ -10,6 +10,7 @@ struct MainView: View {
 
     private enum ActiveSheet: Identifiable, Equatable {
         case addFriend
+        case requests
         case settings
         case timedShare
 
@@ -63,6 +64,8 @@ struct MainView: View {
             switch sheet {
             case .addFriend:
                 AddFriendView().environmentObject(model)
+            case .requests:
+                RequestsView().environmentObject(model)
             case .settings:
                 SettingsView().environmentObject(model)
             case .timedShare:
@@ -74,9 +77,16 @@ struct MainView: View {
         .compatOnChange(of: model.local.friends.keys.count) { _ in
             if let id = selectedFriendID, model.local.friends[id] == nil { selectedFriendID = nil }
         }
+        .alert("Could Not Save Request", isPresented: Binding(get: { model.safetyError != nil }, set: { if !$0 { model.safetyError = nil } })) {
+            Button("OK") { model.safetyError = nil }
+        } message: { Text(model.safetyError ?? "") }
         .onAppear {
-            model.location.requestPermission()
+            if !ScreenshotTour.isEnabled { model.location.requestPermission() }
             #if DEBUG
+            if ScreenshotTour.isEnabled, let loc = model.friends.first?.location {
+                mapCommand = MapCommand(kind: .focus(latitude: loc.latitude, longitude: loc.longitude))
+            }
+            if ScreenshotTour.scene == "friend", let friend = model.friends.first { select(friend) }
             // Screenshot/UI checks: SIMCTL_CHILD_ZOOD_OPEN_FIRST=1 opens the first friend's card at launch.
             if ProcessInfo.processInfo.environment["ZOOD_OPEN_FIRST"] == "1", let first = model.friends.first { select(first) }
             // End-to-end checks: SIMCTL_CHILD_ZOOD_START_TIMED_SHARE=1 starts a timed share and writes its link to
@@ -136,6 +146,21 @@ struct MainView: View {
                     }
                 }
                 .buttonStyle(.plain)
+
+                Button {
+                    activeSheet = .requests
+                } label: {
+                    VStack(spacing: 4) {
+                        Image(systemName: model.safety.pending.isEmpty ? "bell" : "bell.badge.fill")
+                            .font(.title2.weight(.semibold))
+                            .frame(width: 52, height: 52)
+                            .background(Color.zoodBlue, in: Circle())
+                            .foregroundStyle(.white)
+                        Text("Requests (\(model.safety.pending.count))").font(.caption)
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Pending requests, \(model.safety.pending.count)")
 
                 ForEach(model.friends) { friend in
                     Button {

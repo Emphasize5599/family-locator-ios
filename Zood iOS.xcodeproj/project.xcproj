@@ -12,11 +12,8 @@
   },
   "packages": [
     {
-      "kind": "remote",
-      "repository": "https://github.com/jedisct1/swift-sodium",
-      "version": {
-        "up-to-next-major-version": "0.11.0",
-      },
+      "kind": "local",
+      "path": "Vendor/Clibsodium",
     },
   ],
   "files": [
@@ -43,19 +40,15 @@
       ],
       "package-product-members": [
         {
-          "package": "swift-sodium",
+          "package": "Clibsodium",
           "product-name": "Clibsodium",
-          "build-phase": { "build-phase": "frameworks" },
-        }, {
-          "package": "swift-sodium",
-          "product-name": "Sodium",
           "build-phase": { "build-phase": "frameworks" },
         },
       ],
       "build-settings": {
         "ASSETCATALOG_COMPILER_APPICON_NAME": "AppIcon",
         "CODE_SIGN_STYLE": "Automatic",
-        "CURRENT_PROJECT_VERSION": "7",
+        "CURRENT_PROJECT_VERSION": "8",
         "ENABLE_APP_SANDBOX": "YES",
         "ENABLE_PREVIEWS": "YES",
         "ENABLE_USER_SELECTED_FILES": "readonly",
@@ -81,7 +74,7 @@
         "IPHONEOS_DEPLOYMENT_TARGET": "15.0",
         "LD_RUNPATH_SEARCH_PATHS": "@executable_path/Frameworks",
         "LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]": "@executable_path/../Frameworks",
-        "MARKETING_VERSION": "1.1.5",
+        "MARKETING_VERSION": "1.1.6",
         "PRODUCT_BUNDLE_IDENTIFIER": "com.bensanzone.zood",
         "PRODUCT_NAME": "$(TARGET_NAME)",
         "REGISTER_APP_GROUPS": "YES",

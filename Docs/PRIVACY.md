@@ -22,9 +22,11 @@ Always location access enables background location sharing. Live Requests uses b
 
 Timed sharing creates a link containing a decryption key. Anyone with that link can view the shared location. Do not post the link publicly unless you intend that access. Stopping the share or letting its timer expire stops future updates; the last transmitted location and copies already received may remain accessible. The app cannot recall screenshots or data retained by recipients.
 
+Incoming sharing requests are held for approval before displaying the sender's location or photo. Approving does not share your location back. Deny dismisses a request; Block also ignores future messages from that account on this iPhone and removes any friendship. Review or unblock accounts in Settings. Blocking applies to this app on this device, not other Zood clients. Locations already delivered to other people cannot be recalled.
+
 ## Storage, retention and deletion
 
-Account credentials and private keys are stored in the iOS Keychain. The local friends file uses iOS file protection. The app uses its own preferences for settings and upload timing. Server backups and location payloads are encrypted, but encryption does not conceal all account identifiers or connection metadata.
+Account credentials and private keys are stored in the iOS Keychain. The local friends file uses iOS file protection. Pending requests and blocked-account identifiers are stored per account in this device's Keychain; they survive logout, are not synchronized to other clients, and are removed here after successful account deletion. The app uses its own preferences for settings and upload timing. Server backups and location payloads are encrypted, but encryption does not conceal all account identifiers or connection metadata.
 
 Use **Settings > Delete Account** to permanently delete the authenticated Zood account and its encrypted friends-list backup. This affects the same account in other Zood-compatible clients. After the server confirms deletion, this app signs out, removes local account data, and stops location monitoring. An unsuccessful network request is shown as an error; logging out alone is not represented as deletion. Zood's [account deletion page](https://www.zood.xyz/location/delete-account) is also available.
 
@@ -32,6 +34,6 @@ The app does not promise to erase encrypted packages, provider backups or logs b
 
 ## Contact and changes
 
-For Family Locator support or privacy questions, contact the maintainers through the [project's support tracker](https://github.com/Emphasize5599/family-locator-ios/issues). Issues are public: do not include passwords, location coordinates, private keys, or timed-sharing links. For private account or server-data questions, use [Zood's contact page](https://www.zood.xyz/contact).
+For Family Locator support, privacy questions, or abuse reports, email [bens@sanzone.net](mailto:bens@sanzone.net). Report a Problem in the app prepares an email containing the selected username; you choose whether to send it and what to include. No location, photo, password or encryption key is attached automatically. Your email provider handles the message, and the maintainer receives your email address and submitted details to investigate and respond. Do not send passwords, location coordinates, private keys, or timed-sharing links. Reports cannot directly suspend an account on the independently operated Zood service; backend concerns may require contacting its operator. For private account or server-data questions, use [Zood's contact page](https://www.zood.xyz/contact).
 
 Policy changes will be published on this page with an updated effective date. Material changes to data use require updated disclosures and, where applicable, consent.

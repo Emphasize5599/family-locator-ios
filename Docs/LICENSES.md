@@ -6,11 +6,11 @@ The full corresponding source, changes and build instructions are available in [
 
 ## swift-sodium and libsodium
 
-Cryptographic primitives are supplied by [swift-sodium](https://github.com/jedisct1/swift-sodium) and [libsodium](https://github.com/jedisct1/libsodium), maintained by Frank Denis and contributors.
+Cryptographic primitives are supplied by upstream [libsodium](https://github.com/jedisct1/libsodium) 1.0.22 with the official Apple RNG selection backport, maintained by Frank Denis and contributors, rebuilt for this app's supported deployment targets. The former swift-sodium wrapper dependency is no longer linked. Source archive, checksum and reproducible build instructions are in [Vendor/Clibsodium](../Vendor/Clibsodium/README.md).
 
 ISC License
 
-Copyright (c) 2014-2026, Frank Denis <j at pureftpd dot org>
+Copyright (c) 2013-2026, Frank Denis <j at pureftpd dot org>
 
 Permission to use, copy, modify, and/or distribute this software for any
 purpose with or without fee is hereby granted, provided that the above

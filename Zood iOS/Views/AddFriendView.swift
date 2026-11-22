@@ -10,49 +10,30 @@ struct AddFriendView: View {
     @State private var showingInvite = false
 
     var body: some View {
-        CompatNavigationStack {
-            Form {
-                Section {
-                    TextField("Friend's username", text: $username)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .onSubmit(add)
-                } footer: {
-                    Text("They'll start seeing your location right away. You'll see theirs once they add you back. Works with people using Zood on Android too.")
-                }
-                if let errorMessage {
-                    Section {
-                        Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
-                            .foregroundStyle(Color.zoodRed)
-                    }
-                }
-                Section {
-                    Button {
-                        showingInvite = true
-                    } label: {
-                        Label("Invite Someone", systemImage: "square.and.arrow.up")
-                    }
-                }
+        ContentFittedSheet(title: "Add Friend") {
+            TextField("Friend's username", text: $username)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .textFieldStyle(.roundedBorder)
+                .onSubmit(add)
+            Text("They'll start seeing your location right away. You'll see theirs after they share with you and you approve their request. Works with people using Zood on Android too.")
+                .font(.footnote).foregroundStyle(.secondary)
+            if let errorMessage {
+                Label(errorMessage, systemImage: "exclamationmark.triangle.fill").foregroundStyle(Color.zoodRed)
             }
-            .sheet(isPresented: $showingInvite) {
-                ActivityView(items: [inviteText])
+            Button(action: add) {
+                HStack {
+                    Text("Add")
+                    if isWorking { ProgressView() }
+                }.frame(maxWidth: .infinity, minHeight: 44)
             }
-            .navigationTitle("Add Friend")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    if isWorking {
-                        ProgressView()
-                    } else {
-                        Button("Add", action: add)
-                            .disabled(username.trimmingCharacters(in: .whitespaces).isEmpty)
-                    }
-                }
+            .buttonStyle(.borderedProminent)
+            .disabled(isWorking || username.trimmingCharacters(in: .whitespaces).isEmpty)
+            Button { showingInvite = true } label: {
+                Label("Invite Someone", systemImage: "square.and.arrow.up").frame(minHeight: 44)
             }
         }
+        .sheet(isPresented: $showingInvite) { ActivityView(items: [inviteText]) }
     }
 
     private var inviteText: String {

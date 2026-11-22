@@ -12,6 +12,8 @@ struct FriendPanel: View {
     @State private var address: String?
     @State private var explanation: Explanation?
     @State private var confirmingRemove = false
+    @State private var confirmingBlock = false
+    @State private var blockError: String?
     @State private var showingSafetyNumber = false
     @State private var dragOffset: CGFloat = 0
 
@@ -49,6 +51,19 @@ struct FriendPanel: View {
             .task(id: friendID) { await model.refreshDeviceStatusIfNeeded(friend) }
             .sheet(isPresented: $showingSafetyNumber) {
                 SafetyNumberView(friend: friend).environmentObject(model)
+            }
+            .alert("Could Not Block User", isPresented: Binding(get: { blockError != nil }, set: { if !$0 { blockError = nil } })) {
+                Button("OK") { blockError = nil }
+            } message: { Text(blockError ?? "") }
+            .confirmationDialog("Remove & Block \(friend.user.username)?", isPresented: $confirmingBlock, titleVisibility: .visible) {
+                Button("Remove & Block", role: .destructive) {
+                    Task {
+                        do { try await model.blockUser(friend.user); onClose() }
+                        catch { blockError = error.localizedDescription }
+                    }
+                }
+            } message: {
+                Text("Stops sharing and blocks their requests on this iPhone. Previously received locations may remain on their device. You can unblock them in Settings.")
             }
             .confirmationDialog("Remove \(friend.user.username)?", isPresented: $confirmingRemove, titleVisibility: .visible) {
                 Button("Remove", role: .destructive) {
@@ -106,7 +121,8 @@ struct FriendPanel: View {
                 FriendMenu(hasLocation: friend.location != nil,
                            openInMaps: { openInMaps(friend) },
                            viewSafetyNumber: { showingSafetyNumber = true },
-                           remove: { confirmingRemove = true })
+                           remove: { confirmingRemove = true },
+                           block: { confirmingBlock = true })
                     .fixedSize()
                 CloseButton(action: onClose)
                     .fixedSize()
@@ -297,6 +313,7 @@ private struct FriendMenu: UIViewRepresentable {
     let openInMaps: () -> Void
     let viewSafetyNumber: () -> Void
     let remove: () -> Void
+    let block: () -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
@@ -316,6 +333,7 @@ private struct FriendMenu: UIViewRepresentable {
         coordinator.openInMaps = openInMaps
         coordinator.viewSafetyNumber = viewSafetyNumber
         coordinator.remove = remove
+        coordinator.block = block
         guard coordinator.builtFor != hasLocation else { return }
         coordinator.builtFor = hasLocation
         var items: [UIMenuElement] = []
@@ -327,9 +345,13 @@ private struct FriendMenu: UIViewRepresentable {
         items.append(UIAction(title: String(localized: "View Safety Number"), image: UIImage(systemName: "lock.shield")) { [weak coordinator] _ in
             coordinator?.viewSafetyNumber?()
         })
+        // UIKit presents this bottom-anchored menu in reverse order; keep Block visually above Remove.
         items.append(UIAction(title: String(localized: "Remove Friend"), image: UIImage(systemName: "person.crop.circle.badge.minus"),
                               attributes: .destructive) { [weak coordinator] _ in
             coordinator?.remove?()
+        })
+        items.append(UIAction(title: String(localized: "Remove & Block"), image: UIImage(systemName: "hand.raised"), attributes: .destructive) { [weak coordinator] _ in
+            coordinator?.block?()
         })
         button.menu = UIMenu(children: items)
     }
@@ -339,6 +361,7 @@ private struct FriendMenu: UIViewRepresentable {
         var openInMaps: (() -> Void)?
         var viewSafetyNumber: (() -> Void)?
         var remove: (() -> Void)?
+        var block: (() -> Void)?
     }
 }
 

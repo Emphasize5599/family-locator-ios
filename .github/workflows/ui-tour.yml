@@ -1,0 +1,36 @@
+name: UI screenshot tour
+on:
+  workflow_dispatch:
+    inputs:
+      scenes:
+        description: Comma-separated scenes (blank captures all)
+        required: false
+        default: ''
+permissions:
+  contents: read
+jobs:
+  screenshots:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Check Xcode
+        run: |
+          xcodebuild -version
+          python3 -c 'import subprocess; v=subprocess.check_output(["xcodebuild","-version"],text=True).split()[1]; assert int(v.split(".")[0]) >= 27, "This project requires Xcode 27+. Select a runner with Xcode 27 installed."'
+      - name: Capture native screens
+        env:
+          TOUR_SCENES: ${{ inputs.scenes }}
+        run: |
+          if [ -n "$TOUR_SCENES" ]; then
+            python3 Tools/screenshot-tour.py "$RUNNER_TEMP/ui-tour" --scenes "$TOUR_SCENES"
+          else
+            python3 Tools/screenshot-tour.py "$RUNNER_TEMP/ui-tour"
+          fi
+      - name: Upload gallery and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: family-locator-ui-tour
+          path: ${{ runner.temp }}/ui-tour/
+          if-no-files-found: warn
