@@ -13,6 +13,8 @@ struct FriendPanel: View {
     @State private var explanation: Explanation?
     @State private var confirmingRemove = false
     @State private var showingSafetyNumber = false
+    /// Measured height of the panel's content, so the sheet hugs it instead of leaving empty space below.
+    @State private var contentHeight: CGFloat = 240
 
     /// Which "why?" tile is expanded.
     private enum Explanation: Equatable {
@@ -31,8 +33,21 @@ struct FriendPanel: View {
                             .transition(.move(edge: .top).combined(with: .opacity))
                     }
                 }
-                .padding(20)
+                .padding(.horizontal, 20)
+                .padding(.top, 24)      // room for the sheet's grabber
+                .padding(.bottom, 12)
+                .background(GeometryReader { proxy in
+                    Color.clear.preference(key: ContentHeightKey.self, value: proxy.size.height)
+                })
             }
+            .onPreferenceChange(ContentHeightKey.self) { height in
+                // Round to avoid detent churn from sub-point layout changes.
+                let rounded = height.rounded(.up)
+                if abs(rounded - contentHeight) > 1 {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { contentHeight = rounded }
+                }
+            }
+            .friendSheetPresentation(height: contentHeight)
             .task(id: friend.location) { await lookUpAddress(friend.location) }
             .sheet(isPresented: $showingSafetyNumber) {
                 SafetyNumberView(friend: friend).environmentObject(model)
@@ -316,6 +331,11 @@ private struct FriendMenu: UIViewRepresentable {
         var viewSafetyNumber: (() -> Void)?
         var remove: (() -> Void)?
     }
+}
+
+private struct ContentHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
 
 private extension Array where Element: Hashable {

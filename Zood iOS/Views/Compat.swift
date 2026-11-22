@@ -18,14 +18,14 @@ struct CompatNavigationStack<Content: View>: View {
 }
 
 extension View {
-    /// Half-height friend sheet that leaves the map interactive (iOS 16.4+). Full-height sheet on iOS 15.
+    /// Friend sheet sized to its content that leaves the map interactive (iOS 16.4+). Full-height sheet on iOS 15.
     @ViewBuilder
-    func friendSheetPresentation() -> some View {
+    func friendSheetPresentation(height: CGFloat) -> some View {
         if #available(iOS 16.4, *) {
-            presentationDetents([.height(320), .large])
-                .presentationBackgroundInteraction(.enabled(upThrough: .height(320)))
+            presentationDetents([.height(height), .large])
+                .presentationBackgroundInteraction(.enabled(upThrough: .height(height)))
         } else if #available(iOS 16, *) {
-            presentationDetents([.height(320), .large])
+            presentationDetents([.height(height), .large])
         } else {
             self
         }

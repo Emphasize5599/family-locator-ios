@@ -47,7 +47,6 @@ struct MainView: View {
             case .friend(let id):
                 FriendPanel(friendID: id)
                     .environmentObject(model)
-                    .friendSheetPresentation()
             case .addFriend:
                 AddFriendView().environmentObject(model)
             case .settings:
