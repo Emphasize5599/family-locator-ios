@@ -16,6 +16,8 @@ struct FriendMapView: UIViewRepresentable {
     let friends: [Friend]
     let command: MapCommand?
     let onSelect: (Data) -> Void
+    /// Tap on the map itself (not a pin), used to close the friend card.
+    var onBackgroundTap: () -> Void = {}
 
     func makeUIView(context: Context) -> MKMapView {
         let map = MKMapView()
@@ -25,6 +27,9 @@ struct FriendMapView: UIViewRepresentable {
         map.showsScale = true
         map.pointOfInterestFilter = .excludingAll
         map.register(FriendAnnotationView.self, forAnnotationViewWithReuseIdentifier: FriendAnnotationView.reuseID)
+        let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.mapTapped(_:)))
+        tap.delegate = context.coordinator
+        map.addGestureRecognizer(tap)
         map.setUserTrackingMode(.follow, animated: false)
         // Keep the Apple Maps logo and Legal link clear of the friend bar overlay.
         map.layoutMargins = UIEdgeInsets(top: 0, left: 8, bottom: 110, right: 8)
@@ -33,6 +38,7 @@ struct FriendMapView: UIViewRepresentable {
 
     func updateUIView(_ map: MKMapView, context: Context) {
         context.coordinator.onSelect = onSelect
+        context.coordinator.onBackgroundTap = onBackgroundTap
         context.coordinator.sync(friends: friends, on: map)
         if let command, command != context.coordinator.lastCommand {
             context.coordinator.lastCommand = command
@@ -50,13 +56,28 @@ struct FriendMapView: UIViewRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator(onSelect: onSelect) }
 
-    final class Coordinator: NSObject, MKMapViewDelegate {
+    final class Coordinator: NSObject, MKMapViewDelegate, UIGestureRecognizerDelegate {
         var onSelect: (Data) -> Void
+        var onBackgroundTap: () -> Void = {}
         var lastCommand: MapCommand?
         private var annotations: [Data: FriendAnnotation] = [:]
         private var circles: [Data: MKCircle] = [:]
 
         init(onSelect: @escaping (Data) -> Void) { self.onSelect = onSelect }
+
+        @objc func mapTapped(_ recognizer: UITapGestureRecognizer) {
+            guard let map = recognizer.view as? MKMapView else { return }
+            // Ignore taps that land on a pin or the user's location; those are handled by didSelect.
+            var hit = map.hitTest(recognizer.location(in: map), with: nil)
+            while let view = hit {
+                if view is MKAnnotationView { return }
+                hit = view.superview
+            }
+            onBackgroundTap()
+        }
+
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                               shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
 
         func sync(friends: [Friend], on map: MKMapView) {
             let located = friends.filter { $0.location != nil }

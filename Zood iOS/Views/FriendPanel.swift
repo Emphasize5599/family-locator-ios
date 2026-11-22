@@ -2,19 +2,18 @@ import CoreLocation
 import MapKit
 import SwiftUI
 
-/// Bottom sheet for one friend. Mirrors george's InfoPanel: who/where/when, a Refresh (request update) button
-/// and the "share my location" switch.
+/// Card for one friend, shown above the friend bar like george's InfoPanel: who/where/when, a Refresh (request
+/// update) button and the "share my location" switch.
 struct FriendPanel: View {
     @EnvironmentObject private var model: AppModel
-    @Environment(\.dismiss) private var dismiss
     let friendID: Data
+    var onClose: () -> Void = {}
 
     @State private var address: String?
     @State private var explanation: Explanation?
     @State private var confirmingRemove = false
     @State private var showingSafetyNumber = false
-    /// Measured height of the panel's content, so the sheet hugs it instead of leaving empty space below.
-    @State private var contentHeight: CGFloat = 240
+    @State private var dragOffset: CGFloat = 0
 
     /// Which "why?" tile is expanded.
     private enum Explanation: Equatable {
@@ -24,30 +23,28 @@ struct FriendPanel: View {
 
     var body: some View {
         if let friend = model.local.friends[friendID] {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    header(friend)
-                    actions(friend)
-                    if let explanation {
-                        explanationTile(explanation, friend: friend)
-                            .transition(.move(edge: .top).combined(with: .opacity))
+            VStack(alignment: .leading, spacing: 16) {
+                header(friend)
+                actions(friend)
+                if let explanation {
+                    explanationTile(explanation, friend: friend)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+            }
+            .padding(18)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .shadow(color: .black.opacity(0.12), radius: 10, y: 2)
+            .padding(.horizontal, 12)
+            // Swipe down to close, like dismissing a sheet.
+            .offset(y: max(0, dragOffset))
+            .gesture(
+                DragGesture(minimumDistance: 12)
+                    .onChanged { dragOffset = $0.translation.height }
+                    .onEnded { value in
+                        if value.translation.height > 60 { onClose() }
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { dragOffset = 0 }
                     }
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 24)      // room for the sheet's grabber
-                .padding(.bottom, 12)
-                .background(GeometryReader { proxy in
-                    Color.clear.preference(key: ContentHeightKey.self, value: proxy.size.height)
-                })
-            }
-            .onPreferenceChange(ContentHeightKey.self) { height in
-                // Round to avoid detent churn from sub-point layout changes.
-                let rounded = height.rounded(.up)
-                if abs(rounded - contentHeight) > 1 {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { contentHeight = rounded }
-                }
-            }
-            .friendSheetPresentation(height: contentHeight)
+            )
             .task(id: friend.location) { await lookUpAddress(friend.location) }
             .sheet(isPresented: $showingSafetyNumber) {
                 SafetyNumberView(friend: friend).environmentObject(model)
@@ -55,7 +52,7 @@ struct FriendPanel: View {
             .confirmationDialog("Remove \(friend.user.username)?", isPresented: $confirmingRemove, titleVisibility: .visible) {
                 Button("Remove", role: .destructive) {
                     Task { await model.removeFriend(friend) }
-                    dismiss()
+                    onClose()
                 }
             } message: {
                 Text("You'll stop sharing your location with them and they'll disappear from your map.")
@@ -331,11 +328,6 @@ private struct FriendMenu: UIViewRepresentable {
         var viewSafetyNumber: (() -> Void)?
         var remove: (() -> Void)?
     }
-}
-
-private struct ContentHeightKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
 
 private extension Array where Element: Hashable {
