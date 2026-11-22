@@ -148,6 +148,9 @@ nonisolated enum CommType: String, Sendable {
     case locationSharingRevocation = "location_sharing_revocation"
     case scream
     case screamBegan = "scream_began"
+    // Fork extension: "can you answer location requests right now?" and the reply. Carries no location.
+    case deviceStatusRequest = "device_status_request"
+    case deviceStatus = "device_status"
     case unknown
 }
 

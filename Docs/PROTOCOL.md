@@ -39,6 +39,13 @@ Android drops unknown `type`s, ignores unknown fields.
 - `live_requests`: Bool — device currently holds a socket and can answer `location_update_request`.
 Stock Zood ignores them. Absent fields = unknown (treat as stock Android, i.e. supported).
 
+Fork-only message types (sent only to friends who have reported `platform`/`live_requests`, so stock Zood never
+receives them):
+- `device_status_request` (no fields), sent transient + urgent: "can you answer location requests right now?"
+  Sent before showing Unsupported for a friend whose cached `live_requests` is `false`, at most once a minute.
+- `device_status` (`platform`, `live_requests`), the transient + urgent reply. Only sent to friends we share with.
+  A phone that isn't listening never receives the transient request, so no reply within ~6 s means Unsupported.
+
 ## Location sharing
 - Grant: generate random 16-byte box id = our *sending* box, send `location_sharing_grant{drop_box}` message. Receiver stores it as its *receiving* box for us.
 - Upload: `POST drop-boxes/send` multipart; each part name = hex box id, part body = JSON EncryptedData (crypto_box to that friend).

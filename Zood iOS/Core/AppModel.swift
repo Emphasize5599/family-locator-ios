@@ -22,6 +22,8 @@ enum UpdateRequestStatus: Equatable {
 /// Whether a friend can currently be asked for a fresh location, from our side's point of view.
 enum RequestCapability: Equatable {
     case supported
+    /// Their last report said they couldn't answer, and we're asking their phone again before saying so.
+    case checking
     /// They don't share their location with us, so there's nothing to request.
     case notSharing
     /// Their phone told us it isn't holding a live connection (an iPhone, or the Android fork, with Live Requests off).
@@ -40,6 +42,9 @@ final class AppModel: ObservableObject {
     @Published private(set) var requestStatuses: [Data: UpdateRequestStatus] = [:]
     /// The running timed share, if any (see `TimedShare`).
     @Published private(set) var timedShare: TimedShare?
+    /// Friends whose phones we're asking "can you answer location requests?" before showing Unsupported.
+    @Published private(set) var probingDevices: Set<Data> = []
+    private var lastProbe: [Data: Date] = [:]
     private var timedShareExpiry: Task<Void, Never>?
 
     let location = LocationService()
@@ -213,6 +218,8 @@ final class AppModel: ObservableObject {
         credentials = nil
         local = LocalData()
         requestStatuses = [:]
+        probingDevices = []
+        lastProbe = [:]
         processedMessageIDs = []
         phase = .signedOut
     }
@@ -335,6 +342,9 @@ final class AppModel: ObservableObject {
                 friend.location = incoming
                 Self.recordDevice(from: comm, into: &friend)
             }
+            if let friend = local.friends[user.userID], friend.device?.liveRequests == false {
+                Task { await refreshDeviceStatusIfNeeded(friend) }
+            }
         case .locationSharingGrant:
             guard let box = comm.dropBox else { return }
             upsertFriend(user) { $0.receivingBoxID = box }
@@ -353,6 +363,16 @@ final class AppModel: ObservableObject {
             guard let action = comm.locationUpdateRequestAction else { return }
             updateFriend(user.userID) { Self.recordDevice(from: comm, into: &$0) }
             requestStatuses[user.userID] = .responded(action, Date())
+        case .deviceStatusRequest:
+            // Only answer people we share with (same rule as location requests).
+            guard local.friends[user.userID]?.weShare == true else { return }
+            var reply = UserComm(type: .deviceStatus)
+            reply.platform = .ios
+            reply.liveRequests = advertisesLiveRequests
+            try? await send(reply, to: user, urgent: true, transient: true)
+        case .deviceStatus:
+            updateFriend(user.userID) { Self.recordDevice(from: comm, into: &$0) }
+            probingDevices.remove(user.userID)
         case .avatarRequest:
             guard let avatar = local.myAvatar, local.friends[user.userID]?.weShare == true else { return }
             var update = UserComm(type: .avatarUpdate)
@@ -590,10 +610,40 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// Before saying a friend's phone can't answer requests, make sure that's still true: their last report may be
+    /// stale (e.g. they reopened the app but haven't moved, so no new location carried the updated flag).
+    /// Re-reads their latest location package, then asks their phone directly. A phone that's listening replies
+    /// at once; if nothing comes back in a few seconds, it really can't be reached right now.
+    func refreshDeviceStatusIfNeeded(_ friend: Friend) async {
+        guard friend.theyShare, friend.device?.liveRequests == false, !probingDevices.contains(friend.id) else { return }
+        if let last = lastProbe[friend.id], Date().timeIntervalSince(last) < 60 { return }
+        lastProbe[friend.id] = Date()
+        probingDevices.insert(friend.id)
+        defer { probingDevices.remove(friend.id) }
+
+        if let box = friend.receivingBoxID, let pkg = try? await api.pickUpPackage(boxID: box) {
+            await processPackage(pkg, from: friend.user)
+        }
+        guard local.friends[friend.id]?.device?.liveRequests == false else { return }
+        try? await send(UserComm(type: .deviceStatusRequest), to: friend.user, urgent: true, transient: true)
+        for _ in 0..<12 {
+            do {
+                try await Task.sleep(nanoseconds: 500_000_000)
+            } catch {
+                lastProbe.removeValue(forKey: friend.id)
+                return
+            }
+            if !probingDevices.contains(friend.id) { return }
+        }
+    }
+
     func requestCapability(for friend: Friend) -> RequestCapability {
         guard friend.theyShare else { return .notSharing }
         // Same rule as the Android fork: only an explicit "false" is unsupported. Stock Zood never reports.
-        if friend.device?.liveRequests == false { return .unsupported(friend.device?.platform) }
+        if friend.device?.liveRequests == false {
+            return probingDevices.contains(friend.id) || lastProbe[friend.id] == nil
+                ? .checking : .unsupported(friend.device?.platform)
+        }
         return .supported
     }
 

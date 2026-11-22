@@ -45,6 +45,8 @@ struct FriendPanel: View {
                     }
             )
             .task(id: friend.location) { await lookUpAddress(friend.location) }
+            // Re-check a cached "can't answer requests" before showing Unsupported (it may be out of date).
+            .task(id: friendID) { await model.refreshDeviceStatusIfNeeded(friend) }
             .sheet(isPresented: $showingSafetyNumber) {
                 SafetyNumberView(friend: friend).environmentObject(model)
             }
@@ -152,6 +154,12 @@ struct FriendPanel: View {
                         .foregroundStyle(.secondary)
                     infoButton(for: .unsupported)
                 }
+            case .checking:
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.mini)
+                    Text("Checking…").font(.footnote).foregroundStyle(.secondary)
+                }
+                .accessibilityElement(children: .combine)
             case .notSharing:
                 Text("They aren't sharing with you").font(.footnote).foregroundStyle(.secondary)
             case .supported:
