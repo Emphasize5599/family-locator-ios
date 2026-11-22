@@ -43,3 +43,9 @@ Debug-only `ZOOD_SCREENSHOT_TOUR` supplies an in-memory model before loading Key
 Release builds ignore tour flags and contain no fixture account/view implementation. The runner requires a Debug build, even when using `--no-build`; a Release build will fail readiness rather than capture personal screens.
 
 Add new scenes to `ScreenshotTourView` and `SCENES` in the runner as features grow. Behavioral tests and real-device background testing remain separate from screenshot review.
+
+## Xcode side panel
+
+When the Xcode assistant runs a tour, it also creates a named **Family Locator Screenshot Tour** device-interaction session and captures scenes through Xcode's runtime tools. This is the same side-panel presentation used by **Verify Compact Safety UI**. The assistant follows `AGENTS.md` to provide these captures; the HTML/ZIP is a portable companion.
+
+The Python CLI and GitHub Actions do not themselves have access to Xcode's assistant-only side-panel tools. To publish an already installed tour there, start a device-interaction session on the tour simulator, launch Debug with `ZOOD_SCREENSHOT_TOUR=map`, write `{scene, token, largeText}` to the app's `Documents/tour-request.json`, wait for `tour-ready.txt` to match the unique token, then capture with `DeviceInteractionSynthesize`. Use the device-interaction skill and close the session afterward. Capture coverage in the panel must be reported accurately if a runtime tool fails.
