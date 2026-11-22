@@ -312,12 +312,18 @@ final class AppModel: ObservableObject {
         case .locationInfo:
             updateFriend(user.userID) { friend in
                 let newTime = Date(timeIntervalSince1970: Double(comm.time ?? 0) / 1000)
-                if let existing = friend.location, existing.time > newTime { return }
-                friend.location = FriendLocation(
+                let incoming = FriendLocation(
                     latitude: comm.latitude ?? 0, longitude: comm.longitude ?? 0, time: newTime,
                     accuracy: comm.accuracy.map(Double.init), speed: comm.speed.map(Double.init),
                     bearing: comm.bearing.map(Double.init), movement: comm.movement,
                     batteryLevel: comm.batteryLevel, batteryCharging: comm.batteryCharging)
+                if let existing = friend.location {
+                    if existing.time > newTime { return }
+                    // Android sends a fix about every second while its map is open. Ignore ones that change nothing
+                    // you could see, or every open sheet and menu redraws constantly.
+                    if Self.isNearDuplicate(incoming, of: existing), !Self.deviceChanged(comm, friend) { return }
+                }
+                friend.location = incoming
                 Self.recordDevice(from: comm, into: &friend)
             }
         case .locationSharingGrant:
@@ -348,6 +354,22 @@ final class AppModel: ObservableObject {
         default:
             break
         }
+    }
+
+    /// Under 5 m away, same battery/movement, and under a minute newer: nothing on screen would change.
+    private static func isNearDuplicate(_ new: FriendLocation, of old: FriendLocation) -> Bool {
+        let moved = CLLocation(latitude: new.latitude, longitude: new.longitude)
+            .distance(from: CLLocation(latitude: old.latitude, longitude: old.longitude))
+        return moved < 5
+            && new.time.timeIntervalSince(old.time) < 60
+            && new.batteryLevel == old.batteryLevel
+            && new.batteryCharging == old.batteryCharging
+            && new.movement == old.movement
+    }
+
+    private static func deviceChanged(_ comm: UserComm, _ friend: Friend) -> Bool {
+        guard comm.platform != nil || comm.liveRequests != nil else { return false }
+        return comm.platform != friend.device?.platform || comm.liveRequests != friend.device?.liveRequests
     }
 
     private static func recordDevice(from comm: UserComm, into friend: inout Friend) {
@@ -530,6 +552,8 @@ final class AppModel: ObservableObject {
     private func updateFriend(_ id: Data, _ change: (inout Friend) -> Void) {
         guard var friend = local.friends[id] else { return }
         change(&friend)
+        // Writing back an identical value still republishes and redraws everything, so don't.
+        guard friend != local.friends[id] else { return }
         local.friends[id] = friend
         LocalDataStore.save(local)
     }
