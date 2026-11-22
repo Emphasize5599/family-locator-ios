@@ -31,11 +31,12 @@ extension View {
         }
     }
 
-    /// Half-height sheet on iOS 16+ (expandable); full height on iOS 15.
+    /// Sheet that opens exactly `height` tall (still expandable to full) on iOS 16+; full height on iOS 15.
+    /// If the height changes while it's open, the sheet follows it, unless the person dragged it to full height.
     @ViewBuilder
-    func compatMediumDetent() -> some View {
+    func compatFittedDetent(height: CGFloat) -> some View {
         if #available(iOS 16, *) {
-            presentationDetents([.medium, .large])
+            modifier(FittedDetent(height: height))
         } else {
             self
         }
@@ -104,5 +105,22 @@ struct ImagePicker: UIViewControllerRepresentable {
                 DispatchQueue.main.async { onPick(data) }
             }
         }
+    }
+}
+
+@available(iOS 16, *)
+private struct FittedDetent: ViewModifier {
+    let height: CGFloat
+    @State private var selection: PresentationDetent?
+
+    func body(content: Content) -> some View {
+        content
+            .presentationDetents([.height(height), .large], selection: Binding(
+                get: { selection ?? .height(height) },
+                set: { selection = $0 }
+            ))
+            .compatOnChange(of: height) { newHeight in
+                if selection != .large { selection = .height(newHeight) }
+            }
     }
 }

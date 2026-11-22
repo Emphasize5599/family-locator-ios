@@ -66,7 +66,6 @@ struct MainView: View {
             case .timedShare:
                 TimedShareView()
                     .environmentObject(model)
-                    .compatMediumDetent()
             }
         }
         // Close a friend's card if they're removed (by us or from another device).

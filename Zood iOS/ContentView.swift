@@ -13,6 +13,13 @@ struct ContentView: View {
                 MainView()
             }
         }
+        #if DEBUG
+        // Layout checks on fresh simulators: SIMCTL_CHILD_ZOOD_LAYOUT_CHECK=timedshare shows the timed sharing sheet
+        // even when signed out.
+        .sheet(isPresented: .constant(ProcessInfo.processInfo.environment["ZOOD_LAYOUT_CHECK"] == "timedshare")) {
+            TimedShareView().environmentObject(model)
+        }
+        #endif
         .compatOnChange(of: scenePhase) { phase in
             switch phase {
             case .active: model.sceneDidBecomeActive()
