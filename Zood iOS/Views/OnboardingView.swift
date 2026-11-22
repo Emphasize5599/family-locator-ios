@@ -13,6 +13,7 @@ struct OnboardingView: View {
     @State private var mode: Mode = .signIn
     @State private var username = ""
     @State private var password = ""
+    @State private var showPassword = false
     @State private var email = ""
     @State private var isWorking = false
     @State private var errorMessage: String?
@@ -47,11 +48,31 @@ struct OnboardingView: View {
                         .textContentType(.username)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                    SecureField("Password", text: $password)
+                    HStack {
+                        Group {
+                            if showPassword {
+                                TextField("Password", text: $password)
+                                    .textInputAutocapitalization(.never)
+                                    .autocorrectionDisabled()
+                            } else {
+                                SecureField("Password", text: $password)
+                            }
+                        }
                         .textContentType(mode == .signUp ? .newPassword : .password)
                         // The keyboard covers the button on smaller phones, so Return submits too.
                         .submitLabel(.go)
                         .onSubmit { if canSubmit { submit() } }
+
+                        // Eye button to reveal the password, like Android's password field.
+                        Button {
+                            showPassword.toggle()
+                        } label: {
+                            Image(systemName: showPassword ? "eye.slash" : "eye")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(showPassword ? Text("Hide password") : Text("Show password"))
+                    }
                     if mode == .signUp {
                         TextField("Email (optional)", text: $email)
                             .textContentType(.emailAddress)
