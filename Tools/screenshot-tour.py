@@ -58,6 +58,7 @@ def main():
     parser.add_argument('--scenes', default=','.join(SCENES))
     parser.add_argument('--variants', default='light,dark,large-text')
     parser.add_argument('--no-build', action='store_true')
+    parser.add_argument('--append', action='store_true', help='Retain existing captures while updating selected scenes/variants')
     args = parser.parse_args()
     scenes = args.scenes.split(',')
     variants = args.variants.split(',')
@@ -66,6 +67,10 @@ def main():
     out = Path(args.out).resolve()
     out.mkdir(parents=True, exist_ok=True)
     captures, failures = [], []
+    if args.append and (out / 'manifest.json').exists():
+        allowed = {f'{variant}/{scene}.png' for variant in ['light', 'dark', 'large-text'] for scene in SCENES}
+        captures = [c for c in json.loads((out / 'manifest.json').read_text())['captures']
+                    if c['file'] in allowed and (out / c['file']).is_file()]
     consecutive_failures = 0
     device = args.device
     if not device:
@@ -126,6 +131,7 @@ def main():
                     file = Path(variant) / f'{scene}.png'
                     (out / variant).mkdir(exist_ok=True)
                     sim('io', device, 'screenshot', str(out / file))
+                    captures = [c for c in captures if c['file'] != file.as_posix()]
                     captures.append({'title': f'{scene} · {variant}', 'file': file.as_posix()})
                     consecutive_failures = 0
                     print(f'Captured {scene} ({variant})', flush=True)

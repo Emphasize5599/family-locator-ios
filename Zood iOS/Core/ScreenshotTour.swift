@@ -42,7 +42,7 @@ struct ScreenshotTourView: View {
 
     var body: some View {
         ScreenshotTourSceneView(request: request)
-            .environment(\.sizeCategory, request.largeText ? .accessibilityExtraExtraExtraLarge : .large)
+            .dynamicTypeSize(request.largeText ? .accessibility5 : .large)
             .allowsHitTesting(false)
             .task {
                 let file = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("tour-request.json")
@@ -72,6 +72,7 @@ private struct ScreenshotTourSceneView: View {
         }
         .sheet(isPresented: $showingSheet) {
             sheetContent
+                .dynamicTypeSize(request.largeText ? .accessibility5 : .large)
                 .id(request.token)
                 .onAppear { sheetAppeared = true }
         }
