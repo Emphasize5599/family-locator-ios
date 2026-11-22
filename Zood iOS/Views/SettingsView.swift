@@ -65,7 +65,12 @@ struct SettingsView: View {
 
                 Section("Privacy & Support") {
                     NavigationLink("Blocked Users") { BlockedUsersView().environmentObject(model) }
-                    NavigationLink("Contact") { ContactView() }
+                    Link(destination: AppInformation.issuesURL) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Contact & Support")
+                            Text("GitHub Issues (public)").font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
                     Link("Privacy Policy", destination: AppInformation.privacyPolicyURL)
                     Link("Report a Problem", destination: AppInformation.reportURL())
                     Link("Open-Source Licenses", destination: AppInformation.licensesURL)
@@ -146,22 +151,5 @@ struct SettingsView: View {
                                   height: image.size.height * target.height / side))
         }
         return resized.jpegData(compressionQuality: 0.8)
-    }
-}
-
-/// Settings > Contact: one button that opens Mail addressed to the support inbox.
-private struct ContactView: View {
-    var body: some View {
-        Form {
-            Section {
-                Link(destination: AppInformation.supportURL) {
-                    Text(AppInformation.supportURL.absoluteString)
-                }
-            } footer: {
-                Text("For support, privacy questions or to report a problem.")
-            }
-        }
-        .navigationTitle("Contact")
-        .navigationBarTitleDisplayMode(.inline)
     }
 }

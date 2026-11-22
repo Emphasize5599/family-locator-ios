@@ -9,9 +9,9 @@ The app now has an in-app deletion flow, published privacy/support/license links
 | Item | Evidence / next action |
 | --- | --- |
 | SDK required-reason API | Resolved in 1.1.6: rebuilt libsodium 1.0.22 for iOS 15 with upstream Apple RNG selection commit `f6bd9140861ab6806f4a99923888b65477fc4e33` backported. Final arm64 Release imports `arc4random_buf` and no longer imports `fstat`. No inaccurate File Timestamp reason was added. App Store Connect validation remains pending signing. |
-| User-generated content / abuse handling | Incoming grants now require approval before showing photos/locations. Requests offer Approve, Deny and Block. Friends offer Remove & Block above Remove Friend; Settings lists blocked users and Report a Problem. Blocks are account-scoped on this iPhone, survive logout, and do not control other clients or the backend. Reports prepare email to bens+familylocator@sanzone.net without attaching location or secrets. The publisher must monitor that mailbox, respond promptly, and arrange escalation with Zood for service-level abuse; client controls alone do not establish complete guideline 1.2 compliance. |
+| User-generated content / abuse handling | Incoming grants now require approval before showing photos/locations. Requests offer Approve, Deny and Block. Friends offer Remove & Block above Remove Friend; Settings lists blocked users and Report a Problem. Blocks are account-scoped on this iPhone, survive logout, and do not control other clients or the backend. Reports open a pre-filled public GitHub issue (https://github.com/Emphasize5599/family-locator-ios/issues) without attaching location or secrets. The publisher must monitor GitHub Issues, respond promptly, and arrange escalation with Zood for service-level abuse; client controls alone do not establish complete guideline 1.2 compliance. |
 | Rights and operator responsibilities | The project is AGPL-3.0 and interoperates with a third-party service. Source/license links and an independence disclaimer are included. The publisher believes the code license covers the icon and knows of no terms prohibiting third-party infrastructure access; the icon is retained. An open-source code license is not proof of trademark rights, and no prohibition was established. Retain evidence of applicable asset licenses/service permissions if Apple requests it; this audit does not establish those rights or third-party retention guarantees. |
-| Submission metadata | Public support email is bens+familylocator@sanzone.net. Enter the publisher's real private review-contact name, phone and email, support details, age-rating answers, screenshots, description, privacy-policy URL and App Privacy answers. No live App Store Connect record was available to inspect. Do not select Kids Category without the additional requirements for that category. |
+| Submission metadata | Public support is GitHub Issues (https://github.com/Emphasize5599/family-locator-ios/issues), which is also the App Store Connect Support URL; no public support email is published. Enter the publisher's real private review-contact name, phone and email, support details, age-rating answers, screenshots, description, privacy-policy URL and App Privacy answers. No live App Store Connect record was available to inspect. Do not select Kids Category without the additional requirements for that category. |
 | Encryption | The previous unverified `ITSAppUsesNonExemptEncryption = NO` assertion was removed. Answer Apple's encryption questions based on the actual libsodium/crypto_box/secretbox/Argon2 implementation and obtain any required determination. |
 | Physical-device validation | Test Always/While Using/denied/approximate location, background updates, Live Requests, Low Power Mode, force-quit/relaunch, timed-share expiry, logout and deletion on supported iPhones. Simulator/API checks do not establish background reliability. |
 
@@ -49,12 +49,12 @@ Background location is used for location sharing and receiving a fresh fix when 
 
 Timed Sharing is reached using the map-pin button above the friends bar. Its link contains the decryption key; anyone with the link can view shared locations. The timer stops new updates; previously delivered locations may remain visible. Stop the share using its toggle. Do not put a live timed-sharing link in public review materials.
 
-Privacy Policy, Support, Open-Source Licenses, Background App Refresh status and Delete Account are accessible in Settings. Delete Account permanently deletes the shared Zood account and encrypted backup; it is not a deactivate-only flow. The username and final confirmation are intentional safeguards.
+Privacy Policy, Contact & Support (GitHub Issues), Report a Problem, Open-Source Licenses, Background App Refresh status and Delete Account are accessible in Settings. Delete Account permanently deletes the shared Zood account and encrypted backup; it is not a deactivate-only flow. The username and final confirmation are intentional safeguards.
 
 ## Public URLs
 
 - Privacy: https://github.com/Emphasize5599/family-locator-ios/blob/main/Docs/PRIVACY.md
-- Support: mailto:bens+familylocator@sanzone.net (use the public privacy-policy page as an HTTPS Support URL if App Store Connect requires one)
+- Support (App Store Connect Support URL): https://github.com/Emphasize5599/family-locator-ios/issues
 - Licenses: https://github.com/Emphasize5599/family-locator-ios/blob/main/Docs/LICENSES.md
 - Service policy: https://www.zood.xyz/privacy/mobile-apps
 
@@ -96,7 +96,7 @@ The article is a useful checklist, not Apple policy or evidence that AI-written 
 
 ## Screenshot tour and compact sheets
 
-Safety Number, Add Friend, Pending Requests and Timed Sharing measure content and adjust their sheet height on iOS 16+, remaining scrollable for large text/short screens. iOS 15 retains its full-height sheet fallback. Settings remains a full scrollable form. Reporting lives in Settings > Privacy & Support, preparing email to bens+familylocator@sanzone.net.
+Safety Number, Add Friend, Pending Requests and Timed Sharing measure content and adjust their sheet height on iOS 16+, remaining scrollable for large text/short screens. iOS 15 retains its full-height sheet fallback. Settings remains a full scrollable form. Reporting lives in Settings > Privacy & Support and opens a pre-filled public GitHub issue; Contact & Support opens GitHub Issues.
 
 The Debug-only screenshot tour uses fictional in-memory fixtures and rejects Zood API calls. It captures light/dark/large-text variants into an HTML gallery/viewer and ZIP. See [UI_TOUR.md](UI_TOUR.md). Tour fixtures are not a substitute for the real private reviewer account, runtime behavior checks, or accurate App Store screenshots.
 
