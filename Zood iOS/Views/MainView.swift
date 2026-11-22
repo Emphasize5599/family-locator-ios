@@ -11,6 +11,7 @@ struct MainView: View {
     private enum ActiveSheet: Identifiable, Equatable {
         case addFriend
         case settings
+        case timedShare
 
         var id: Self { self }
     }
@@ -36,10 +37,24 @@ struct MainView: View {
                         .id(id)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
+                if model.timedShare != nil {
+                    // Running: a status strip instead of the button (Android's "peeking" sheet).
+                    TimedSharePeekBar { activeSheet = .timedShare }
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                } else if selectedFriendID == nil {
+                    // Android's location-pin button, bottom right above the friend bar.
+                    HStack {
+                        Spacer()
+                        circleButton("mappin.and.ellipse", label: "Timed sharing") { activeSheet = .timedShare }
+                    }
+                    .padding(.horizontal, 16)
+                    .transition(.opacity)
+                }
                 friendsBar
             }
             .padding(.bottom, 8)
             .animation(.spring(response: 0.35, dampingFraction: 0.85), value: selectedFriendID)
+            .animation(.spring(response: 0.35, dampingFraction: 0.85), value: model.timedShare != nil)
         }
         .overlay(alignment: .topTrailing) { controls }
         .sheet(item: $activeSheet) { sheet in
@@ -48,6 +63,10 @@ struct MainView: View {
                 AddFriendView().environmentObject(model)
             case .settings:
                 SettingsView().environmentObject(model)
+            case .timedShare:
+                TimedShareView()
+                    .environmentObject(model)
+                    .compatMediumDetent()
             }
         }
         // Close a friend's card if they're removed (by us or from another device).
@@ -59,6 +78,20 @@ struct MainView: View {
             #if DEBUG
             // Screenshot/UI checks: SIMCTL_CHILD_ZOOD_OPEN_FIRST=1 opens the first friend's card at launch.
             if ProcessInfo.processInfo.environment["ZOOD_OPEN_FIRST"] == "1", let first = model.friends.first { select(first) }
+            // End-to-end checks: SIMCTL_CHILD_ZOOD_START_TIMED_SHARE=1 starts a timed share and writes its link to
+            // tmp/timed-share-url.txt in the app container (debug builds only; the link contains a secret key).
+            if ProcessInfo.processInfo.environment["ZOOD_START_TIMED_SHARE"] == "1", model.timedShare == nil {
+                try? model.startTimedShare()
+                if let url = model.timedShareURL {
+                    try? url.absoluteString.write(to: FileManager.default.temporaryDirectory.appendingPathComponent("timed-share-url.txt"),
+                                                  atomically: true, encoding: .utf8)
+                }
+            }
+            switch ProcessInfo.processInfo.environment["ZOOD_TIMED_SHARE_UI"] {
+            case "open": activeSheet = .timedShare
+            case "stop": model.stopTimedShare()
+            default: break
+            }
             #endif
         }
     }

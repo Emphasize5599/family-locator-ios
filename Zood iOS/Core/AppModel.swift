@@ -38,6 +38,9 @@ final class AppModel: ObservableObject {
     @Published private(set) var local = LocalData()
     @Published private(set) var isConnected = false
     @Published private(set) var requestStatuses: [Data: UpdateRequestStatus] = [:]
+    /// The running timed share, if any (see `TimedShare`).
+    @Published private(set) var timedShare: TimedShare?
+    private var timedShareExpiry: Task<Void, Never>?
 
     let location = LocationService()
 
@@ -84,7 +87,11 @@ final class AppModel: ObservableObject {
             self?.objectWillChange.send()
             Task { await self?.shareCurrentLocation() }
         }
-        if phase == .signedIn { startSession() }
+        if phase == .signedIn {
+            startSession()
+            // Resume a timed share that was running when the app was last closed, unless it has expired.
+            if let share = TimedShareStore.load() { activate(share) }
+        }
     }
 
     var api: OscarAPI { OscarAPI(accessToken: credentials?.accessToken) }
@@ -197,6 +204,7 @@ final class AppModel: ObservableObject {
     }
 
     func logOut() {
+        stopTimedShare()
         socket?.stop()
         socket = nil
         location.stopAll()
@@ -232,6 +240,7 @@ final class AppModel: ObservableObject {
 
     func sceneDidBecomeActive() {
         isForeground = true
+        if timedShare?.isExpired == true { stopTimedShare() }
         location.setForeground(true)
         guard phase == .signedIn else { return }
         socket?.start()
@@ -435,6 +444,15 @@ final class AppModel: ObservableObject {
                                             senderSecretKey: credentials.keyPair.secretKey) else { continue }
             packages[box] = pkg
         }
+        // Timed share: the same location, boxed to the throwaway key whose secret half is in the link.
+        if let share = timedShare {
+            if share.isExpired {
+                stopTimedShare()
+            } else if let pkg = try? Crypto.box(json, receiverPublicKey: share.keyPair.publicKey,
+                                                senderSecretKey: credentials.keyPair.secretKey) {
+                packages[share.boxID] = pkg
+            }
+        }
         guard !packages.isEmpty else { return }
         do {
             try await api.dropPackages(packages)
@@ -449,6 +467,67 @@ final class AppModel: ObservableObject {
     /// Re-share the latest location now (e.g. after the live setting changed) so friends see the new flag.
     func shareCurrentLocation() async {
         if let loc = location.lastLocation { await upload(location: loc) }
+    }
+
+    // MARK: - Timed share
+
+    /// Link to give someone who doesn't have the app. Only valid while a share is running.
+    var timedShareURL: URL? {
+        guard let share = timedShare, let credentials else { return nil }
+        return share.url(username: credentials.username, userID: credentials.userID)
+    }
+
+    /// Starts sharing with a fresh throwaway key and drop box. Requires location access.
+    func startTimedShare() throws {
+        guard phase == .signedIn else { return }
+        let now = Date()
+        let share = TimedShare(keyPair: try Crypto.generateKeyPair(),
+                               boxID: Crypto.randomBytes(ZoodConstants.dropBoxIDLength),
+                               expiresAt: now.addingTimeInterval(TimedShare.initialDuration),
+                               countdownStart: now)
+        TimedShareStore.save(share)
+        activate(share)
+        // Get the viewer a precise location right away instead of waiting for the next update.
+        Task { if let fix = await location.freshFix() { await upload(location: fix) } }
+    }
+
+    /// Ends the share. The link stops getting updates; the throwaway key is discarded.
+    func stopTimedShare() {
+        timedShareExpiry?.cancel()
+        timedShareExpiry = nil
+        TimedShareStore.delete()
+        timedShare = nil
+        location.setTimedSharing(false)
+    }
+
+    /// + / − buttons, with Android's step sizes. − at 1 minute or less turns the share off.
+    func adjustTimedShare(longer: Bool) {
+        guard let share = timedShare else { return }
+        let remaining = share.remaining()
+        let newRemaining = longer ? TimedShare.increased(remaining) : TimedShare.decreased(remaining)
+        guard let newRemaining else {
+            stopTimedShare()
+            return
+        }
+        let now = Date()
+        var updated = share
+        updated.expiresAt = now.addingTimeInterval(newRemaining)
+        updated.countdownStart = now   // ring refills, like Android
+        TimedShareStore.save(updated)
+        activate(updated)
+    }
+
+    private func activate(_ share: TimedShare) {
+        timedShare = share
+        location.setTimedSharing(true)
+        // Stop on time. If the app is suspended past this, the next upload notices it's expired and stops then.
+        timedShareExpiry?.cancel()
+        timedShareExpiry = Task { [weak self] in
+            let wait = share.remaining()
+            try? await Task.sleep(nanoseconds: UInt64(wait * 1_000_000_000))
+            guard !Task.isCancelled, let self, self.timedShare == share else { return }
+            self.stopTimedShare()
+        }
     }
 
     // MARK: - Friends

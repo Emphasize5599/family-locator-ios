@@ -22,6 +22,11 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     /// While the app is on screen we stream updates regardless of the live setting.
     private var isForeground = true
     var isLive: Bool { liveRequested && hasAlwaysPermission }
+    /// A timed share is running: precise fixes every few seconds, in the background too (shown to the person by
+    /// the system's location indicator, like Android's "Timed share is running" notification).
+    private(set) var isTimedSharing = false
+    /// How often to share while a timed share runs (george's TimedShareService asks for a fix every 5 s).
+    private let timedShareInterval: TimeInterval = 5
 
     /// Called for every location that should be shared with friends.
     var onShareableLocation: ((CLLocation) -> Void)?
@@ -107,6 +112,13 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         applyStreamingConfiguration()
     }
 
+    func setTimedSharing(_ on: Bool) {
+        guard on != isTimedSharing else { return }
+        isTimedSharing = on
+        applyStreamingConfiguration()
+        if on, let lastLocation { share(lastLocation, force: true) }
+    }
+
     func setForeground(_ foreground: Bool) {
         isForeground = foreground
         applyStreamingConfiguration()
@@ -138,7 +150,7 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     private var wantsFreshFix: Bool { !freshFixWaiters.isEmpty }
 
     private func applyStreamingConfiguration() {
-        if wantsFreshFix {
+        if wantsFreshFix || isTimedSharing {
             manager.desiredAccuracy = kCLLocationAccuracyBest
             manager.distanceFilter = kCLDistanceFilterNone
         } else {
@@ -147,10 +159,12 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
             manager.distanceFilter = 50
         }
         // Re-evaluated on every call, so granting "Always" later switches live mode on without a restart.
-        let backgroundStream = isLive || wantsFreshFix
+        let backgroundStream = isLive || wantsFreshFix || isTimedSharing
         let stream = hasAnyPermission && (backgroundStream || isForeground)
-        manager.allowsBackgroundLocationUpdates = hasAlwaysPermission && backgroundStream
-        manager.showsBackgroundLocationIndicator = false
+        // A timed share keeps going in the background even with While Using permission; that requires (and
+        // shows) the system's background location indicator.
+        manager.allowsBackgroundLocationUpdates = (hasAlwaysPermission && backgroundStream) || (isTimedSharing && hasAnyPermission)
+        manager.showsBackgroundLocationIndicator = isTimedSharing
         if stream {
             manager.startUpdatingLocation()
         } else {
@@ -162,7 +176,7 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
 
     private func updateBackgroundSession() {
         guard #available(iOS 17, *), Self.supportsBackgroundSession else { return }
-        if isLive {
+        if isLive || isTimedSharing {
             if backgroundSession == nil || (!liveArmed && isForeground) {
                 (backgroundSession as? CLBackgroundActivitySession)?.invalidate()
                 backgroundSession = CLBackgroundActivitySession()
@@ -200,7 +214,10 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     }
 
     private func share(_ location: CLLocation, force: Bool = false) {
-        if !force, let lastShared {
+        if !force, isTimedSharing, let lastShared {
+            // Timed share: time-based, so the person following the link sees steady updates.
+            guard location.timestamp.timeIntervalSince(lastShared.timestamp) >= timedShareInterval else { return }
+        } else if !force, let lastShared {
             let moved = location.distance(from: lastShared)
             let elapsed = location.timestamp.timeIntervalSince(lastShared.timestamp)
             guard moved >= shareDistance || elapsed >= shareInterval else { return }
@@ -265,6 +282,7 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         for location in locations where location.horizontalAccuracy >= 0 {
             lastLocation = location
             if wantsFreshFix {
+                if isTimedSharing { share(location) }
                 if location.horizontalAccuracy < (freshFixBest?.horizontalAccuracy ?? .greatestFiniteMagnitude) {
                     freshFixBest = location
                 }

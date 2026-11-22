@@ -31,6 +31,16 @@ extension View {
         }
     }
 
+    /// Half-height sheet on iOS 16+ (expandable); full height on iOS 15.
+    @ViewBuilder
+    func compatMediumDetent() -> some View {
+        if #available(iOS 16, *) {
+            presentationDetents([.medium, .large])
+        } else {
+            self
+        }
+    }
+
     /// The panel's main action: prominent Liquid Glass on iOS 26+, filled bordered button before that.
     @ViewBuilder
     func prominentActionStyle(tint: Color) -> some View {
