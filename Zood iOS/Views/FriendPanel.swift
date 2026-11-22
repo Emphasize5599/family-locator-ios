@@ -1,4 +1,5 @@
 import CoreLocation
+import MapKit
 import SwiftUI
 
 /// Bottom sheet for one friend. Mirrors george's InfoPanel: who/where/when, a Refresh (request update) button
@@ -11,6 +12,7 @@ struct FriendPanel: View {
     @State private var address: String?
     @State private var explanation: Explanation?
     @State private var confirmingRemove = false
+    @State private var showingSafetyNumber = false
 
     /// Which "why?" tile is expanded.
     private enum Explanation: Equatable {
@@ -32,6 +34,9 @@ struct FriendPanel: View {
                 .padding(20)
             }
             .task(id: friend.location) { await lookUpAddress(friend.location) }
+            .sheet(isPresented: $showingSafetyNumber) {
+                SafetyNumberView(friend: friend).environmentObject(model)
+            }
             .confirmationDialog("Remove \(friend.user.username)?", isPresented: $confirmingRemove, titleVisibility: .visible) {
                 Button("Remove", role: .destructive) {
                     Task { await model.removeFriend(friend) }
@@ -82,6 +87,19 @@ struct FriendPanel: View {
             }
             Spacer(minLength: 0)
             Menu {
+                if friend.location != nil {
+                    Button {
+                        openInMaps(friend)
+                    } label: {
+                        Label("Open in Maps", systemImage: "map")
+                    }
+                }
+                Button {
+                    showingSafetyNumber = true
+                } label: {
+                    Label("View Safety Number", systemImage: "lock.shield")
+                }
+                Divider()
                 Button(role: .destructive) {
                     confirmingRemove = true
                 } label: {
@@ -233,6 +251,15 @@ struct FriendPanel: View {
                 }
             }
         )
+    }
+
+    /// Same as Android's "Open in Maps": hand the friend's last location to the Maps app, pinned with their name.
+    private func openInMaps(_ friend: Friend) {
+        guard let loc = friend.location else { return }
+        let coordinate = CLLocationCoordinate2D(latitude: loc.latitude, longitude: loc.longitude)
+        let item = MKMapItem(placemark: MKPlacemark(coordinate: coordinate))
+        item.name = friend.user.username
+        item.openInMaps(launchOptions: [MKLaunchOptionsMapCenterKey: NSValue(mkCoordinate: coordinate)])
     }
 
     private func batterySymbol(level: Int, charging: Bool) -> String {

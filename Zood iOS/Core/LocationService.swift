@@ -232,14 +232,12 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     /// Region exits and visits give us ~10 s of background time; ask for more so the fix and upload can finish.
     private func handleBackgroundTrigger(_ reason: String) {
         log.notice("wake: \(reason, privacy: .public)")
-        var taskID = UIBackgroundTaskIdentifier.invalid
-        taskID = UIApplication.shared.beginBackgroundTask(withName: "share-location") {
-            UIApplication.shared.endBackgroundTask(taskID)
-        }
+        let task = BackgroundTask()
+        task.id = UIApplication.shared.beginBackgroundTask(withName: "share-location") { task.end() }
         Task {
             _ = await freshFix()   // shares (and redraws the geofence) when it completes
             try? await Task.sleep(nanoseconds: 5_000_000_000)   // let the upload finish
-            UIApplication.shared.endBackgroundTask(taskID)
+            task.end()
         }
     }
 
@@ -304,6 +302,18 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     func locationManagerDidPauseLocationUpdates(_ manager: CLLocationManager) {
         // We disable automatic pausing, but if iOS pauses anyway, resume immediately.
         restartStreaming(after: 0)
+    }
+}
+
+/// Holds a background task ID so the expiration handler and the normal path can both end it exactly once.
+@MainActor
+private final class BackgroundTask {
+    var id = UIBackgroundTaskIdentifier.invalid
+
+    func end() {
+        guard id != .invalid else { return }
+        UIApplication.shared.endBackgroundTask(id)
+        id = .invalid
     }
 }
 
