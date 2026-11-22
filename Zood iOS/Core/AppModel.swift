@@ -56,6 +56,13 @@ final class AppModel: ObservableObject {
     private var isForeground = true
     private static let liveKey = "liveRequestsEnabled"
 
+    /// Kept out of the published `local` data: it changes on every upload, and republishing everything for it made
+    /// open menus and sheets redraw constantly.
+    private var lastLocationUpload: Date? {
+        get { UserDefaults.standard.object(forKey: "lastLocationUpload") as? Date }
+        set { UserDefaults.standard.set(newValue, forKey: "lastLocationUpload") }
+    }
+
     init() {
         UserDefaults.standard.register(defaults: [Self.liveKey: true])
         liveRequestsEnabled = UserDefaults.standard.bool(forKey: Self.liveKey)
@@ -355,7 +362,7 @@ final class AppModel: ObservableObject {
             try? await sendRequestResponse(.finished, to: user)
             return
         }
-        if !isForeground, let last = local.lastLocationUpload, Date().timeIntervalSince(last) < 120 {
+        if !isForeground, let last = lastLocationUpload, Date().timeIntervalSince(last) < 120 {
             try? await sendRequestResponse(.tooSoon, to: user)
             return
         }
@@ -409,8 +416,7 @@ final class AppModel: ObservableObject {
         guard !packages.isEmpty else { return }
         do {
             try await api.dropPackages(packages)
-            local.lastLocationUpload = Date()
-            LocalDataStore.save(local)
+            lastLocationUpload = Date()
         } catch let error as OscarError where error.code == OscarError.invalidAccessToken {
             logOut()
         } catch {

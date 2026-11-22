@@ -86,29 +86,11 @@ struct FriendPanel: View {
                 }
             }
             Spacer(minLength: 0)
-            Menu {
-                if friend.location != nil {
-                    Button {
-                        openInMaps(friend)
-                    } label: {
-                        Label("Open in Maps", systemImage: "map")
-                    }
-                }
-                Button {
-                    showingSafetyNumber = true
-                } label: {
-                    Label("View Safety Number", systemImage: "lock.shield")
-                }
-                Divider()
-                Button(role: .destructive) {
-                    confirmingRemove = true
-                } label: {
-                    Label("Remove Friend", systemImage: "person.crop.circle.badge.minus")
-                }
-            } label: {
-                Image(systemName: "ellipsis.circle").font(.title2)
-            }
-            .accessibilityLabel("More")
+            FriendMenu(hasLocation: friend.location != nil,
+                       openInMaps: { openInMaps(friend) },
+                       viewSafetyNumber: { showingSafetyNumber = true },
+                       remove: { confirmingRemove = true })
+                .equatable()
         }
     }
 
@@ -279,6 +261,36 @@ struct FriendPanel: View {
             CLLocation(latitude: location.latitude, longitude: location.longitude))
         guard let p = placemarks?.first else { return }
         address = [p.name, p.locality].compactMap { $0 }.removingDuplicates().joined(separator: ", ")
+    }
+}
+
+/// The ⋯ menu, split out and `Equatable` on what it actually shows. An open iOS menu visibly redraws whenever its
+/// parent's body runs, and the panel re-renders on every data update; this keeps it still unless its items change.
+private struct FriendMenu: View, Equatable {
+    let hasLocation: Bool
+    let openInMaps: () -> Void
+    let viewSafetyNumber: () -> Void
+    let remove: () -> Void
+
+    static func == (lhs: FriendMenu, rhs: FriendMenu) -> Bool { lhs.hasLocation == rhs.hasLocation }
+
+    var body: some View {
+        Menu {
+            if hasLocation {
+                Button(action: openInMaps) {
+                    Label("Open in Maps", systemImage: "map")
+                }
+            }
+            Button(action: viewSafetyNumber) {
+                Label("View Safety Number", systemImage: "lock.shield")
+            }
+            Button(role: .destructive, action: remove) {
+                Label("Remove Friend", systemImage: "person.crop.circle.badge.minus")
+            }
+        } label: {
+            Image(systemName: "ellipsis.circle").font(.title2)
+        }
+        .accessibilityLabel("More")
     }
 }
 
