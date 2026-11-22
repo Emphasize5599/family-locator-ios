@@ -32,6 +32,8 @@ struct MainView: View {
                     banner("Location access is off, so family can't see you.", systemImage: "location.slash")
                         .onTapGesture { model.location.requestPermission() }
                 }
+                BackgroundRefreshView()
+                    .padding(.horizontal, 12)
                 if let id = selectedFriendID, model.local.friends[id] != nil {
                     FriendPanel(friendID: id, onClose: closeFriend)
                         .id(id)

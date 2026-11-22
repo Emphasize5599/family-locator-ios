@@ -45,6 +45,10 @@ struct SettingsView: View {
                     Text("Keeps a low-power connection open in the background so family can tap Refresh to get your current location. Uses a bit more battery. Don't swipe the app closed, or requests will stop until you open it again.")
                 }
 
+                Section("Background App Refresh") {
+                    BackgroundRefreshView(showsStatus: true)
+                }
+
                 Section("Location Access") {
                     HStack {
                         Text("Permission")
