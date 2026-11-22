@@ -9,6 +9,17 @@ enum UpdateRequestStatus: Equatable {
     case responded(UpdateRequestAction, Date)
     case noResponse(Date)
 
+    /// A newer fix satisfies a pending refresh even when it was sent independently of the request.
+    func receivingLocation(at time: Date, previousTime: Date?) -> Self {
+        if let previousTime, time <= previousTime { return self }
+        switch self {
+        case .sent, .responded(.starting, _):
+            return .responded(.finished, Date())
+        default:
+            return self
+        }
+    }
+
     /// Mirrors george's UpdateStatusTracker: stale statuses stop being shown after two minutes.
     var isStale: Bool {
         let date: Date
@@ -326,6 +337,10 @@ final class AppModel: ObservableObject {
     private func handle(_ comm: UserComm, from user: ZoodUser) async {
         switch comm.type {
         case .locationInfo:
+            if let friend = local.friends[user.userID], let status = requestStatuses[user.userID] {
+                let time = Date(timeIntervalSince1970: Double(comm.time ?? 0) / 1000)
+                requestStatuses[user.userID] = status.receivingLocation(at: time, previousTime: friend.location?.time)
+            }
             updateFriend(user.userID) { friend in
                 let newTime = Date(timeIntervalSince1970: Double(comm.time ?? 0) / 1000)
                 let incoming = FriendLocation(
@@ -362,6 +377,8 @@ final class AppModel: ObservableObject {
         case .locationUpdateRequestReceived:
             guard let action = comm.locationUpdateRequestAction else { return }
             updateFriend(user.userID) { Self.recordDevice(from: comm, into: &$0) }
+            // A delayed acknowledgement must not replace success after a newer location arrived.
+            if case .responded(.finished, _) = requestStatuses[user.userID] { return }
             requestStatuses[user.userID] = .responded(action, Date())
         case .deviceStatusRequest:
             // Only answer people we share with (same rule as location requests).
@@ -596,16 +613,19 @@ final class AppModel: ObservableObject {
     }
 
     func requestLocationUpdate(from friend: Friend) async {
-        requestStatuses[friend.id] = .sent(Date())
+        let sentAt = Date()
+        requestStatuses[friend.id] = .sent(sentAt)
         do {
             try await send(UserComm(type: .locationUpdateRequest), to: friend.user, urgent: true, transient: true)
         } catch {
-            requestStatuses[friend.id] = .noResponse(Date())
+            if requestStatuses[friend.id] == .sent(sentAt) {
+                requestStatuses[friend.id] = .noResponse(Date())
+            }
             return
         }
         // Transient requests are only delivered to phones with a live connection. Give them 30 s to answer.
         try? await Task.sleep(nanoseconds: 30_000_000_000)
-        if case .sent = requestStatuses[friend.id] {
+        if requestStatuses[friend.id] == .sent(sentAt) {
             requestStatuses[friend.id] = .noResponse(Date())
         }
     }
