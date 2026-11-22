@@ -32,8 +32,7 @@ struct FriendPanel: View {
                 }
             }
             .padding(18)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-            .shadow(color: .black.opacity(0.12), radius: 10, y: 2)
+            .floatingSurface(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
             .padding(.horizontal, 12)
             // Swipe down to close, like dismissing a sheet.
             .offset(y: max(0, dragOffset))
@@ -141,8 +140,7 @@ struct FriendPanel: View {
                     .font(.body.weight(.semibold))
                     .padding(.horizontal, 6)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.zoodBlue)
+            .prominentActionStyle(tint: .zoodBlue)
             .disabled(capability != .supported || isInFlight(status))
 
             switch capability {

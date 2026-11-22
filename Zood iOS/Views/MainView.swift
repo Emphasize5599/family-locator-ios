@@ -54,7 +54,13 @@ struct MainView: View {
         .compatOnChange(of: model.local.friends.keys.count) { _ in
             if let id = selectedFriendID, model.local.friends[id] == nil { selectedFriendID = nil }
         }
-        .onAppear { model.location.requestPermission() }
+        .onAppear {
+            model.location.requestPermission()
+            #if DEBUG
+            // Screenshot/UI checks: SIMCTL_CHILD_ZOOD_OPEN_FIRST=1 opens the first friend's card at launch.
+            if ProcessInfo.processInfo.environment["ZOOD_OPEN_FIRST"] == "1", let first = model.friends.first { select(first) }
+            #endif
+        }
     }
 
     private var controls: some View {
@@ -72,7 +78,7 @@ struct MainView: View {
             Image(systemName: systemImage)
                 .font(.title3)
                 .frame(width: 48, height: 48)
-                .background(.regularMaterial, in: Circle())
+                .floatingSurface(in: Circle(), interactive: true)
                 .foregroundStyle(Color.zoodNavy)
         }
         .accessibilityLabel(Text(label))
@@ -119,7 +125,7 @@ struct MainView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
         }
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .floatingSurface(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
         .padding(.horizontal, 12)
     }
 
@@ -128,7 +134,7 @@ struct MainView: View {
             .font(.footnote.weight(.medium))
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
-            .background(.regularMaterial, in: Capsule())
+            .floatingSurface(in: Capsule())
     }
 
     // MARK: Selection

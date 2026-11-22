@@ -18,6 +18,29 @@ struct CompatNavigationStack<Content: View>: View {
 }
 
 extension View {
+    /// Background for controls that float over the map. Liquid Glass on iOS 26+, so it follows the person's chosen
+    /// Liquid Glass look (Clear / Tinted), Reduce Transparency and Increase Contrast like system controls do.
+    /// Earlier iOS versions get the standard blur material (which already honours Reduce Transparency).
+    @ViewBuilder
+    func floatingSurface<S: Shape>(in shape: S, interactive: Bool = false) -> some View {
+        if #available(iOS 26, *) {
+            glassEffect(interactive ? .regular.interactive() : .regular, in: shape)
+        } else {
+            background(.regularMaterial, in: shape)
+                .shadow(color: .black.opacity(interactive ? 0.08 : 0.12), radius: interactive ? 4 : 10, y: 2)
+        }
+    }
+
+    /// The panel's main action: prominent Liquid Glass on iOS 26+, filled bordered button before that.
+    @ViewBuilder
+    func prominentActionStyle(tint: Color) -> some View {
+        if #available(iOS 26, *) {
+            buttonStyle(.glassProminent).tint(tint)
+        } else {
+            buttonStyle(.borderedProminent).tint(tint)
+        }
+    }
+
     /// `onChange` without the iOS 17 deprecation warning, back to iOS 15.
     @ViewBuilder
     func compatOnChange<V: Equatable>(of value: V, perform action: @escaping (V) -> Void) -> some View {
