@@ -4,9 +4,24 @@ struct MainView: View {
     @EnvironmentObject private var model: AppModel
 
     @State private var mapCommand: MapCommand?
-    @State private var selectedFriendID: Data?
-    @State private var showingAddFriend = false
-    @State private var showingSettings = false
+    /// One sheet slot for everything. SwiftUI ignores a second `.sheet` while another is up (the friend panel stays
+    /// open beside the map), so separate sheets meant Settings/Add did nothing while a friend was selected.
+    /// Switching this value closes the current sheet and opens the new one.
+    @State private var activeSheet: ActiveSheet?
+
+    private enum ActiveSheet: Identifiable, Equatable {
+        case friend(Data)
+        case addFriend
+        case settings
+
+        var id: String {
+            switch self {
+            case .friend(let id): return "friend-\(id.hexString)"
+            case .addFriend: return "add-friend"
+            case .settings: return "settings"
+            }
+        }
+    }
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -27,19 +42,28 @@ struct MainView: View {
             .padding(.bottom, 8)
         }
         .overlay(alignment: .topTrailing) { controls }
-        .sheet(item: selectedFriendBinding) { friend in
-            FriendPanel(friendID: friend.id)
-                .environmentObject(model)
-                .friendSheetPresentation()
+        .sheet(item: $activeSheet) { sheet in
+            switch sheet {
+            case .friend(let id):
+                FriendPanel(friendID: id)
+                    .environmentObject(model)
+                    .friendSheetPresentation()
+            case .addFriend:
+                AddFriendView().environmentObject(model)
+            case .settings:
+                SettingsView().environmentObject(model)
+            }
         }
-        .sheet(isPresented: $showingAddFriend) { AddFriendView().environmentObject(model) }
-        .sheet(isPresented: $showingSettings) { SettingsView().environmentObject(model) }
+        // Close a friend's panel if they're removed (by us or from another device).
+        .compatOnChange(of: model.local.friends.keys.count) { _ in
+            if case .friend(let id) = activeSheet, model.local.friends[id] == nil { activeSheet = nil }
+        }
         .onAppear { model.location.requestPermission() }
     }
 
     private var controls: some View {
         VStack(spacing: 12) {
-            circleButton("gearshape.fill", label: "Settings") { showingSettings = true }
+            circleButton("gearshape.fill", label: "Settings") { activeSheet = .settings }
             circleButton("location.fill", label: "My location") {
                 mapCommand = MapCommand(kind: .followUser)
             }
@@ -64,7 +88,7 @@ struct MainView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 14) {
                 Button {
-                    showingAddFriend = true
+                    activeSheet = .addFriend
                 } label: {
                     VStack(spacing: 4) {
                         Image(systemName: "plus")
@@ -114,16 +138,9 @@ struct MainView: View {
     // MARK: Selection
 
     private func select(_ friend: Friend) {
-        selectedFriendID = friend.id
+        activeSheet = .friend(friend.id)
         if let loc = friend.location {
             mapCommand = MapCommand(kind: .focus(latitude: loc.latitude, longitude: loc.longitude))
         }
-    }
-
-    private var selectedFriendBinding: Binding<Friend?> {
-        Binding(
-            get: { selectedFriendID.flatMap { model.local.friends[$0] } },
-            set: { selectedFriendID = $0?.id }
-        )
     }
 }
