@@ -8,6 +8,7 @@ struct TimedShareView: View {
     @State private var showingShareSheet = false
     @State private var copied = false
     @State private var errorMessage: String?
+    @State private var confirmingStop = false
 
     private var isRunning: Bool { model.timedShare != nil }
 
@@ -60,6 +61,12 @@ struct TimedShareView: View {
         }
         .sheet(isPresented: $showingShareSheet) {
             if let url = model.timedShareURL { ActivityView(items: [url]) }
+        }
+        .alert("Stop timed sharing?", isPresented: $confirmingStop) {
+            Button("Cancel", role: .cancel) {}
+            Button("Stop Sharing", role: .destructive) { model.stopTimedShare() }
+        } message: {
+            Text("People with the link stop seeing your location. Turning it back on makes a new link.")
         }
     }
 
@@ -152,7 +159,8 @@ struct TimedShareView: View {
                         errorMessage = error.localizedDescription
                     }
                 } else {
-                    model.stopTimedShare()
+                    // Stopping ends the link for everyone who has it; starting again makes a new one. Ask first.
+                    confirmingStop = true
                 }
             }
         )

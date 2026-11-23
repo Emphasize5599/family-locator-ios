@@ -42,7 +42,8 @@ struct DeleteAccountView: View {
         .disabled(isDeleting)
         .navigationTitle("Delete Account")
         .navigationBarTitleDisplayMode(.inline)
-        .confirmationDialog("Permanently delete your account?", isPresented: $showingConfirmation, titleVisibility: .visible) {
+        .alert("Permanently delete your account?", isPresented: $showingConfirmation) {
+            Button("Cancel", role: .cancel) {}
             Button("Delete Account Permanently", role: .destructive) {
                 isDeleting = true
                 errorMessage = nil

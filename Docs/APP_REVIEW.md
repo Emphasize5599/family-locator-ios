@@ -140,3 +140,8 @@ Earlier iPhone 11 captures verified nickname saving, View Username/copy, wider n
 - **Arranging the bar** follows the Home Screen model: long-press to lift (with haptics), drag sideways and the others slide aside (order saved), hold over the middle of someone to make a folder, and folders open above the bar as a grid (3×3 by default like Home Screen folders, adjustable in Settings › Friend Bar). VoiceOver users get Move Left / Move Right and Remove from Folder actions.
 - **Backup:** the bar order and folders join blocked accounts, nicknames and linked contacts in the end-to-end encrypted account backup (optional `folders` / `bar_order` keys, ignored by older clients; Android 1.1.7-family carries them through).
 - **Linked contacts** now set the friend's nickname to the contact's first and last name and use the contact's thumbnail, as framed in Contacts, as the friend's picture. The photo stays on the device. Every avatar renderer fills and crops, never stretches (checked with deliberately tall and wide test images).
+
+## Confirmations and folder card (1.1.18)
+
+- Every consequential action asks first, in an alert with an explicit Cancel button (consistent from iOS 15 to the newest iOS, where confirmation dialogs would otherwise become popovers without Cancel): ungroup a folder, unlink a contact, deny or block a request, stop timed sharing, log out, delete account, remove or remove-and-block a friend, unblock.
+- The open folder card fits its grid, centers above its tile in the bar (pinned to the screen margin near either edge), no longer clips avatars, and uses the same UIKit ⋯ as the friend card. Its menu reads Ungroup, then Rename Folder.

@@ -182,7 +182,8 @@ struct AccountView: View {
         }
         .navigationTitle(model.credentials?.username ?? String(localized: "Account"))
         .navigationBarTitleDisplayMode(.inline)
-        .confirmationDialog("Log out?", isPresented: $confirmingLogOut, titleVisibility: .visible) {
+        .alert("Log out?", isPresented: $confirmingLogOut) {
+            Button("Cancel", role: .cancel) {}
             Button("Log Out", role: .destructive) {
                 model.logOut()
                 onLogOut()

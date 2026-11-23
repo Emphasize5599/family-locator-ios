@@ -4,6 +4,14 @@ struct RequestsView: View {
     @EnvironmentObject private var model: AppModel
     @State private var error: String?
     @State private var busy = false
+    /// A Deny or Block waiting for confirmation.
+    @State private var decision: RequestDecision?
+
+    private struct RequestDecision: Identifiable {
+        let request: PendingRequest
+        let block: Bool
+        var id: Data { request.id }
+    }
 
     private var requests: [PendingRequest] {
         model.safety.pending.values.sorted { $0.user.username < $1.user.username }
@@ -33,9 +41,9 @@ struct RequestsView: View {
                         Button { perform { try await model.approveRequest(request) } } label: { Text("Approve").frame(maxWidth: .infinity, minHeight: 44) }
                             .buttonStyle(.borderedProminent)
                         HStack {
-                            Button(role: .destructive) { perform { try model.denyRequest(request) } } label: { Text("Deny").frame(minWidth: 44, minHeight: 44) }
+                            Button(role: .destructive) { decision = RequestDecision(request: request, block: false) } label: { Text("Deny").frame(minWidth: 44, minHeight: 44) }
                             Spacer()
-                            Button(role: .destructive) { perform { try await model.blockUser(request.user) } } label: { Text("Block").frame(minWidth: 44, minHeight: 44) }
+                            Button(role: .destructive) { decision = RequestDecision(request: request, block: true) } label: { Text("Block").frame(minWidth: 44, minHeight: 44) }
                         }
                     }
                     .padding(Spacing.large)
@@ -51,6 +59,20 @@ struct RequestsView: View {
             .disabled(busy)
         }
         .task { await model.refresh() }
+        .alert(decision?.block == true ? "Block this person?" : "Deny this request?",
+                            isPresented: Binding(get: { decision != nil }, set: { if !$0 { decision = nil } }),
+                            presenting: decision) { decision in
+            Button("Cancel", role: .cancel) {}
+            if decision.block {
+                Button("Block", role: .destructive) { perform { try await model.blockUser(decision.request.user) } }
+            } else {
+                Button("Deny", role: .destructive) { perform { try model.denyRequest(decision.request) } }
+            }
+        } message: { decision in
+            Text(decision.block
+                 ? "@\(decision.request.user.username) won't be able to send you requests on this iPhone. You can unblock them in Settings › Account › Blocked Users."
+                 : "This dismisses @\(decision.request.user.username)'s request. They can send another one later.")
+        }
     }
 
     private func perform(_ action: @escaping () async throws -> Void) {
@@ -88,7 +110,8 @@ struct BlockedUsersView: View {
             if let error { Text(error).foregroundStyle(Color.zoodRed) }
         }
         .navigationTitle("Blocked Users")
-        .confirmationDialog("Unblock this user?", isPresented: Binding(get: { selected != nil }, set: { if !$0 { selected = nil } }), titleVisibility: .visible) {
+        .alert("Unblock this user?", isPresented: Binding(get: { selected != nil }, set: { if !$0 { selected = nil } })) {
+            Button("Cancel", role: .cancel) {}
             Button("Unblock") {
                 guard let selected else { return }
                 do { try model.unblockUser(selected) } catch { self.error = error.localizedDescription }

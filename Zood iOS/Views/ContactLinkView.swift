@@ -12,6 +12,7 @@ struct ContactLinkView: View {
     @Environment(\.dismiss) private var dismiss
     let friendID: Data
     @State private var choosingContact = false
+    @State private var confirmingUnlink = false
 
     var body: some View {
         ContentFittedSheet(title: "Linked Contact", showsCloseButton: true) {
@@ -20,14 +21,20 @@ struct ContactLinkView: View {
                 .foregroundStyle(.secondary)
             if let contact = model.local.friends[friendID]?.linkedContact {
                 Label(contact.name, systemImage: "person.crop.circle")
-                Button("Unlink Contact", role: .destructive) {
-                    model.setLinkedContact(nil, for: friendID)
-                    dismiss()
-                }
-                .frame(minHeight: 44)
+                Button("Unlink Contact", role: .destructive) { confirmingUnlink = true }
+                    .frame(minHeight: 44)
             }
             Button("Choose Contact") { choosingContact = true }
                 .frame(minHeight: 44)
+        }
+        .alert("Unlink this contact?", isPresented: $confirmingUnlink) {
+            Button("Cancel", role: .cancel) {}
+            Button("Unlink Contact", role: .destructive) {
+                model.setLinkedContact(nil, for: friendID)
+                dismiss()
+            }
+        } message: {
+            Text("Their contact photo is removed, and the nickname it set is cleared unless you've changed it since.")
         }
         .sheet(isPresented: $choosingContact) {
             ContactPicker { contact in

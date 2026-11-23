@@ -148,6 +148,59 @@ struct PanelIconButton: UIViewRepresentable {
     }
 }
 
+/// One item in a `PanelMenuButton` menu.
+struct PanelMenuAction: Equatable {
+    let title: String
+    let systemImage: String
+    var destructive = false
+    let handler: () -> Void
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.title == rhs.title && lhs.systemImage == rhs.systemImage && lhs.destructive == rhs.destructive
+    }
+}
+
+/// A ⋯ button that opens a menu, drawn by UIKit exactly like the friend card's ⋯ (same symbol size and tint),
+/// so every card's ⋯ matches. Items appear top to bottom in the order given.
+struct PanelMenuButton: UIViewRepresentable {
+    let accessibilityLabel: String
+    let actions: [PanelMenuAction]
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeUIView(context: Context) -> UIButton {
+        let button = UIButton(type: .system)
+        button.setImage(UIImage(systemName: "ellipsis.circle", withConfiguration: panelIconConfig), for: .normal)
+        button.tintColor = UIColor(Color.zoodBlueDark)
+        button.showsMenuAsPrimaryAction = true
+        if #available(iOS 16, *) { button.preferredMenuElementOrder = .fixed }
+        button.accessibilityLabel = accessibilityLabel
+        button.setContentHuggingPriority(.required, for: .horizontal)
+        button.setContentHuggingPriority(.required, for: .vertical)
+        return button
+    }
+
+    func updateUIView(_ button: UIButton, context: Context) {
+        context.coordinator.actions = actions
+        // Rebuild only when the items change, so an open menu never flashes.
+        guard context.coordinator.builtFor != actions else { return }
+        context.coordinator.builtFor = actions
+        var items: [UIMenuElement] = actions.enumerated().map { index, action in
+            UIAction(title: action.title, image: UIImage(systemName: action.systemImage),
+                     attributes: action.destructive ? .destructive : []) { [weak coordinator = context.coordinator] _ in
+                coordinator?.actions[index].handler()
+            }
+        }
+        if #unavailable(iOS 16) { items.reverse() }
+        button.menu = UIMenu(children: items)
+    }
+
+    final class Coordinator {
+        var actions: [PanelMenuAction] = []
+        var builtFor: [PanelMenuAction]?
+    }
+}
+
 /// Closes a card without applying its draft changes.
 struct CloseButton: View {
     let action: () -> Void

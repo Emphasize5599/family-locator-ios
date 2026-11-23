@@ -71,7 +71,8 @@ struct FriendPanel: View {
             .alert("Could Not Block User", isPresented: Binding(get: { blockError != nil }, set: { if !$0 { blockError = nil } })) {
                 Button("OK") { blockError = nil }
             } message: { Text(blockError ?? "") }
-            .confirmationDialog("Remove & Block \(friend.user.username)?", isPresented: $confirmingBlock, titleVisibility: .visible) {
+            .alert("Remove & Block \(friend.user.username)?", isPresented: $confirmingBlock) {
+                Button("Cancel", role: .cancel) {}
                 Button("Remove & Block", role: .destructive) {
                     Task {
                         do { try await model.blockUser(friend.user); onClose() }
@@ -81,7 +82,8 @@ struct FriendPanel: View {
             } message: {
                 Text("Stops sharing and blocks their requests on this iPhone. Previously received locations may remain on their device. You can unblock them in Settings.")
             }
-            .confirmationDialog("Remove \(friend.user.username)?", isPresented: $confirmingRemove, titleVisibility: .visible) {
+            .alert("Remove \(friend.user.username)?", isPresented: $confirmingRemove) {
+                Button("Cancel", role: .cancel) {}
                 Button("Remove", role: .destructive) {
                     Task { await model.removeFriend(friend) }
                     onClose()

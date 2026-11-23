@@ -17,7 +17,12 @@ struct MainView: View {
     @AppStorage(FolderGrid.columnsKey) private var folderColumns = FolderGrid.defaultColumns
     @AppStorage(FolderGrid.rowsKey) private var folderRows = FolderGrid.defaultRows
     @State private var renamingFolder: FriendFolder?
+    @State private var confirmingUngroup: FriendFolder?
+    /// Where the open folder's tile sits horizontally on screen, so its card can open centered above it.
+    @State private var openFolderTileMidX: CGFloat?
     @State private var folderName = ""
+
+    private static let screenSpace = "main-screen"
 
     private enum ActiveSheet: Identifiable, Equatable {
         case addFriend
@@ -74,7 +79,7 @@ struct MainView: View {
                         .transition(.opacity)
                     }
                     if let folder = model.friendFolders.first(where: { $0.id == openFolderID }) {
-                        folderPopup(folder)
+                        folderPopup(folder, screenWidth: geometry.size.width)
                             .transition(.scale(scale: 0.85, anchor: .bottom).combined(with: .opacity))
                     }
                     friendsBar
@@ -84,6 +89,7 @@ struct MainView: View {
                 .animation(.spring(response: 0.35, dampingFraction: 0.85), value: selectedFriendID)
                 .animation(.spring(response: 0.35, dampingFraction: 0.85), value: model.timedShare != nil)
             }
+            .coordinateSpace(name: Self.screenSpace)
         }
         .overlay(alignment: .topTrailing) { controls }
         .sheet(item: $activeSheet) { sheet in
@@ -108,6 +114,17 @@ struct MainView: View {
             TextField("Folder name", text: $folderName)
             Button("Save") { model.renameFolder(folder.id, to: folderName) }
             Button("Cancel", role: .cancel) {}
+        }
+        .alert(Text("Ungroup \u{201C}\(confirmingUngroup?.name ?? String(localized: "Folder"))\u{201D}?"),
+                            isPresented: Binding(get: { confirmingUngroup != nil }, set: { if !$0 { confirmingUngroup = nil } }),
+                            presenting: confirmingUngroup) { folder in
+            Button("Cancel", role: .cancel) {}
+            Button("Ungroup", role: .destructive) {
+                closeFolder()
+                withAnimation { model.ungroupFolder(folder.id) }
+            }
+        } message: { _ in
+            Text("Everyone in it goes back to the bar. Nobody is removed as a friend.")
         }
         .alert("Could Not Save Request", isPresented: Binding(get: { model.safetyError != nil }, set: { if !$0 { model.safetyError = nil } })) {
             Button("OK") { model.safetyError = nil }
@@ -302,6 +319,14 @@ struct MainView: View {
             }
             .frame(width: barItemWidth)
             .opacity(dragging == id ? 0.3 : 1)
+            // Track where this tile is, so its open card can center above it (and follow it as the bar scrolls).
+            .background(GeometryReader { tile in
+                let midX = tile.frame(in: .named(Self.screenSpace)).midX
+                Color.clear
+                    .onAppear { if openFolderID == folder.id { openFolderTileMidX = midX } }
+                    .compatOnChange(of: midX) { x in if openFolderID == folder.id { openFolderTileMidX = x } }
+                    .compatOnChange(of: openFolderID) { open in if open == folder.id { openFolderTileMidX = midX } }
+            })
         }
         .buttonStyle(.plain)
         .accessibilityLabel(Text("\(title), folder of \(members.count)"))
@@ -322,8 +347,15 @@ struct MainView: View {
         .id(folder.id)
     }
 
+    /// Ungroup first, then Rename Folder: the same order as the friend card's ⋯ menu, which leads with its
+    /// destructive actions. Ungroup always asks for confirmation.
     @ViewBuilder
     private func folderActions(_ folder: FriendFolder) -> some View {
+        Button(role: .destructive) {
+            confirmingUngroup = folder
+        } label: {
+            Label("Ungroup", systemImage: "folder.badge.minus")
+        }
         if #available(iOS 16, *) {
             Button {
                 folderName = folder.name ?? ""
@@ -332,56 +364,73 @@ struct MainView: View {
                 Label("Rename Folder", systemImage: "pencil")
             }
         }
-        Button(role: .destructive) {
-            closeFolder()
-            model.ungroupFolder(folder.id)
-        } label: {
-            Label("Ungroup", systemImage: "folder.badge.minus")
+    }
+
+    private func folderMenuActions(_ folder: FriendFolder) -> [PanelMenuAction] {
+        var actions = [PanelMenuAction(title: String(localized: "Ungroup"), systemImage: "folder.badge.minus", destructive: true) {
+            confirmingUngroup = folder
+        }]
+        if #available(iOS 16, *) {
+            actions.append(PanelMenuAction(title: String(localized: "Rename Folder"), systemImage: "pencil") {
+                folderName = folder.name ?? ""
+                renamingFolder = folder
+            })
         }
+        return actions
     }
 
     /// An open folder, floating above the bar like the ⋯ menu: its members in a grid (3×3 by default, set in
     /// Settings). Bigger folders scroll. Tap someone to open their card; drag to rearrange or to take them out.
-    private func folderPopup(_ folder: FriendFolder) -> some View {
+    ///
+    /// The card is as wide as its grid needs, and opens centered above the folder's tile; near either edge it
+    /// stops at the screen margin instead.
+    private func folderPopup(_ folder: FriendFolder, screenWidth: CGFloat) -> some View {
         let members = folder.members.compactMap { model.local.friends[$0] }
         let columns = min(max(folderColumns, FolderGrid.columnRange.lowerBound), FolderGrid.columnRange.upperBound)
         let rows = min(max(folderRows, FolderGrid.rowRange.lowerBound), FolderGrid.rowRange.upperBound)
+        let usedColumns = max(1, min(columns, members.count))
         let cellHeight: CGFloat = 76
         let visibleRows = min(rows, max(1, Int(ceil(Double(members.count) / Double(columns)))))
-        let gridHeight = CGFloat(visibleRows) * cellHeight + CGFloat(visibleRows - 1) * Spacing.large
-        return VStack(alignment: .leading, spacing: Spacing.medium) {
-            HStack(spacing: Spacing.small) {
+        // Room above and below each row so the avatars' rings are never clipped by the scrolling area.
+        let gridInset = Spacing.tight
+        let gridHeight = CGFloat(visibleRows) * cellHeight + CGFloat(visibleRows - 1) * Spacing.large + 2 * gridInset
+        let gridWidth = CGFloat(usedColumns) * barItemWidth + CGFloat(usedColumns - 1) * Spacing.large
+        // The header (name, ⋯ and ✕) needs about this much; a one- or two-person folder still fits it.
+        let headerWidth: CGFloat = 200
+        let margin = Spacing.medium
+        let width = min(max(gridWidth, headerWidth) + 2 * Spacing.large, screenWidth - 2 * margin)
+        let tileX = openFolderTileMidX ?? screenWidth / 2
+        let centerX = min(max(tileX, margin + width / 2), screenWidth - margin - width / 2)
+        return VStack(alignment: .leading, spacing: Spacing.small) {
+            HStack(spacing: Spacing.tight) {
                 Text(folder.name ?? String(localized: "Folder"))
                     .font(.headline)
                     .lineLimit(1)
                 Spacer(minLength: Spacing.small)
-                Menu {
-                    folderActions(folder)
-                } label: {
-                    Image(systemName: "ellipsis.circle").font(.title2)
-                        .foregroundStyle(Color.zoodBlueDark)
-                        .frame(width: 44, height: 44)
-                }
-                .accessibilityLabel("Folder options")
+                // The same UIKit ⋯ as the friend card, so it's the same size and tint.
+                PanelMenuButton(accessibilityLabel: String(localized: "Folder options"), actions: folderMenuActions(folder))
+                    .frame(width: 44, height: 44)
                 CloseButton { closeFolder() }.frame(width: 44, height: 44)
             }
             ScrollView(.vertical, showsIndicators: members.count > columns * rows) {
-                LazyVGrid(columns: Array(repeating: GridItem(.fixed(barItemWidth), spacing: Spacing.large), count: columns),
+                LazyVGrid(columns: Array(repeating: GridItem(.fixed(barItemWidth), spacing: Spacing.large), count: usedColumns),
                           spacing: Spacing.large) {
                     ForEach(members) { friend in
                         folderMember(friend, in: folder)
                     }
                 }
+                .padding(.vertical, gridInset)
                 .frame(maxWidth: .infinity)
             }
             .frame(height: gridHeight)
         }
         .padding(Spacing.large)
+        .frame(width: width)
         .floatingSurface(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .padding(.horizontal, Spacing.medium)
         .contentShape(Rectangle())
         // Drop anyone onto the open folder to add them.
         .onDrop(of: [.plainText], delegate: FolderGridDropDelegate(folderID: folder.id, member: nil, model: model, dragging: $dragging))
+        .offset(x: centerX - screenWidth / 2)
     }
 
     private func folderMember(_ friend: Friend, in folder: FriendFolder) -> some View {
