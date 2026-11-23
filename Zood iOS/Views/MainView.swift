@@ -474,6 +474,7 @@ struct MainView: View {
                     }
                 }
                 .padding(.vertical, gridInset)
+                .frame(width: gridWidth)  // a grid offered more room centers its columns; keep it to its own width
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .frame(height: gridHeight)
