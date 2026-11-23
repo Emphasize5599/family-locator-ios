@@ -151,6 +151,9 @@ final class AppModel: ObservableObject {
             fixture.nickname = "Dad"
         }
         if scene == "friend-long-name" {
+            // Also shows the activity icons: walking, heading northeast.
+            fixture.location?.movement = "walking"
+            fixture.location?.bearing = 45
             fixture.nickname = "Alex Golden Gate Family"
         }
         local.friends = [fixture.id: fixture]  // start each scene from the same fixture set

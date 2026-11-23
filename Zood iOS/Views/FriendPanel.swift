@@ -186,17 +186,43 @@ struct FriendPanel: View {
         }
     }
 
+    /// Battery, then the same activity icons the Android app shows: how they're moving (car, bike or on foot,
+    /// from the activity their phone reports) and an arrow pointing the way they're heading (when their
+    /// location includes a bearing, i.e. while moving). Nothing is shown when they're still or it's unknown.
     private func batteryAndActivity(_ loc: FriendLocation) -> some View {
         HStack(spacing: Spacing.small) {
             if let level = loc.batteryLevel {
                 Label("\(level)%", systemImage: batterySymbol(level: level, charging: loc.batteryCharging == true))
             }
-            if let movement = loc.movement, movement != "unknown", movement != "stationary" {
-                Label(movement.replacingOccurrences(of: "_", with: " ").capitalized, systemImage: "figure.walk")
+            if let activity = Self.activity(for: loc.movement) {
+                Image(systemName: activity.symbol)
+                    .accessibilityLabel(Text(activity.label))
+            }
+            if let bearing = loc.bearing {
+                Image(systemName: "location.north.fill")
+                    .rotationEffect(.degrees(bearing))
+                    .accessibilityLabel(Text("Heading \(Self.compassPoint(bearing))"))
             }
         }
         .font(.subheadline)
         .foregroundStyle(Color.cardSecondary)
+    }
+
+    /// Mirrors Android's InfoPanel: vehicle → car, bicycle → bike, on foot / walking / running → walking figure.
+    private static func activity(for movement: String?) -> (symbol: String, label: LocalizedStringKey)? {
+        switch movement {
+        case "vehicle": return ("car.fill", "Driving")
+        case "bicycle": return ("bicycle", "Cycling")
+        case "on_foot", "walking": return ("figure.walk", "Walking")
+        case "running": return ("figure.run", "Running")
+        default: return nil  // stationary, tilting, unknown
+        }
+    }
+
+    private static func compassPoint(_ bearing: Double) -> String {
+        let points = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
+        let index = Int((bearing.truncatingRemainder(dividingBy: 360) + 360 + 22.5) / 45) % 8
+        return points[index]
     }
 
     private func addressLink(_ friend: Friend, _ loc: FriendLocation) -> some View {
@@ -536,12 +562,13 @@ private struct FriendMenu: UIViewRepresentable {
         items.append(UIAction(title: String(localized: "View Safety Number"), image: UIImage(systemName: "lock.shield")) { [weak coordinator] _ in
             coordinator?.viewSafetyNumber?()
         })
-        // One item rather than a submenu: a UIKit submenu puts its chevron on the leading side and indents the
-        // menu for it. The handle shows underneath; tapping copies it.
+        // A submenu that expands to the @username (tap to copy). UIKit draws its chevron on the leading side.
         let handle = "@\(username)"
-        items.append(UIAction(title: String(localized: "View Username"), subtitle: handle, image: UIImage(systemName: "at")) { _ in
-            UIPasteboard.general.string = handle
-        })
+        items.append(UIMenu(title: String(localized: "View Username"), image: UIImage(systemName: "at"), children: [
+            UIAction(title: handle, image: UIImage(systemName: "doc.on.doc")) { _ in
+                UIPasteboard.general.string = handle
+            }
+        ]))
         items.append(UIAction(title: String(localized: linked ? "Linked Contact" : "Link Contact"),
                               image: UIImage(systemName: "person.crop.circle.badge.plus")) { [weak coordinator] _ in
             coordinator?.linkContact?()
