@@ -104,40 +104,76 @@ struct FriendPanel: View {
     // MARK: Header
 
     private func header(_ friend: Friend) -> some View {
+        VStack(alignment: .leading, spacing: Spacing.tight) {
+            nameAndControls(friend)
+            // Battery, address and status: the same even gap between every line.
+            if let loc = friend.location {
+                batteryAndActivity(loc)
+                addressLink(friend, loc)
+            }
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                unifiedStatus(friend, now: context.date)
+            }
+        }
+    }
+
+    /// The name sits beside the avatar while it fits on one line between the avatar and the icons; a longer
+    /// name moves to its own line under them and wraps across the card's full width instead of truncating.
+    @ViewBuilder
+    private func nameAndControls(_ friend: Friend) -> some View {
+        if #available(iOS 16, *) {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: Spacing.small) {
+                    avatar(friend)
+                    Text(friend.displayName)
+                        .font(.title2.bold())
+                        .lineLimit(1)
+                    Spacer(minLength: Spacing.small)
+                    headerControls(friend)
+                }
+                nameBelowAvatar(friend)
+            }
+        } else {
+            nameBelowAvatar(friend)
+        }
+    }
+
+    private func nameBelowAvatar(_ friend: Friend) -> some View {
         VStack(alignment: .leading, spacing: Spacing.small) {
             HStack(spacing: Spacing.tight) {
-                AvatarView(username: friend.avatarName, imageData: friend.avatar, size: 56)
+                avatar(friend)
                 Spacer(minLength: 0)
-                if let platform = friend.device?.platform { PlatformBadge(platform: platform) }
-                // Drawn by UIKit with the same symbol configuration as ⋯ and ✕, so all three match.
-                PanelIconButton(systemName: "pencil.circle", tint: UIColor(Color.zoodBlueDark),
-                                accessibilityLabel: String(localized: "Edit friend's nickname")) {
-                    editingNickname = true
-                }
+                headerControls(friend)
+            }
+            Text(friend.displayName)
+                .font(.title2.bold())
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func avatar(_ friend: Friend) -> some View {
+        AvatarView(username: friend.avatarName, imageData: friend.avatar, size: 56)
+    }
+
+    /// Platform logo, ✎, ⋯ and ✕, all the same size.
+    private func headerControls(_ friend: Friend) -> some View {
+        HStack(spacing: Spacing.tight) {
+            if let platform = friend.device?.platform { PlatformBadge(platform: platform) }
+            // Drawn by UIKit with the same symbol configuration as ⋯ and ✕, so all three match.
+            PanelIconButton(systemName: "pencil.circle", tint: UIColor(Color.zoodBlueDark),
+                            accessibilityLabel: String(localized: "Edit friend's nickname")) {
+                editingNickname = true
+            }
+            .frame(width: 44, height: 44)
+            FriendMenu(linked: friend.linkedContact != nil,
+                       username: friend.user.username,
+                       linkContact: { linkingContact = true },
+                       viewSafetyNumber: { showingSafetyNumber = true },
+                       remove: { confirmingRemove = true },
+                       block: { confirmingBlock = true })
                 .frame(width: 44, height: 44)
-                FriendMenu(linked: friend.linkedContact != nil,
-                           username: friend.user.username,
-                           linkContact: { linkingContact = true },
-                           viewSafetyNumber: { showingSafetyNumber = true },
-                           remove: { confirmingRemove = true },
-                           block: { confirmingBlock = true })
-                    .frame(width: 44, height: 44)
-                CloseButton(action: onClose).frame(width: 44, height: 44)
-            }
-            // Name, battery, address and status: one even gap between every line.
-            VStack(alignment: .leading, spacing: Spacing.tight) {
-                Text(friend.displayName)
-                    .font(.title2.bold())
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .fixedSize(horizontal: false, vertical: true)
-                if let loc = friend.location {
-                    batteryAndActivity(loc)
-                    addressLink(friend, loc)
-                }
-                TimelineView(.periodic(from: .now, by: 1)) { context in
-                    unifiedStatus(friend, now: context.date)
-                }
-            }
+            CloseButton(action: onClose).frame(width: 44, height: 44)
         }
     }
 
@@ -423,26 +459,28 @@ private struct FriendMenu: UIViewRepresentable {
         guard coordinator.builtFor != linked else { return }
         coordinator.builtFor = linked
 
-        // "Link Contact" took the place of "Open in Maps"; the address itself now opens Maps.
+        // Top to bottom as shown under the card: the remove actions first (Remove & Block above Remove Friend),
+        // then the views, with Link Contact (which replaced "Open in Maps") last, nearest the ⋯ button.
         var items: [UIMenuElement] = []
-        items.append(UIAction(title: String(localized: linked ? "Linked Contact" : "Link Contact"),
-                              image: UIImage(systemName: "person.crop.circle.badge.plus")) { [weak coordinator] _ in
-            coordinator?.linkContact?()
-        })
-        items.append(UIMenu(title: String(localized: "View Username"), children: [
-            UIAction(title: "@\(username)", image: UIImage(systemName: "doc.on.doc")) { _ in
-                UIPasteboard.general.string = "@\(username)"
-            }
-        ]))
-        items.append(UIAction(title: String(localized: "View Safety Number"), image: UIImage(systemName: "lock.shield")) { [weak coordinator] _ in
-            coordinator?.viewSafetyNumber?()
-        })
         items.append(UIAction(title: String(localized: "Remove & Block"), image: UIImage(systemName: "hand.raised"), attributes: .destructive) { [weak coordinator] _ in
             coordinator?.block?()
         })
         items.append(UIAction(title: String(localized: "Remove Friend"), image: UIImage(systemName: "person.crop.circle.badge.minus"), attributes: .destructive) { [weak coordinator] _ in
             coordinator?.remove?()
         })
+        items.append(UIAction(title: String(localized: "View Safety Number"), image: UIImage(systemName: "lock.shield")) { [weak coordinator] _ in
+            coordinator?.viewSafetyNumber?()
+        })
+        items.append(UIMenu(title: String(localized: "View Username"), children: [
+            UIAction(title: "@\(username)", image: UIImage(systemName: "doc.on.doc")) { _ in
+                UIPasteboard.general.string = "@\(username)"
+            }
+        ]))
+        items.append(UIAction(title: String(localized: linked ? "Linked Contact" : "Link Contact"),
+                              image: UIImage(systemName: "person.crop.circle.badge.plus")) { [weak coordinator] _ in
+            coordinator?.linkContact?()
+        })
+        // iOS 16+ keeps this order (`.fixed`); iOS 15 lists a menu from the button outward, so reverse it there.
         if #unavailable(iOS 16) { items.reverse() }
         button.menu = UIMenu(children: items)
     }

@@ -20,7 +20,7 @@ struct MainView: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack(alignment: .bottom) {
-                FriendMapView(friends: model.friends, command: mapCommand, onSelect: { id in
+                FriendMapView(friends: model.friends, selectedID: selectedFriendID, command: mapCommand, onSelect: { id in
                     if let friend = model.local.friends[id] { select(friend) }
                 }, onBackgroundTap: {
                     closeFriend()
@@ -88,7 +88,9 @@ struct MainView: View {
             if ScreenshotTour.isEnabled, let loc = model.friends.first?.location {
                 mapCommand = MapCommand(kind: .focus(latitude: loc.latitude, longitude: loc.longitude))
             }
-            if ["friend", "friend-long-name", "friend-updated", "friend-unsupported"].contains(ScreenshotTour.scene ?? ""), let friend = model.friends.first { select(friend) }
+            if ["friend", "friend-short-name", "friend-long-name", "friend-updated", "friend-unsupported"].contains(ScreenshotTour.scene ?? ""), let friend = model.friends.first { select(friend) }
+            // Overlapping pins: open a friend from the middle of the stack; their pin should come to the front.
+            if ScreenshotTour.scene == "friend-overlap", let friend = model.friends.first(where: { $0.nickname == "Devon" }) { select(friend) }
             // Screenshot/UI checks: SIMCTL_CHILD_ZOOD_OPEN_FIRST=1 opens the first friend's card at launch.
             if ProcessInfo.processInfo.environment["ZOOD_OPEN_FIRST"] == "1", let first = model.friends.first { select(first) }
             // End-to-end checks: SIMCTL_CHILD_ZOOD_START_TIMED_SHARE=1 starts a timed share and writes its link to

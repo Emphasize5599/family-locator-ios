@@ -138,7 +138,8 @@ struct PlatformBadge: View {
         logo
             .foregroundStyle(Color.cardSecondary)
             .frame(width: panelIconSide, height: panelIconSide)
-            .frame(width: 44, height: 44)
+            // Not a button, so it only needs its own width; that leaves more room for a name beside the avatar.
+            .frame(height: 44)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(platform == .ios ? "Apple device" : "Android device")
     }

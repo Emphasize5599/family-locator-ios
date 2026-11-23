@@ -132,6 +132,9 @@ final class AppModel: ObservableObject {
         guard ScreenshotTour.isEnabled else { return }
         safety = SafetyState()
         var fixture = ScreenshotTour.friend
+        if scene == "friend-short-name" {
+            fixture.nickname = "Dad"
+        }
         if scene == "friend-long-name" {
             fixture.nickname = "Alex Golden Gate Family"
         }
@@ -148,7 +151,7 @@ final class AppModel: ObservableObject {
             // Dated a few seconds ahead so the check is still showing once the scene has loaded.
             requestStatuses[fixture.id] = .responded(.finished, Date().addingTimeInterval(5))
         }
-        if scene == "map-many-friends" {
+        if ["map-many-friends", "friend-overlap"].contains(scene) {
             // Enough friends to make the friend bar scroll, for checking its rounded-corner clipping.
             for (index, name) in ["Bailey", "Casey", "Devon", "Emerson", "Finley", "Harper"].enumerated() {
                 var extra = fixture

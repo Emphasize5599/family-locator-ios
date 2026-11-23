@@ -14,6 +14,8 @@ struct MapCommand: Equatable {
 /// MKMapView wrapper (SwiftUI's annotation-builder `Map` needs iOS 17; this app supports iOS 15).
 struct FriendMapView: UIViewRepresentable {
     let friends: [Friend]
+    /// The friend whose card is open; their pin is drawn above any pins it overlaps.
+    var selectedID: Data? = nil
     let command: MapCommand?
     let onSelect: (Data) -> Void
     /// Tap on the map itself (not a pin), used to close the friend card.
@@ -40,6 +42,7 @@ struct FriendMapView: UIViewRepresentable {
         context.coordinator.onSelect = onSelect
         context.coordinator.onBackgroundTap = onBackgroundTap
         context.coordinator.sync(friends: friends, on: map)
+        context.coordinator.raise(selectedID, on: map)
         if let command, command != context.coordinator.lastCommand {
             context.coordinator.lastCommand = command
             switch command.kind {
@@ -62,6 +65,7 @@ struct FriendMapView: UIViewRepresentable {
         var lastCommand: MapCommand?
         private var annotations: [Data: FriendAnnotation] = [:]
         private var circles: [Data: MKCircle] = [:]
+        private var selectedID: Data?
 
         init(onSelect: @escaping (Data) -> Void) { self.onSelect = onSelect }
 
@@ -120,10 +124,24 @@ struct FriendMapView: UIViewRepresentable {
             }
         }
 
+        /// Brings the open friend's pin to the front. We deselect pins as soon as they're tapped (the card is
+        /// our selection UI), so MapKit's own "selected pin on top" never applies; set the z-priority ourselves.
+        func raise(_ id: Data?, on map: MKMapView) {
+            guard id != selectedID else { return }
+            let previous = selectedID
+            selectedID = id
+            for changed in [previous, id].compactMap({ $0 }) {
+                guard let annotation = annotations[changed], let view = map.view(for: annotation) else { continue }
+                view.zPriority = changed == id ? .max : .defaultUnselected
+            }
+        }
+
         func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
             guard let annotation = annotation as? FriendAnnotation else { return nil }
             let view = mapView.dequeueReusableAnnotationView(withIdentifier: FriendAnnotationView.reuseID, for: annotation)
             (view as? FriendAnnotationView)?.configure(with: annotation.friend)
+            // Reused views keep their old priority, so set it every time.
+            view.zPriority = annotation.friend.id == selectedID ? .max : .defaultUnselected
             return view
         }
 
