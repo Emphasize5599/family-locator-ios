@@ -632,13 +632,15 @@ final class AppModel: ObservableObject {
             }
         case .locationSharingGrant:
             guard let box = comm.dropBox else { return }
-            // Existing approved senders can rotate their box. Everyone else needs consent.
-            guard local.friends[user.userID]?.theyShare == true else {
+            let existing = local.friends[user.userID]
+            // A return share must refer to the active offer we made to this sender.
+            guard existing?.theyShare == true || comm.repliesToSharingOffer(on: existing?.sendingBoxID) else {
                 var next = safety
                 next.pending[user.userID] = PendingRequest(user: user, boxID: box, nickname: Nickname.normalized(comm.nickname))
                 try saveSafety(next)
                 return
             }
+            if let pending = safety.pending[user.userID] { try denyRequest(pending) }
             upsertFriend(user) { $0.receivingBoxID = box }
             socket?.watch(box)
             scheduleBackup()
@@ -937,6 +939,7 @@ final class AppModel: ObservableObject {
         let box = local.friends[user.userID]?.sendingBoxID ?? Crypto.randomBytes(ZoodConstants.dropBoxIDLength)
         var grant = UserComm(type: .locationSharingGrant)
         grant.dropBox = box
+        grant.replyToBox = local.friends[user.userID]?.receivingBoxID
         try await send(grant, to: user, urgent: false, transient: false)
         guard safety.blocked[user.userID] == nil else {
             try? await send(UserComm(type: .locationSharingRevocation), to: user, urgent: false, transient: false)

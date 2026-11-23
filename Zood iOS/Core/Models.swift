@@ -192,6 +192,8 @@ nonisolated enum UpdateRequestAction: String, Codable, Sendable {
 nonisolated struct UserComm: Codable, Sendable {
     var type: CommType
     var dropBox: Data?
+    /// The peer's approved sending box when explicitly starting a return share.
+    var replyToBox: Data?
     var avatar: Data?
     var latitude: Double?
     var longitude: Double?
@@ -219,7 +221,7 @@ nonisolated struct UserComm: Codable, Sendable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case type, dropBox, avatar, latitude, longitude, time, accuracy, speed, bearing, movement
+        case type, dropBox, replyToBox, avatar, latitude, longitude, time, accuracy, speed, bearing, movement
         case batteryLevel, batteryCharging, locationUpdateRequestAction, debugData, platform, liveRequests, nickname, friendRemoved
     }
 
@@ -227,6 +229,7 @@ nonisolated struct UserComm: Codable, Sendable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         type = CommType(rawValue: (try? c.decode(String.self, forKey: .type)) ?? "") ?? .unknown
         dropBox = try? c.decodeIfPresent(Data.self, forKey: .dropBox)
+        replyToBox = try? c.decodeIfPresent(Data.self, forKey: .replyToBox)
         avatar = try? c.decodeIfPresent(Data.self, forKey: .avatar)
         latitude = try? c.decodeIfPresent(Double.self, forKey: .latitude)
         longitude = try? c.decodeIfPresent(Double.self, forKey: .longitude)
@@ -249,6 +252,7 @@ nonisolated struct UserComm: Codable, Sendable {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(type.rawValue, forKey: .type)
         try c.encodeIfPresent(dropBox, forKey: .dropBox)
+        try c.encodeIfPresent(replyToBox, forKey: .replyToBox)
         try c.encodeIfPresent(avatar, forKey: .avatar)
         try c.encodeIfPresent(latitude, forKey: .latitude)
         try c.encodeIfPresent(longitude, forKey: .longitude)
@@ -265,6 +269,12 @@ nonisolated struct UserComm: Codable, Sendable {
         try c.encodeIfPresent(liveRequests, forKey: .liveRequests)
         try c.encodeIfPresent(nickname, forKey: .nickname)
         try c.encodeIfPresent(friendRemoved, forKey: .friendRemoved)
+    }
+
+    func repliesToSharingOffer(on box: Data?) -> Bool {
+        guard type == .locationSharingGrant, let replyToBox,
+              replyToBox.count == ZoodConstants.dropBoxIDLength else { return false }
+        return replyToBox == box
     }
 
     /// Same validity rules george applies in `UserComm.isValid()`.

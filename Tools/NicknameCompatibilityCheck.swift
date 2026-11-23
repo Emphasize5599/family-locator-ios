@@ -38,6 +38,18 @@ struct NicknameCompatibilityCheck {
               String(decoding: try fullRemoval.jsonData(), as: UTF8.self).contains("\"friend_removed\"") else {
             fatalError("Sharing revocation and friendship removal must remain distinct")
         }
+        let offer = Data(repeating: 4, count: ZoodConstants.dropBoxIDLength)
+        var returnGrant = UserComm(type: .locationSharingGrant)
+        returnGrant.dropBox = Data(repeating: 5, count: ZoodConstants.dropBoxIDLength)
+        returnGrant.replyToBox = offer
+        let grantJSON = try returnGrant.jsonData()
+        let decodedGrant = try ZoodJSON.decoder.decode(UserComm.self, from: grantJSON)
+        guard String(decoding: grantJSON, as: UTF8.self).contains("\"reply_to_box\""),
+              decodedGrant.repliesToSharingOffer(on: offer),
+              !decodedGrant.repliesToSharingOffer(on: nil),
+              !decodedGrant.repliesToSharingOffer(on: returnGrant.dropBox) else {
+            fatalError("Return grants must match the active offer")
+        }
         var snapshot = Snapshot()
         snapshot.nickname = "My shared name"
         snapshot.users = [.init(userId: user.id, publicKey: user.publicKey, username: user.username)]
