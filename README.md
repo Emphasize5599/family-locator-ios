@@ -27,7 +27,7 @@ See [Docs/PROTOCOL.md](Docs/PROTOCOL.md) for the wire protocol.
 Xcode 27, iOS 15.0+. Links the local `Vendor/Clibsodium` Swift package, containing upstream libsodium 1.0.22 with its official Apple RNG selection backport rebuilt for iOS 15+ and its simulators. Reproduce the binary with `Tools/build-libsodium.sh` (source archive checksum pinned in the script). See [dependency build notes](Vendor/Clibsodium/README.md).
 
 ## License
-AGPL-3.0, the same as Zood. Zood is a trademark of Tangled Wires, LLC; this project isn't affiliated with them.
+AGPL-3.0, the same as Zood, with an [additional permission](APP_STORE_EXCEPTION.md) (AGPL section 7) to distribute the app through the App Store and similar stores while the source stays available. Zood is a trademark of Tangled Wires, LLC; this project isn't affiliated with them.
 
 ## Screenshot tour
 
