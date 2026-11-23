@@ -137,6 +137,11 @@ final class AppModel: ObservableObject {
         }
         local.friends = [fixture.id: fixture]  // start each scene from the same fixture set
         requestStatuses = [:]
+        if scene == "friend-unsupported" {
+            // Their phone has said it can't answer Refresh, and we've already re-checked.
+            local.friends[fixture.id]?.device?.liveRequests = false
+            lastProbe[fixture.id] = Date()
+        }
         if scene == "friend-updated" {
             // A Refresh that just succeeded: the green check, then the regular "Updated …" time.
             // Dated a few seconds ahead so the check is still showing once the scene has loaded.

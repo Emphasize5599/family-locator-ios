@@ -42,7 +42,7 @@ struct ScreenshotTourView: View {
 
     var body: some View {
         ScreenshotTourSceneView(request: request)
-            .dynamicTypeSize(request.largeText ? .accessibility5 : .large)
+            .dynamicTypeSize(request.largeText ? maxTextSize : .large)
             .allowsHitTesting(ProcessInfo.processInfo.environment["ZOOD_TOUR_INTERACTIVE"] == "1")
             .task {
                 let file = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("tour-request.json")
@@ -72,7 +72,7 @@ private struct ScreenshotTourSceneView: View {
         }
         .sheet(isPresented: $showingSheet) {
             sheetContent
-                .dynamicTypeSize(request.largeText ? .accessibility5 : .large)
+                .dynamicTypeSize(request.largeText ? maxTextSize : .large)
                 .id(request.token)
                 .onAppear { sheetAppeared = true }
         }
@@ -80,7 +80,7 @@ private struct ScreenshotTourSceneView: View {
             showingSheet = false
             sheetAppeared = false
             do { try await Task.sleep(nanoseconds: 450_000_000) } catch { return }
-            let needsSheet = !["map", "map-many-friends", "friend", "friend-long-name", "friend-updated", "onboarding"].contains(scene)
+            let needsSheet = !["map", "map-many-friends", "friend", "friend-long-name", "friend-updated", "friend-unsupported", "onboarding"].contains(scene)
             showingSheet = needsSheet
             if needsSheet {
                 for _ in 0..<50 {

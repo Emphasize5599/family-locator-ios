@@ -110,11 +110,12 @@ struct FriendPanel: View {
                 Spacer(minLength: 0)
                 if let platform = friend.device?.platform { PlatformBadge(platform: platform) }
                 Button { editingNickname = true } label: {
-                    // Match the ⋯ and × buttons beside it, which stay at title2 size. Letting only this icon
-                    // grow with accessibility text made it tower over its neighbors and crowd the row.
-                    Image(systemName: "pencil")
+                    // A circled symbol at the same fixed Title 2 size as the ⋯ and × buttons beside it,
+                    // so the header icons all match.
+                    Image(systemName: "pencil.circle")
                         .font(.title2)
                         .dynamicTypeSize(...DynamicTypeSize.large)
+                        .foregroundStyle(Color.zoodBlueDark)  // same tint as the ⋯ button
                         .frame(width: 44, height: 44)
                 }
                 .accessibilityLabel("Edit friend's nickname")
@@ -159,7 +160,7 @@ struct FriendPanel: View {
             }
         }
         .font(.subheadline)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(Color.cardSecondary)
     }
 
     private func addressLink(_ friend: Friend, _ loc: FriendLocation) -> some View {
@@ -200,7 +201,7 @@ struct FriendPanel: View {
                 .accessibilityHidden(!showingSuccess)
         }
         .font(.footnote)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(Color.cardSecondary)
         .frame(maxWidth: .infinity, alignment: .leading)
         .fixedSize(horizontal: false, vertical: true)
         .animation(.easeInOut(duration: 0.35), value: showingSuccess)
@@ -249,7 +250,7 @@ struct FriendPanel: View {
             Toggle(isOn: sharingBinding(friend)) {
                 Text("Share my location")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.cardSecondary)
                     .multilineTextAlignment(.trailing)
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
@@ -278,16 +279,16 @@ struct FriendPanel: View {
     private func statusLine(_ status: UpdateRequestStatus) -> some View {
         switch status {
         case .sent:
-            Label("Requesting…", systemImage: "antenna.radiowaves.left.and.right").font(.footnote).foregroundStyle(.secondary)
+            Label("Requesting…", systemImage: "antenna.radiowaves.left.and.right").font(.footnote).foregroundStyle(Color.cardSecondary)
         case .responded(.starting, _):
             HStack(spacing: 6) {
                 ProgressView().controlSize(.mini)
-                Text("Getting their location…").font(.footnote).foregroundStyle(.secondary)
+                Text("Getting their location…").font(.footnote).foregroundStyle(Color.cardSecondary)
             }
         case .responded(.finished, _):
             Label("Updated", systemImage: "checkmark.circle.fill").font(.footnote).foregroundStyle(Color.zoodGreen)
         case .responded(.tooSoon, _):
-            Text("They updated moments ago").font(.footnote).foregroundStyle(.secondary)
+            Text("They updated moments ago").font(.footnote).foregroundStyle(Color.cardSecondary)
         case .noResponse:
             HStack(spacing: 4) {
                 Text("No response").font(.footnote.weight(.medium)).foregroundStyle(Color.zoodOrange)
@@ -314,12 +315,12 @@ struct FriendPanel: View {
                 Label(kind == .unsupported ? "Why is Refresh unsupported?" : "Why didn't they respond?",
                       systemImage: "info.circle.fill")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.zoodNavy)
+                    .foregroundStyle(Color.floatingAccent)
                 Spacer()
                 Button {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { explanation = nil }
                 } label: {
-                    Image(systemName: "xmark").font(.footnote.weight(.bold)).foregroundStyle(.secondary)
+                    Image(systemName: "xmark").font(.footnote.weight(.bold)).foregroundStyle(Color.cardSecondary)
                 }
                 .accessibilityLabel("Close")
             }

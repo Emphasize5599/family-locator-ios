@@ -121,3 +121,10 @@ Earlier iPhone 11 captures verified nickname saving, View Username/copy, wider n
 - **One status row** below the address shows Requesting…, the brief green Updated check, No response / Unsupported, and then "Updated …" (a relative time today, otherwise a date and time). Refresh is an icon-only button with the accessibility label "Refresh location".
 - The friend bar now clips scrolling content to its rounded shape, so the Add/Requests buttons and avatars no longer draw over its corners.
 - App Privacy answers are unchanged: contact data stays on device and is not "collected" in App Store Connect's sense.
+
+## Readability on iOS 15–17 and text size (1.1.12)
+
+- Secondary text and icons on the map's floating cards use UIKit's `secondaryLabel` color. SwiftUI's `.secondary` becomes vibrant on a blur material before iOS 26 and was nearly invisible in Dark Mode on an iOS 17 iPhone (battery, update time, "Share my location", platform logo).
+- The pre-iOS 26 Refresh button keeps its tint and icon when unavailable and is dimmed instead of becoming a blank gray box.
+- Map controls (Settings, My Location, timed sharing) use Zood navy in Light Mode and the app's light blue in Dark Mode.
+- Dynamic Type is followed up to Accessibility 1 (`maxTextSize` in `MyApp.swift`). Larger accessibility sizes stacked the floating map controls on top of each other; supporting every size isn't an App Review requirement, and Larger Text up to that point still applies everywhere.

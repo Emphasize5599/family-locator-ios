@@ -17,13 +17,33 @@ struct CompatNavigationStack<Content: View>: View {
     }
 }
 
+/// Debug only: `ZOOD_LEGACY_STYLE=1` draws the pre-iOS 26 look (blur material, bordered buttons) on a
+/// newer simulator, so the iOS 15–17 path can be checked without an older runtime.
+enum LegacyStyle {
+    static var isForced: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.environment["ZOOD_LEGACY_STYLE"] == "1"
+        #else
+        false
+        #endif
+    }
+}
+
+extension Color {
+    /// Secondary text and icons on floating cards. SwiftUI's `.secondary` turns vibrant on a blur material
+    /// before iOS 26, and over a dark map in Dark Mode that vibrant gray all but disappears (battery, update
+    /// time, "Share my location" and the platform logo were invisible on an iOS 17 iPhone). UIKit's
+    /// `secondaryLabel` is a plain color, so it stays readable on any material.
+    static let cardSecondary = Color(uiColor: .secondaryLabel)
+}
+
 extension View {
     /// Background for controls that float over the map. Liquid Glass on iOS 26+, so it follows the person's chosen
     /// Liquid Glass look (Clear / Tinted), Reduce Transparency and Increase Contrast like system controls do.
     /// Earlier iOS versions get the standard blur material (which already honours Reduce Transparency).
     @ViewBuilder
     func floatingSurface<S: Shape>(in shape: S, interactive: Bool = false) -> some View {
-        if #available(iOS 26, *) {
+        if #available(iOS 26, *), !LegacyStyle.isForced {
             glassEffect(interactive ? .regular.interactive() : .regular, in: shape)
         } else {
             background(.regularMaterial, in: shape)
@@ -56,10 +76,10 @@ extension View {
     /// The panel's main action: prominent Liquid Glass on iOS 26+, filled bordered button before that.
     @ViewBuilder
     func prominentActionStyle(tint: Color) -> some View {
-        if #available(iOS 26, *) {
+        if #available(iOS 26, *), !LegacyStyle.isForced {
             buttonStyle(.glassProminent).tint(tint)
         } else {
-            buttonStyle(.borderedProminent).tint(tint)
+            buttonStyle(LegacyProminentButtonStyle(tint: tint))
         }
     }
 
@@ -209,4 +229,21 @@ struct ContentFittedSheet<Content: View>: View {
 private struct FittedSheetHeightKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+}
+
+/// The filled button used before iOS 26. The system `.borderedProminent` turns a disabled button into a gray
+/// box with a gray icon, which read as a blank square in Dark Mode; this keeps the tint and icon and simply
+/// dims the whole button, so it's clear what the button is and that it's unavailable.
+private struct LegacyProminentButtonStyle: ButtonStyle {
+    let tint: Color
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(.white)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 7)
+            .background(tint, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .opacity(isEnabled ? (configuration.isPressed ? 0.75 : 1) : 0.4)
+    }
 }

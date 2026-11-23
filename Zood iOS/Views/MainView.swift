@@ -88,7 +88,7 @@ struct MainView: View {
             if ScreenshotTour.isEnabled, let loc = model.friends.first?.location {
                 mapCommand = MapCommand(kind: .focus(latitude: loc.latitude, longitude: loc.longitude))
             }
-            if ["friend", "friend-long-name", "friend-updated"].contains(ScreenshotTour.scene ?? ""), let friend = model.friends.first { select(friend) }
+            if ["friend", "friend-long-name", "friend-updated", "friend-unsupported"].contains(ScreenshotTour.scene ?? ""), let friend = model.friends.first { select(friend) }
             // Screenshot/UI checks: SIMCTL_CHILD_ZOOD_OPEN_FIRST=1 opens the first friend's card at launch.
             if ProcessInfo.processInfo.environment["ZOOD_OPEN_FIRST"] == "1", let first = model.friends.first { select(first) }
             // End-to-end checks: SIMCTL_CHILD_ZOOD_START_TIMED_SHARE=1 starts a timed share and writes its link to
@@ -125,7 +125,7 @@ struct MainView: View {
                 .font(.title3)
                 .frame(width: 48, height: 48)
                 .floatingSurface(in: Circle(), interactive: true)
-                .foregroundStyle(Color.zoodNavy)
+                .foregroundStyle(Color.floatingAccent)
         }
         .accessibilityLabel(Text(label))
     }

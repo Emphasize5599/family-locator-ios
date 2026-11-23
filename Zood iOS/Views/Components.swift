@@ -8,6 +8,14 @@ extension Color {
     static let zoodRed = Color(red: 0xe4 / 255, green: 0x1c / 255, blue: 0x16 / 255)
     static let zoodGreen = Color(red: 0x3c / 255, green: 0xdd / 255, blue: 0x56 / 255)
     static let zoodOrange = Color(red: 0xf6 / 255, green: 0x92 / 255, blue: 0x1e / 255)
+
+    /// Icons and titles on controls floating over the map: Zood navy in Light Mode, and the app's light blue
+    /// (the Add / Refresh color) in Dark Mode, where navy all but disappears against the dark material.
+    static let floatingAccent = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(red: 0x5c / 255, green: 0xd1 / 255, blue: 0xff / 255, alpha: 1)
+            : UIColor(red: 0x3c / 255, green: 0x44 / 255, blue: 0x66 / 255, alpha: 1)
+    })
 }
 
 /// Round avatar: the friend's photo if they've sent one, otherwise their initial on a stable color.
@@ -87,13 +95,22 @@ struct CloseButton: UIViewRepresentable {
 }
 
 /// Original, simple platform silhouettes; neutral tint keeps them secondary to the person's name.
+/// Drawn inside the same circled Title 2 symbol as the ⋯ and × buttons, so all the header icons match in size.
 struct PlatformBadge: View {
     let platform: Platform
     var body: some View {
-        PlatformSilhouette(platform: platform)
-            .fill(Color.secondary, style: FillStyle(eoFill: true))
-            .frame(width: 20, height: 22)
-            .accessibilityLabel(platform == .ios ? "Apple device" : "Android device")
+        ZStack {
+            Image(systemName: "circle")
+                .font(.title2)
+                .dynamicTypeSize(...DynamicTypeSize.large)
+            PlatformSilhouette(platform: platform)
+                .fill(Color.cardSecondary, style: FillStyle(eoFill: true))
+                .frame(width: 11, height: 12)
+        }
+        .foregroundStyle(Color.cardSecondary)
+        .frame(width: 44, height: 44)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(platform == .ios ? "Apple device" : "Android device")
     }
 }
 

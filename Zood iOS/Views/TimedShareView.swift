@@ -108,7 +108,7 @@ struct TimedShareView: View {
                 .font(.title2.weight(.semibold))
                 .frame(width: 52, height: 52)
                 .floatingSurface(in: Circle(), interactive: true)
-                .foregroundStyle(Color.zoodNavy)
+                .foregroundStyle(Color.floatingAccent)
         }
         .buttonStyle(.plain)
         .disabled(!isRunning)
