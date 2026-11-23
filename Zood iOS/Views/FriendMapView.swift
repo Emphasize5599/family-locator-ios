@@ -22,8 +22,20 @@ struct FriendMapView: UIViewRepresentable {
     /// Tap on the map itself (not a pin), used to close the friend card.
     var onBackgroundTap: () -> Void = {}
 
-    func makeUIView(context: Context) -> MKMapView {
-        let map = MKMapView()
+    final class MapView: MKMapView {
+        var onSizeChanged: (() -> Void)?
+        private var lastSize = CGSize.zero
+
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            guard bounds.size != lastSize else { return }
+            lastSize = bounds.size
+            onSizeChanged?()
+        }
+    }
+
+    func makeUIView(context: Context) -> MapView {
+        let map = MapView()
         map.delegate = context.coordinator
         map.showsUserLocation = true
         map.showsCompass = true
@@ -39,16 +51,25 @@ struct FriendMapView: UIViewRepresentable {
         return map
     }
 
-    func updateUIView(_ map: MKMapView, context: Context) {
-        context.coordinator.onSelect = onSelect
-        context.coordinator.onBackgroundTap = onBackgroundTap
-        context.coordinator.sync(friends: friends, on: map)
-        context.coordinator.raise(selectedID, on: map)
-        context.coordinator.updateCamera(on: map, command: command, selectedFriend: friends.first { $0.id == selectedID })
+    func updateUIView(_ map: MapView, context: Context) {
+        let coordinator = context.coordinator
+        coordinator.onSelect = onSelect
+        coordinator.onBackgroundTap = onBackgroundTap
+        coordinator.sync(friends: friends, on: map)
+        coordinator.raise(selectedID, on: map)
+        let command = command
+        let selectedFriend = friends.first { $0.id == selectedID }
+        let updateCamera = { [weak map, weak coordinator] in
+            guard let map, let coordinator else { return }
+            coordinator.updateCamera(on: map, command: command, selectedFriend: selectedFriend)
+        }
+        map.onSizeChanged = updateCamera
+        updateCamera()
     }
 
-    static func dismantleUIView(_ map: MKMapView, coordinator: Coordinator) {
+    static func dismantleUIView(_ map: MapView, coordinator: Coordinator) {
         coordinator.stopFlight()
+        map.onSizeChanged = nil
         map.delegate = nil
     }
 
@@ -110,6 +131,7 @@ struct FriendMapView: UIViewRepresentable {
         }
 
         func updateCamera(on map: MKMapView, command: MapCommand?, selectedFriend: Friend?) {
+            guard map.bounds.width > 1, map.bounds.height > 1 else { return }
             if cameraSelectionID != selectedFriend?.id {
                 if command == nil || command == lastCommand { stopFlight() }
                 cameraSelectionID = selectedFriend?.id
@@ -166,7 +188,6 @@ struct FriendMapView: UIViewRepresentable {
         private func fly(_ map: MKMapView, to point: MKMapPoint, liftForCard: Bool, trackUser: Bool) {
             let intendedWidth = flight?.endWidth
             stopFlight()
-            guard map.bounds.width > 1, map.bounds.height > 1 else { return }
             let rect = map.visibleMapRect
             let width = min(max(rect.size.width, 1), Self.globeWidth)
             let aspect = Double(map.bounds.height / map.bounds.width)
