@@ -471,7 +471,7 @@ private struct FriendMenu: UIViewRepresentable {
         items.append(UIAction(title: String(localized: "View Safety Number"), image: UIImage(systemName: "lock.shield")) { [weak coordinator] _ in
             coordinator?.viewSafetyNumber?()
         })
-        items.append(UIMenu(title: String(localized: "View Username"), children: [
+        items.append(UIMenu(title: String(localized: "View Username"), image: UIImage(systemName: "at"), children: [
             UIAction(title: "@\(username)", image: UIImage(systemName: "doc.on.doc")) { _ in
                 UIPasteboard.general.string = "@\(username)"
             }
