@@ -13,6 +13,7 @@ struct FriendPanel: View {
     @State private var address: String?
     @State private var explanation: Explanation?
     @State private var confirmingRemove = false
+    @State private var removeError: String?
     @State private var confirmingBlock = false
     @State private var blockError: String?
     @State private var showingSafetyNumber = false
@@ -86,12 +87,17 @@ struct FriendPanel: View {
             .alert("Remove \(friend.displayName)?", isPresented: $confirmingRemove) {
                 Button("Cancel", role: .cancel) {}
                 Button("Remove", role: .destructive) {
-                    Task { await model.removeFriend(friend) }
-                    onClose()
+                    Task {
+                        do { try await model.removeFriend(friend); onClose() }
+                        catch { removeError = error.localizedDescription }
+                    }
                 }
             } message: {
-                Text("You'll stop sharing your location with them and they'll disappear from your map.")
+                Text("You’ll be removed from each other’s maps. Either of you can send a new request later.")
             }
+            .alert("Could Not Remove Friend", isPresented: Binding(get: { removeError != nil }, set: { if !$0 { removeError = nil } })) {
+                Button("OK") { removeError = nil }
+            } message: { Text(removeError ?? "") }
         }
     }
 

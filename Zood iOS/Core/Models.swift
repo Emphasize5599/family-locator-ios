@@ -211,6 +211,8 @@ nonisolated struct UserComm: Codable, Sendable {
     var liveRequests: Bool?
     /// Empty string explicitly clears a shared nickname; absent means an older sender.
     var nickname: String?
+    /// A two-way removal carried in a revocation so older clients still stop receiving locations.
+    var friendRemoved: Bool?
 
     init(type: CommType) {
         self.type = type
@@ -218,7 +220,7 @@ nonisolated struct UserComm: Codable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case type, dropBox, avatar, latitude, longitude, time, accuracy, speed, bearing, movement
-        case batteryLevel, batteryCharging, locationUpdateRequestAction, debugData, platform, liveRequests, nickname
+        case batteryLevel, batteryCharging, locationUpdateRequestAction, debugData, platform, liveRequests, nickname, friendRemoved
     }
 
     init(from decoder: Decoder) throws {
@@ -239,6 +241,7 @@ nonisolated struct UserComm: Codable, Sendable {
         debugData = try? c.decodeIfPresent(String.self, forKey: .debugData)
         platform = try? c.decodeIfPresent(Platform.self, forKey: .platform)
         nickname = try? c.decodeIfPresent(String.self, forKey: .nickname)
+        friendRemoved = try? c.decodeIfPresent(Bool.self, forKey: .friendRemoved)
         liveRequests = try? c.decodeIfPresent(Bool.self, forKey: .liveRequests)
     }
 
@@ -261,6 +264,7 @@ nonisolated struct UserComm: Codable, Sendable {
         try c.encodeIfPresent(platform, forKey: .platform)
         try c.encodeIfPresent(liveRequests, forKey: .liveRequests)
         try c.encodeIfPresent(nickname, forKey: .nickname)
+        try c.encodeIfPresent(friendRemoved, forKey: .friendRemoved)
     }
 
     /// Same validity rules george applies in `UserComm.isValid()`.

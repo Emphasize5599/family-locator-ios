@@ -546,6 +546,10 @@ final class AppModel: ObservableObject {
             scheduleBackup()
             if let pkg = try? await api.pickUpPackage(boxID: box) { await processPackage(pkg, from: user) }
         case .locationSharingRevocation:
+            if comm.friendRemoved == true {
+                do { try forgetFriend(user.userID) } catch { safetyError = error.localizedDescription }
+                return
+            }
             if safety.pending[user.userID] != nil {
                 var next = safety
                 next.pending[user.userID] = nil
@@ -808,9 +812,23 @@ final class AppModel: ObservableObject {
         try? await send(UserComm(type: .locationSharingRevocation), to: friend.user, urgent: false, transient: false)
     }
 
-    func removeFriend(_ friend: Friend) async {
-        if friend.weShare { await stopSharing(with: friend) }
-        local.friends[friend.id] = nil
+    func removeFriend(_ friend: Friend) async throws {
+        guard let account = credentials?.userID, local.friends[friend.id] != nil else { return }
+        var removal = UserComm(type: .locationSharingRevocation)
+        removal.friendRemoved = true
+        try await send(removal, to: friend.user, urgent: false, transient: false)
+        guard credentials?.userID == account else { return }
+        try forgetFriend(friend.id)
+    }
+
+    private func forgetFriend(_ id: Data) throws {
+        if safety.pending[id] != nil {
+            var next = safety
+            next.pending[id] = nil
+            try saveSafety(next)
+        }
+        local.friends[id] = nil
+        requestStatuses[id] = nil
         LocalDataStore.save(local)
         scheduleBackup()
     }

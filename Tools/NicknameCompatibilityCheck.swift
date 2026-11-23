@@ -31,6 +31,13 @@ struct NicknameCompatibilityCheck {
         guard reset.nickname == "", reset.isValid else { fatalError("Explicit reset was lost") }
         let malformed = try decoder.decode(UserComm.self, from: Data("{\"type\":\"nickname_update\"}".utf8))
         guard !malformed.isValid else { fatalError("Missing profile accepted as reset") }
+        let ordinaryRevocation = try ZoodJSON.decoder.decode(UserComm.self, from: Data(#"{"type":"location_sharing_revocation"}"#.utf8))
+        let fullRemoval = try ZoodJSON.decoder.decode(UserComm.self, from: Data(#"{"type":"location_sharing_revocation","friend_removed":true}"#.utf8))
+        guard ordinaryRevocation.type == .locationSharingRevocation, ordinaryRevocation.friendRemoved == nil,
+              fullRemoval.type == .locationSharingRevocation, fullRemoval.friendRemoved == true,
+              String(decoding: try fullRemoval.jsonData(), as: UTF8.self).contains("\"friend_removed\"") else {
+            fatalError("Sharing revocation and friendship removal must remain distinct")
+        }
         var snapshot = Snapshot()
         snapshot.nickname = "My shared name"
         snapshot.users = [.init(userId: user.id, publicKey: user.publicKey, username: user.username)]
