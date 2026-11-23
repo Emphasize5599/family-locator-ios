@@ -3,9 +3,19 @@
 Work autonomously. Don't stop to ask permission for routine next steps; do them and report afterward.
 
 - Carry work through: fix what you find, build, verify (see Verification resources), commit, merge to `main` and push.
+- Every push gets a GitHub release (see Releases).
 - Don't end a turn with "Should I…?" when the next step is obvious. Pick the sensible default, do it, and say what you chose.
 - Still check with the user first for anything outside the repositories or hard to undo: App Store Connect or Play Console submissions, signing with their credentials, messaging testers or other people, paid services, and deleting data.
 - Also ask when a request has more than one reasonable product answer and the choice changes what users see.
+
+# Releases
+
+Publish a GitHub release whenever you push to `main`, so testers can install what's on GitHub.
+
+- Bump `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` when the last release already used them.
+- Build an arm64 Release with `CODE_SIGNING_ALLOWED=NO` and package two IPAs: `FamilyLocator-<version>-unsigned.ipa` (AltStore/Sideloadly re-sign it) and `FamilyLocator-<version>-fakesigned.ipa` (ad-hoc `codesign -s -` with the placeholder entitlements, for AppSync). Check the version, build, minimum iOS and privacy manifest, and that Debug tour fixtures are absent.
+- Tag `v<version>-review`, mark it a pre-release, target the pushed commit, and write notes covering what changed, what was verified and what wasn't. These are not TestFlight/App Store builds; real distribution signing is still required.
+- If the same push changed the Android app, also release it from the Android repo (`v<version>-family`, signed GitHub-flavor APK; confirm its certificate matches the previous release).
 
 # Screenshot tours in Xcode
 
