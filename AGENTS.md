@@ -10,6 +10,6 @@ When the user asks you to run a screenshot tour from the Xcode assistant, make i
 
 # Verification resources
 
-- Run only one simulator or emulator at a time, including across iOS and Android. Shut down the current one before starting another.
-- Always cold boot. Android runs must disable loading and saving Quick Boot snapshots.
+- This Mac has 8 GB of RAM. Run only one simulator or emulator at a time, including across iOS and Android. Shut down the current one before starting another.
+- Cold boots are not required; reusing an already-booted simulator or an Android Quick Boot snapshot is fine.
 - Finish memory-heavy release optimization and stop its build service before simulator verification on this 8 GB Mac.

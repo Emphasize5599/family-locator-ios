@@ -28,7 +28,7 @@ python3 Tools/screenshot-tour.py /private/tmp/zood-ui-tour --scenes safety-numbe
 python3 Tools/screenshot-tour.py /private/tmp/zood-ui-tour --no-build --derived-data /private/tmp/zood-tour-derived
 ```
 
-`--device UUID` selects another simulator. Prefer the dedicated simulator: the script changes appearance/status bar temporarily and installs the Debug bundle. It does not erase the simulator. To limit memory use, it shuts down other simulators, cold boots the selected simulator, and shuts it down after capture. Run Android emulator checks separately. Relaunch without tour flags to return to normal behavior. Output files are overwritten by matching scene names; the gallery/ZIP only include the current run's captures unless `--append` is passed to retain and update a previous gallery.
+`--device UUID` selects another simulator. Prefer the dedicated simulator: the script changes appearance/status bar temporarily and installs the Debug bundle. It does not erase the simulator. To limit memory use, it shuts down other simulators, boots the selected simulator (reusing it if it's already running), and shuts it down after capture. Run Android emulator checks separately. Relaunch without tour flags to return to normal behavior. Output files are overwritten by matching scene names; the gallery/ZIP only include the current run's captures unless `--append` is passed to retain and update a previous gallery.
 
 ## GitHub
 

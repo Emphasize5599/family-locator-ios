@@ -97,9 +97,10 @@ nonisolated struct Friend: Codable, Hashable, Sendable, Identifiable {
     var nickname: String?
     /// Their latest name received inside encrypted messages, never used as an account identifier.
     var sharedNickname: String?
+    var linkedContact: LinkedContact?
 
-    var displayName: String { nickname ?? sharedNickname ?? "@\(user.username)" }
-    var avatarName: String { nickname ?? sharedNickname ?? user.username }
+    var displayName: String { nickname ?? linkedContact?.name ?? sharedNickname ?? "@\(user.username)" }
+    var avatarName: String { nickname ?? linkedContact?.name ?? sharedNickname ?? user.username }
 
     var id: Data { user.userID }
     var weShare: Bool { sendingBoxID != nil }
@@ -206,5 +207,31 @@ nonisolated enum Username {
     static func forLookup(_ value: String) -> String {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return (trimmed.hasPrefix("@") ? String(trimmed.dropFirst()) : trimmed).lowercased()
+    }
+}
+
+/// Only the selected contact's name and local identifier are retained. Never part of a server Snapshot.
+nonisolated struct LinkedContact: Codable, Hashable, Sendable {
+    var identifier: String
+    var name: String
+}
+
+nonisolated enum ContactLinkStore {
+    private static func key(for account: Data) -> String {
+        "linked-contacts." + account.base64EncodedString()
+    }
+
+    static func load(for account: Data) -> [Data: LinkedContact] {
+        guard let data = UserDefaults.standard.data(forKey: key(for: account)) else { return [:] }
+        return (try? JSONDecoder().decode([Data: LinkedContact].self, from: data)) ?? [:]
+    }
+
+    static func save(_ links: [Data: LinkedContact], for account: Data) {
+        guard let data = try? JSONEncoder().encode(links) else { return }
+        UserDefaults.standard.set(data, forKey: key(for: account))
+    }
+
+    static func delete(for account: Data) {
+        UserDefaults.standard.removeObject(forKey: key(for: account))
     }
 }

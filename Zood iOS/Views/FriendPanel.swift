@@ -17,6 +17,7 @@ struct FriendPanel: View {
     @State private var blockError: String?
     @State private var showingSafetyNumber = false
     @State private var editingNickname = false
+    @State private var linkingContact = false
     @State private var dragOffset: CGFloat = 0
     @State private var contentHeight: CGFloat = 320
 
@@ -56,6 +57,9 @@ struct FriendPanel: View {
             .task(id: friendID) { await model.refreshDeviceStatusIfNeeded(friend) }
             .sheet(isPresented: $editingNickname) {
                 FriendNicknameView(friend: friend).environmentObject(model)
+            }
+            .sheet(isPresented: $linkingContact) {
+                ContactLinkView(friendID: friend.id).environmentObject(model)
             }
             .sheet(isPresented: $showingSafetyNumber) {
                 SafetyNumberView(friend: friend).environmentObject(model)
@@ -97,34 +101,32 @@ struct FriendPanel: View {
 
     private func header(_ friend: Friend) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 14) {
+            HStack(spacing: 8) {
                 AvatarView(username: friend.avatarName, imageData: friend.avatar, size: 56)
                 Spacer(minLength: 0)
-                FriendMenu(hasLocation: friend.location != nil,
+                if let platform = friend.device?.platform { PlatformBadge(platform: platform) }
+                Button { editingNickname = true } label: {
+                    // Match the ⋯ and × buttons beside it, which stay at title2 size. Letting only this icon
+                    // grow with accessibility text made it tower over its neighbors and crowd the row.
+                    Image(systemName: "pencil")
+                        .font(.title2)
+                        .dynamicTypeSize(...DynamicTypeSize.large)
+                        .frame(width: 44, height: 44)
+                }
+                .accessibilityLabel("Edit friend's nickname")
+                FriendMenu(linked: friend.linkedContact != nil,
                            username: friend.user.username,
-                           openInMaps: { openInMaps(friend) },
+                           linkContact: { linkingContact = true },
                            viewSafetyNumber: { showingSafetyNumber = true },
                            remove: { confirmingRemove = true },
                            block: { confirmingBlock = true })
                     .frame(width: 44, height: 44)
-                CloseButton(action: onClose)
-                    .frame(width: 44, height: 44)
+                CloseButton(action: onClose).frame(width: 44, height: 44)
             }
-            HStack(spacing: 8) {
-                Text(friend.displayName)
-                    .font(.title2.bold())
-                    .fixedSize(horizontal: false, vertical: true)
-                Button { editingNickname = true } label: {
-                    Image(systemName: "pencil").frame(minWidth: 44, minHeight: 44)
-                }
-                .accessibilityLabel("Edit friend's nickname")
-                if let platform = friend.device?.platform {
-                    PlatformBadge(platform: platform)
-                }
-                Spacer(minLength: 0)
-            }
-            // Addresses need the whole card width. Keeping them in the name column made the
-            // menu controls and short timestamp dictate wrapping instead of the tile's padding.
+            Text(friend.displayName)
+                .font(.title2.bold())
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
             if let loc = friend.location {
                 HStack(spacing: 10) {
                     if let level = loc.batteryLevel {
@@ -136,24 +138,73 @@ struct FriendPanel: View {
                 }
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-                if let address {
-                    Text(address)
+                Button { openInMaps(friend) } label: {
+                    // An inline glyph consumes space on the first line only; wrapped lines use the whole card.
+                    (Text(Image(systemName: "map.fill")) + Text(" ") + Text(address ?? "\(loc.latitude), \(loc.longitude)").underline())
                         .font(.subheadline)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                Text("Updated \(loc.time.relativeDescription)")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            } else if friend.theyShare {
-                Text("Waiting for their first location…")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            } else {
-                Text("Not sharing their location with you")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                .buttonStyle(.plain)
+                .accessibilityHint("Open in Apple Maps")
             }
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                unifiedStatus(friend, now: context.date)
+            }
+        }
+    }
+
+    /// One line, always below the address, for everything "freshness" related: requesting, the green
+    /// Updated check, no response, and finally the plain "Updated …" time. Keeping it in one place means the
+    /// card doesn't jump around while a request is in progress.
+    @ViewBuilder
+    private func unifiedStatus(_ friend: Friend, now: Date) -> some View {
+        let capability = model.requestCapability(for: friend)
+        let status = model.requestStatuses[friend.id].flatMap { $0.isStale ? nil : $0 }
+
+        // The green check is a brief confirmation; after a few seconds it fades into the regular time.
+        let showingSuccess: Bool = {
+            if case .responded(.finished, let time) = status { return now.timeIntervalSince(time) < 3 }
+            return false
+        }()
+
+        Group {
+            if showingSuccess {
+                Label("Updated", systemImage: "checkmark.circle.fill").foregroundStyle(Color.zoodGreen)
+            } else if let status, showsRequestStatus(status) {
+                statusLine(status)
+            } else if capability == .checking {
+                HStack(spacing: 6) { ProgressView().controlSize(.mini); Text("Checking…") }
+            } else if case .unsupported = capability {
+                HStack(spacing: 4) { Text("Unsupported"); infoButton(for: .unsupported) }
+            } else if let loc = friend.location {
+                // A relative time ("5 min. ago") reads best today; an older update gets a date so
+                // "Updated 2 days ago" can't be mistaken for something more recent.
+                if Calendar.current.isDateInToday(loc.time) {
+                    Text("Updated \(loc.time.relativeDescription)")
+                } else {
+                    Text("Updated \(loc.time.formatted(date: .abbreviated, time: .shortened))")
+                }
+            } else {
+                Text(friend.theyShare ? "Waiting for their first location…" : "Not sharing their location with you")
+            }
+        }
+        .font(.footnote)
+        .foregroundStyle(.secondary)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .fixedSize(horizontal: false, vertical: true)
+        .transition(.opacity)
+        .animation(.easeInOut(duration: 0.35), value: showingSuccess)
+    }
+
+    /// Request results that should replace the "Updated …" time until they go stale.
+    /// A finished request is handled separately (the timed green check).
+    private func showsRequestStatus(_ status: UpdateRequestStatus) -> Bool {
+        switch status {
+        case .sent, .responded(.starting, _), .responded(.tooSoon, _), .noResponse:
+            return true
+        case .responded(.finished, _):
+            return false
         }
     }
 
@@ -172,43 +223,20 @@ struct FriendPanel: View {
         }
     }
 
-    @ViewBuilder
     private func refreshColumn(_ friend: Friend) -> some View {
         let capability = model.requestCapability(for: friend)
         let status = model.requestStatuses[friend.id].flatMap { $0.isStale ? nil : $0 }
-        VStack(alignment: .leading, spacing: 6) {
-            Button {
-                withAnimation { explanation = nil }
-                Task { await model.requestLocationUpdate(from: friend) }
-            } label: {
-                Label("Refresh", systemImage: "arrow.clockwise")
-                    .font(.body.weight(.semibold))
-                    .padding(.horizontal, 6)
-            }
-            .prominentActionStyle(tint: .zoodBlue)
-            .disabled(capability != .supported || isInFlight(status))
-
-            switch capability {
-            case .unsupported:
-                // Grayed-out button, "Unsupported", and a (?) that opens an explanation tile.
-                HStack(spacing: 4) {
-                    Text("Unsupported")
-                        .font(.footnote.weight(.medium))
-                        .foregroundStyle(.secondary)
-                    infoButton(for: .unsupported)
-                }
-            case .checking:
-                HStack(spacing: 6) {
-                    ProgressView().controlSize(.mini)
-                    Text("Checking…").font(.footnote).foregroundStyle(.secondary)
-                }
-                .accessibilityElement(children: .combine)
-            case .notSharing:
-                Text("They aren't sharing with you").font(.footnote).foregroundStyle(.secondary)
-            case .supported:
-                if let status { statusLine(status) }
-            }
+        return Button {
+            withAnimation { explanation = nil }
+            Task { await model.requestLocationUpdate(from: friend) }
+        } label: {
+            Image(systemName: "arrow.clockwise")
+                .font(.body.weight(.semibold))
+                .frame(minWidth: 44, minHeight: 44)
         }
+        .accessibilityLabel("Refresh location")
+        .prominentActionStyle(tint: .zoodBlue)
+        .disabled(capability != .supported || isInFlight(status))
     }
 
     @ViewBuilder
@@ -308,7 +336,7 @@ struct FriendPanel: View {
         guard let loc = friend.location else { return }
         let coordinate = CLLocationCoordinate2D(latitude: loc.latitude, longitude: loc.longitude)
         let item = MKMapItem(placemark: MKPlacemark(coordinate: coordinate))
-        item.name = friend.user.username
+        item.name = friend.displayName
         item.openInMaps(launchOptions: [MKLaunchOptionsMapCenterKey: NSValue(mkCoordinate: coordinate)])
     }
 
@@ -336,9 +364,9 @@ struct FriendPanel: View {
 /// updates (new location, reconnect, …), which made "Remove Friend" flash. A UIMenu only changes when we replace
 /// it, which we do only when its items change. The actions read the latest closures, so they never go stale.
 private struct FriendMenu: UIViewRepresentable {
-    let hasLocation: Bool
+    let linked: Bool
     let username: String
-    let openInMaps: () -> Void
+    let linkContact: () -> Void
     let viewSafetyNumber: () -> Void
     let remove: () -> Void
     let block: () -> Void
@@ -359,18 +387,21 @@ private struct FriendMenu: UIViewRepresentable {
 
     func updateUIView(_ button: UIButton, context: Context) {
         let coordinator = context.coordinator
-        coordinator.openInMaps = openInMaps
+        coordinator.linkContact = linkContact
         coordinator.viewSafetyNumber = viewSafetyNumber
         coordinator.remove = remove
         coordinator.block = block
-        guard coordinator.builtFor != hasLocation else { return }
-        coordinator.builtFor = hasLocation
+
+        // Rebuild only when a title changes ("Link Contact" vs "Linked Contact"), so an open menu never flashes.
+        guard coordinator.builtFor != linked else { return }
+        coordinator.builtFor = linked
+
+        // "Link Contact" took the place of "Open in Maps"; the address itself now opens Maps.
         var items: [UIMenuElement] = []
-        if hasLocation {
-            items.append(UIAction(title: String(localized: "Open in Maps"), image: UIImage(systemName: "map")) { [weak coordinator] _ in
-                coordinator?.openInMaps?()
-            })
-        }
+        items.append(UIAction(title: String(localized: linked ? "Linked Contact" : "Link Contact"),
+                              image: UIImage(systemName: "person.crop.circle.badge.plus")) { [weak coordinator] _ in
+            coordinator?.linkContact?()
+        })
         items.append(UIMenu(title: String(localized: "View Username"), children: [
             UIAction(title: "@\(username)", image: UIImage(systemName: "doc.on.doc")) { _ in
                 UIPasteboard.general.string = "@\(username)"
@@ -391,7 +422,7 @@ private struct FriendMenu: UIViewRepresentable {
 
     final class Coordinator {
         var builtFor: Bool?
-        var openInMaps: (() -> Void)?
+        var linkContact: (() -> Void)?
         var viewSafetyNumber: (() -> Void)?
         var remove: (() -> Void)?
         var block: (() -> Void)?

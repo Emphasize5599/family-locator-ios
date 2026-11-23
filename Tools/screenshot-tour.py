@@ -85,9 +85,13 @@ def main():
             phones = [d for d in types if d['name'].startswith('iPhone')]
             phone = next((d for d in reversed(phones) if 'Pro' in d['name'] and 'Max' not in d['name']), phones[-1])
             device = sim('create', 'Family Locator Screenshot Tour', phone['identifier'], runtime['identifier'])
-    # Keep this 8 GB development Mac responsive and make every tour start from a cold boot.
-    sim('shutdown', 'all', check=False)
-    sim('boot', device)
+    # This development Mac has 8 GB of RAM, so only one simulator may run at a time.
+    # Shut down every other booted simulator, then reuse the tour simulator if it's already running.
+    booted = json.loads(sim('list', 'devices', 'booted', '-j'))['devices']
+    for other in (d['udid'] for group in booted.values() for d in group):
+        if other != device:
+            sim('shutdown', other, check=False)
+    sim('boot', device, check=False)  # Fails harmlessly when it is already booted.
     # Some runtimes report a migration error while still completing boot. Installation below is authoritative.
     try:
         sim('bootstatus', device, '-b', check=False, timeout=30)

@@ -119,6 +119,8 @@ final class AppModel: ObservableObject {
             Task { await self?.shareCurrentLocation() }
         }
         if phase == .signedIn {
+            // Contact links are kept outside LocalData (device-only), so attach them once the model exists.
+            if let account = credentials?.userID { applyContactLinks(for: account) }
             startSession()
             // Resume a timed share that was running when the app was last closed, unless it has expired.
             if let share = TimedShareStore.load() { activate(share) }
@@ -232,6 +234,7 @@ final class AppModel: ObservableObject {
         safety = SafetyStore.load(for: creds.userID)
         restored.friends = restored.friends.filter { safety.blocked[$0.key] == nil }
         local = restored
+        applyContactLinks(for: creds.userID)
         LocalDataStore.save(local)
         phase = .signedIn
         startSession()
@@ -254,7 +257,10 @@ final class AppModel: ObservableObject {
 
     func deleteAccount() async throws {
         try await api.deleteAccount()
-        if let id = credentials?.userID { SafetyStore.delete(for: id) }
+        if let id = credentials?.userID {
+            SafetyStore.delete(for: id)
+            ContactLinkStore.delete(for: id)
+        }
         logOut()
     }
 
@@ -808,6 +814,24 @@ final class AppModel: ObservableObject {
                 ? .checking : .unsupported(friend.device?.platform)
         }
         return .supported
+    }
+
+    private func applyContactLinks(for account: Data) {
+        let links = ContactLinkStore.load(for: account)
+        for id in local.friends.keys {
+            local.friends[id]?.linkedContact = links[id]
+        }
+    }
+
+    func setLinkedContact(_ contact: LinkedContact?, for id: Data) {
+        guard let account = credentials?.userID, local.friends[id] != nil else { return }
+        // A contact identifier is meaningful only on this device. Never send it or include it in a backup.
+        if !ScreenshotTour.isEnabled {
+            var links = ContactLinkStore.load(for: account)
+            links[id] = contact
+            ContactLinkStore.save(links, for: account)
+        }
+        updateFriend(id) { $0.linkedContact = contact }
     }
 
     func setFriendNickname(_ value: String, for id: Data) {

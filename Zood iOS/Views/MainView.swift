@@ -186,6 +186,9 @@ struct MainView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
         }
+        // A ScrollView clips to a plain rectangle, so the Add button and avatars slid over the bar's
+        // rounded corners while scrolling. Clipping to the bar's own shape keeps them inside it.
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .floatingSurface(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
         .padding(.horizontal, 12)
     }
