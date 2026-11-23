@@ -13,7 +13,7 @@ struct FriendNicknameView: View {
             Text("@\(friend.user.username)")
                 .font(.subheadline)
                 .textSelection(.enabled)
-            TextField("Nickname (optional)", text: $nickname)
+            TextField("Nickname (optional)", text: $nickname).submitLabel(.done)
                 .textFieldStyle(.roundedBorder)
                 .textContentType(.nickname)
             Text("Only you see this name. Clear it to use their shared nickname or username.")

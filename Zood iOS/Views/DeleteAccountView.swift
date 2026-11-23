@@ -16,7 +16,7 @@ struct DeleteAccountView: View {
                 Text("You will be signed out and location sharing will stop on this iPhone. Previously received locations or copies saved by other people cannot be recalled.")
             }
             Section {
-                TextField("Your username", text: $confirmation)
+                TextField("Your username", text: $confirmation).submitLabel(.done)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
             } header: {

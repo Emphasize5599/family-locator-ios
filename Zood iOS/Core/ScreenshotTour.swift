@@ -126,6 +126,10 @@ private struct ScreenshotTourSceneView: View {
             case "timed-share": TimedShareView()
             case "settings", "settings-support": SettingsView()
             case "notices": CompatNavigationStack { NoticesView() }
+            case "avatar-crop":
+                if let data = ScreenshotTour.framingTestPhoto(tall: true), let image = UIImage(data: data) {
+                    AvatarCropView(image: image, onChoose: { _ in }, onCancel: {})
+                }
             case "blocked-users", "blocked-empty": CompatNavigationStack { BlockedUsersView() }
             case "delete-account": CompatNavigationStack { DeleteAccountView() }
             default: EmptyView()

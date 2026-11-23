@@ -90,8 +90,8 @@ struct SettingsView: View {
                 .id("support")
 
                 Section("About") {
+                    // Open-Source Licenses lives inside Notices & Trademarks.
                     NavigationLink("Notices & Trademarks") { NoticesView() }
-                    Link("Open-Source Licenses", destination: AppInformation.licensesURL)
                     // The Zood relationship and other rights notices are in Notices & Trademarks.
                     Link("Source Code (AGPL-3.0)", destination: URL(string: "https://github.com/Emphasize5599/family-locator-ios")!)
                 }
@@ -133,6 +133,14 @@ struct AccountView: View {
     let onLogOut: () -> Void
     @State private var confirmingLogOut = false
     @State private var showingPhotoPicker = false
+    /// A picked photo waiting for the picker to close before its Move and Scale screen opens.
+    @State private var pickedPhoto: UIImage?
+    @State private var framingPhoto: FramingPhoto?
+
+    private struct FramingPhoto: Identifiable {
+        let id = UUID()
+        let image: UIImage
+    }
     @State private var nickname = ""
     @State private var savingNickname = false
 
@@ -149,7 +157,7 @@ struct AccountView: View {
                 }
             }
             Section {
-                TextField("Nickname (optional)", text: $nickname).textContentType(.nickname)
+                TextField("Nickname (optional)", text: $nickname).textContentType(.nickname).submitLabel(.done)
                 Button(savingNickname ? "Saving…" : "Save Nickname") {
                     savingNickname = true
                     Task {
@@ -173,12 +181,21 @@ struct AccountView: View {
             }
         }
         .onAppear { nickname = model.local.myNickname ?? "" }
-        .sheet(isPresented: $showingPhotoPicker) {
+        // Pick a photo, then frame it in a circle (Move and Scale, like Contacts) before it's used.
+        .sheet(isPresented: $showingPhotoPicker, onDismiss: {
+            if let pickedPhoto { framingPhoto = FramingPhoto(image: pickedPhoto) }
+            pickedPhoto = nil
+        }) {
             ImagePicker { data in
+                pickedPhoto = data.flatMap(UIImage.init(data:))
                 showingPhotoPicker = false
-                guard let data, let jpeg = Self.avatarJPEG(from: data) else { return }
-                Task { await model.setMyAvatar(jpeg) }
             }
+        }
+        .fullScreenCover(item: $framingPhoto) { photo in
+            AvatarCropView(image: photo.image, onChoose: { jpeg in
+                framingPhoto = nil
+                Task { await model.setMyAvatar(jpeg) }
+            }, onCancel: { framingPhoto = nil })
         }
         .navigationTitle(model.credentials?.username ?? String(localized: "Account"))
         .navigationBarTitleDisplayMode(.inline)
@@ -193,10 +210,6 @@ struct AccountView: View {
         }
     }
 
-    /// Square-crops and downsizes to 256×256 JPEG, roughly what Android's avatar cropper produces.
-    private static func avatarJPEG(from data: Data) -> Data? {
-        AvatarImage.squareJPEG(from: data)
-    }
 }
 
 /// Third-party rights notices: trademarks the app shows or names, and attribution for artwork and code.

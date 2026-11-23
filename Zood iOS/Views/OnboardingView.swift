@@ -45,7 +45,7 @@ struct OnboardingView: View {
                 .listRowBackground(Color.clear)
 
                 Section {
-                    TextField("Username", text: $username)
+                    TextField("Username", text: $username).submitLabel(.done)
                         .textContentType(.username)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
@@ -60,8 +60,8 @@ struct OnboardingView: View {
                             }
                         }
                         .textContentType(mode == .signUp ? .newPassword : .password)
-                        // The keyboard covers the button on smaller phones, so Return submits too.
-                        .submitLabel(.go)
+                        // The keyboard covers the button on smaller phones, so Done submits too.
+                        .submitLabel(.done)
                         .onSubmit { if canSubmit { submit() } }
 
                         // Eye button to reveal the password, like Android's password field.
@@ -75,8 +75,8 @@ struct OnboardingView: View {
                         .accessibilityLabel(showPassword ? Text("Hide password") : Text("Show password"))
                     }
                     if mode == .signUp {
-                        TextField("Nickname (optional)", text: $nickname).textContentType(.nickname)
-                        TextField("Email (optional)", text: $email)
+                        TextField("Nickname (optional)", text: $nickname).textContentType(.nickname).submitLabel(.done)
+                        TextField("Email (optional)", text: $email).submitLabel(.done)
                             .textContentType(.emailAddress)
                             .keyboardType(.emailAddress)
                             .textInputAutocapitalization(.never)

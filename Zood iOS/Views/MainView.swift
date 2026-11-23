@@ -125,7 +125,7 @@ struct MainView: View {
         }
         .alert("Rename Folder", isPresented: Binding(get: { renamingFolder != nil }, set: { if !$0 { renamingFolder = nil } }),
                presenting: renamingFolder) { folder in
-            TextField("Folder name", text: $folderName)
+            TextField("Folder name", text: $folderName).submitLabel(.done)
             Button("Save") { model.renameFolder(folder.id, to: folderName) }
             Button("Cancel", role: .cancel) {}
         }
@@ -333,13 +333,16 @@ struct MainView: View {
             }
             .frame(width: barItemWidth)
             .opacity(dragging == id ? 0.3 : 1)
-            // Track where this tile is, so its open card can center above it (and follow it as the bar scrolls).
+            // The tile's position is read once, when the folder opens, to place its card; the card then stays
+            // put. If the tile moves while the folder is open, the bar is being scrolled, so the folder closes.
             .background(GeometryReader { tile in
                 let midX = tile.frame(in: .named(Self.screenSpace)).midX
                 Color.clear
                     .onAppear { if openFolderID == folder.id { openFolderTileMidX = midX } }
-                    .compatOnChange(of: midX) { x in if openFolderID == folder.id { openFolderTileMidX = x } }
                     .compatOnChange(of: openFolderID) { open in if open == folder.id { openFolderTileMidX = midX } }
+                    .compatOnChange(of: midX) { x in
+                        if openFolderID == folder.id, let opened = openFolderTileMidX, abs(x - opened) > 2 { closeFolder() }
+                    }
             })
         }
         .buttonStyle(.plain)

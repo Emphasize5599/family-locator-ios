@@ -11,7 +11,7 @@ struct AddFriendView: View {
 
     var body: some View {
         ContentFittedSheet(title: "Add Friend") {
-            TextField("Friend's username", text: $username)
+            TextField("Friend's username", text: $username).submitLabel(.done)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .textFieldStyle(.roundedBorder)
