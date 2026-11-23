@@ -6,6 +6,7 @@ struct MapCommand: Equatable {
     enum Kind: Equatable {
         case followUser
         case focus(latitude: Double, longitude: Double)
+        case recenter(latitude: Double, longitude: Double)
     }
     var kind: Kind
     var id = UUID()
@@ -43,44 +44,12 @@ struct FriendMapView: UIViewRepresentable {
         context.coordinator.onBackgroundTap = onBackgroundTap
         context.coordinator.sync(friends: friends, on: map)
         context.coordinator.raise(selectedID, on: map)
-        if let command, command != context.coordinator.lastCommand {
-            context.coordinator.lastCommand = command
-            switch command.kind {
-            case .followUser:
-                // Like Android: fly to you at street level (closer if you're already zoomed in), then follow.
-                if let here = map.userLocation.location?.coordinate, CLLocationCoordinate2DIsValid(here) {
-                    Self.zoomIn(map, to: here, liftForCard: false)
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { map.setUserTrackingMode(.follow, animated: true) }
-                } else {
-                    map.setUserTrackingMode(.follow, animated: true)
-                }
-            case .focus(let lat, let lng):
-                Self.zoomIn(map, to: CLLocationCoordinate2D(latitude: lat, longitude: lng), liftForCard: true)
-            }
-        }
+        context.coordinator.updateCamera(on: map, command: command, selectedFriend: friends.first { $0.id == selectedID })
     }
 
-    /// Android's zoom level for "show me this place" (Constants.DEFAULT_ZOOM_LEVEL).
-    static let streetZoom = 15.0
-
-    /// The Android app's camera move: center on the coordinate at zoom 15, or the current zoom if it's already
-    /// closer, facing north and flat. `liftForCard` keeps a friend's pin above their card at the bottom.
-    static func zoomIn(_ map: MKMapView, to coordinate: CLLocationCoordinate2D, liftForCard: Bool) {
-        let width = max(map.bounds.width, 1)
-        // Web-map zoom from the current span: 256-point tiles, 360° of longitude at zoom 0.
-        let currentZoom = log2(360 * Double(width) / 256 / max(map.region.span.longitudeDelta, 1e-9))
-        let zoom = max(currentZoom, streetZoom)
-        let lonDelta = 360 * Double(width) / 256 / pow(2, zoom)
-        let latDelta = lonDelta * Double(map.bounds.height / width) * cos(coordinate.latitude * .pi / 180)
-        var center = coordinate
-        if liftForCard { center.latitude -= latDelta * 0.2 }
-        map.setUserTrackingMode(.none, animated: false)
-        let camera = map.camera.copy() as! MKMapCamera
-        camera.heading = 0
-        camera.pitch = 0
-        map.setCamera(camera, animated: false)
-        map.setRegion(MKCoordinateRegion(center: center, span: MKCoordinateSpan(latitudeDelta: latDelta, longitudeDelta: lonDelta)),
-                      animated: true)
+    static func dismantleUIView(_ map: MKMapView, coordinator: Coordinator) {
+        coordinator.stopFlight()
+        map.delegate = nil
     }
 
     func makeCoordinator() -> Coordinator { Coordinator(onSelect: onSelect) }
@@ -89,6 +58,192 @@ struct FriendMapView: UIViewRepresentable {
         var onSelect: (Data) -> Void
         var onBackgroundTap: () -> Void = {}
         var lastCommand: MapCommand?
+        private var followedFriendID: Data?
+        private var cameraSelectionID: Data?
+        private var lastFriendPoint: MKMapPoint?
+        private var flight: Flight?
+        private var displayLink: CADisplayLink?
+        private weak var flyingMap: MKMapView?
+
+        // MapLibre uses a 512-point world at zoom 0. Zoom 15 is the Android app's street-level floor.
+        private static let mapLibreStreetScale = 512.0 * Double(1 << 15)
+        private static let globeWidth = MKMapRect.world.size.width
+
+        private struct Flight {
+            let start: MKMapPoint
+            let end: MKMapPoint
+            let startWidth: Double
+            let endWidth: Double
+            let aspect: Double
+            let path: ZoomPath?
+            let startedAt: CFTimeInterval
+            let trackUser: Bool
+        }
+
+        /// The van Wijk–Nuij path used for a map flight. A distant target naturally widens the view mid-flight.
+        private struct ZoomPath {
+            private static let rho = 1.42
+            private let startWidth: Double
+            private let distance: Double
+            private let startR: Double
+            private let endR: Double
+
+            init?(startWidth: Double, endWidth: Double, distance: Double) {
+                guard distance > max(startWidth, endWidth) * 0.001 else { return nil }
+                self.startWidth = startWidth
+                self.distance = distance
+                let rhoSquared = Self.rho * Self.rho
+                let projected = rhoSquared * distance
+                let delta = endWidth * endWidth - startWidth * startWidth
+                startR = -asinh((delta + projected * projected) / (2 * startWidth * projected))
+                endR = -asinh((delta - projected * projected) / (2 * endWidth * projected))
+            }
+
+            func sample(_ fraction: Double) -> (along: Double, width: Double) {
+                let r = startR + (endR - startR) * fraction
+                let coshStart = cosh(startR)
+                let width = startWidth * coshStart / cosh(r)
+                let along = startWidth * (coshStart * tanh(r) - sinh(startR))
+                    / (Self.rho * Self.rho * distance)
+                return (min(max(along, 0), 1), width)
+            }
+        }
+
+        func updateCamera(on map: MKMapView, command: MapCommand?, selectedFriend: Friend?) {
+            if cameraSelectionID != selectedFriend?.id {
+                if command == nil || command == lastCommand { stopFlight() }
+                cameraSelectionID = selectedFriend?.id
+                followedFriendID = selectedFriend?.id
+                lastFriendPoint = nil
+            }
+
+            let loc = selectedFriend?.location
+            if let command, command != lastCommand {
+                lastCommand = command
+                switch command.kind {
+                case .followUser:
+                    followedFriendID = nil
+                    lastFriendPoint = nil
+                    if let here = map.userLocation.location?.coordinate, CLLocationCoordinate2DIsValid(here) {
+                        fly(map, to: MKMapPoint(here), liftForCard: false, trackUser: true)
+                    } else {
+                        stopFlight()
+                        map.setUserTrackingMode(.follow, animated: true)
+                    }
+                case .focus(let lat, let lng):
+                    followedFriendID = selectedFriend?.id
+                    let point = MKMapPoint(CLLocationCoordinate2D(latitude: lat, longitude: lng))
+                    lastFriendPoint = selectedFriend == nil ? nil : point
+                    fly(map, to: point, liftForCard: selectedFriend != nil, trackUser: false)
+                case .recenter(let lat, let lng):
+                    followedFriendID = selectedFriend?.id
+                    let point = MKMapPoint(CLLocationCoordinate2D(latitude: lat, longitude: lng))
+                    lastFriendPoint = point
+                    stopFlight()
+                    recenter(map, at: point)
+                }
+                return
+            }
+
+            guard followedFriendID != nil, followedFriendID == selectedFriend?.id, let loc, flight == nil else { return }
+            let point = MKMapPoint(CLLocationCoordinate2D(latitude: loc.latitude, longitude: loc.longitude))
+            if let previous = lastFriendPoint {
+                guard previous.x != point.x || previous.y != point.y else { return }
+                lastFriendPoint = point
+                recenter(map, at: point)
+            } else {
+                lastFriendPoint = point
+                fly(map, to: point, liftForCard: true, trackUser: false)
+            }
+        }
+
+        private func recenter(_ map: MKMapView, at point: MKMapPoint) {
+            map.setUserTrackingMode(.none, animated: false)
+            let lifted = MKMapPoint(x: point.x, y: point.y + map.visibleMapRect.size.height * 0.06)
+            map.setCenter(lifted.coordinate, animated: !UIAccessibility.isReduceMotionEnabled)
+        }
+
+        private func fly(_ map: MKMapView, to point: MKMapPoint, liftForCard: Bool, trackUser: Bool) {
+            let intendedWidth = flight?.endWidth
+            stopFlight()
+            guard map.bounds.width > 1, map.bounds.height > 1 else { return }
+            let rect = map.visibleMapRect
+            let width = min(max(rect.size.width, 1), Self.globeWidth)
+            let aspect = Double(map.bounds.height / map.bounds.width)
+            let streetWidth = Self.globeWidth * Double(map.bounds.width) / Self.mapLibreStreetScale
+            // Keep a tighter manual zoom, including when a new tap interrupts the zoomed-out part of a flight.
+            let endWidth = max(1, min(intendedWidth ?? width, streetWidth))
+            let start = MKMapPoint(x: rect.midX, y: rect.midY)
+            var dx = (point.x - start.x).truncatingRemainder(dividingBy: Self.globeWidth)
+            if abs(dx) > Self.globeWidth / 2 { dx -= copysign(Self.globeWidth, dx) }
+            let end = MKMapPoint(x: start.x + dx, y: point.y + (liftForCard ? endWidth * aspect * 0.06 : 0))
+            let distance = hypot(dx, end.y - start.y)
+            map.setUserTrackingMode(.none, animated: false)
+            let camera = map.camera
+            if camera.heading != 0 || camera.pitch != 0 {
+                camera.heading = 0
+                camera.pitch = 0
+                map.setCamera(camera, animated: false)
+            }
+
+            if UIAccessibility.isReduceMotionEnabled {
+                setViewport(map, center: end, width: endWidth, aspect: aspect)
+                if trackUser { map.setUserTrackingMode(.follow, animated: false) }
+                return
+            }
+
+            let path = ZoomPath(startWidth: width, endWidth: endWidth, distance: distance)
+            flight = Flight(start: start, end: end, startWidth: width, endWidth: endWidth, aspect: aspect,
+                            path: path, startedAt: CACurrentMediaTime(), trackUser: trackUser)
+            flyingMap = map
+            let link = CADisplayLink(target: self, selector: #selector(animateFlight))
+            displayLink = link
+            link.add(to: .main, forMode: .common)
+        }
+
+        @objc private func animateFlight(_ link: CADisplayLink) {
+            guard let flight, let map = flyingMap else { stopFlight(); return }
+            let fraction = min(max((link.timestamp - flight.startedAt) / 0.78, 0), 1)
+            let eased = fraction * fraction * (3 - 2 * fraction)
+            let frame = flight.path?.sample(eased)
+            let along = frame?.along ?? eased
+            let width = frame?.width ?? flight.startWidth * pow(flight.endWidth / flight.startWidth, eased)
+            let point = MKMapPoint(x: flight.start.x + (flight.end.x - flight.start.x) * along,
+                                   y: flight.start.y + (flight.end.y - flight.start.y) * along)
+            if fraction >= 1 {
+                setViewport(map, center: flight.end, width: flight.endWidth, aspect: flight.aspect)
+                stopFlight()
+                if flight.trackUser { map.setUserTrackingMode(.follow, animated: false) }
+            } else {
+                setViewport(map, center: point, width: width, aspect: flight.aspect)
+            }
+        }
+
+        private func setViewport(_ map: MKMapView, center: MKMapPoint, width: Double, aspect: Double) {
+            let width = min(width, Self.globeWidth)
+            let height = min(width * aspect, Self.globeWidth)
+            let x = (center.x.truncatingRemainder(dividingBy: Self.globeWidth) + Self.globeWidth)
+                .truncatingRemainder(dividingBy: Self.globeWidth)
+            let y = min(max(center.y, height / 2), Self.globeWidth - height / 2)
+            map.setVisibleMapRect(MKMapRect(x: x - width / 2, y: y - height / 2, width: width, height: height),
+                                  edgePadding: .zero, animated: false)
+        }
+
+        func stopFlight() {
+            displayLink?.invalidate()
+            displayLink = nil
+            flyingMap = nil
+            flight = nil
+        }
+
+        func mapView(_ mapView: MKMapView, regionWillChangeAnimated animated: Bool) {
+            if mapView.subviews.first?.gestureRecognizers?.contains(where: {
+                $0.state == .began || $0.state == .changed
+            }) == true {
+                stopFlight()
+            }
+        }
+
         private var annotations: [Data: FriendAnnotation] = [:]
         private var circles: [Data: MKCircle] = [:]
         private var selectedID: Data?

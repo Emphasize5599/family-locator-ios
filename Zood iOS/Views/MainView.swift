@@ -39,7 +39,7 @@ struct MainView: View {
         GeometryReader { geometry in
             ZStack(alignment: .bottom) {
                 FriendMapView(friends: model.friends, selectedID: selectedFriendID, command: mapCommand, onSelect: { id in
-                    if let friend = model.local.friends[id] { select(friend) }
+                    if let friend = model.local.friends[id] { select(friend, fromPin: true) }
                 }, onBackgroundTap: {
                     closeFriend()
                     closeFolder()
@@ -510,16 +510,17 @@ struct MainView: View {
         selectedFriendID = nil
     }
 
-    private func select(_ friend: Friend) {
+    private func select(_ friend: Friend, fromPin: Bool = false) {
         closeFolder()
-        // Tapping the friend that's already open closes their card, like Android.
-        if selectedFriendID == friend.id {
-            closeFriend()
-            return
-        }
+        let alreadySelected = selectedFriendID == friend.id
         selectedFriendID = friend.id
         if let loc = friend.location {
-            mapCommand = MapCommand(kind: .focus(latitude: loc.latitude, longitude: loc.longitude))
+            let kind: MapCommand.Kind = alreadySelected || fromPin
+                ? .recenter(latitude: loc.latitude, longitude: loc.longitude)
+                : .focus(latitude: loc.latitude, longitude: loc.longitude)
+            mapCommand = MapCommand(kind: kind)
+        } else {
+            mapCommand = nil
         }
     }
 }
