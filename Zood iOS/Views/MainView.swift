@@ -193,19 +193,21 @@ struct MainView: View {
         ScrollViewReader { proxy in
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: Spacing.large) {
-                Button {
-                    activeSheet = .addFriend
-                } label: {
-                    VStack(spacing: Spacing.tight) {
-                        Image(systemName: "plus")
-                            .font(.title2.weight(.semibold))
-                            .frame(width: 52, height: 52)
-                            .background(Color.zoodBlue, in: Circle())
-                            .foregroundStyle(.white)
-                        Text("Add").font(.caption)
+                // People come first, then the divider, Requests and Add.
+                // People and folders, in the order you've arranged them.
+                ForEach(model.barItems) { item in
+                    switch item {
+                    case .friend(let friend): friendItem(friend)
+                    case .folder(let folder): folderItem(folder)
                     }
                 }
-                .buttonStyle(.plain)
+
+                // A thin line between your people and the app's own buttons. Everything still scrolls together.
+                Capsule()
+                    .fill(Color.cardSecondary.opacity(0.4))
+                    .frame(width: 1, height: 44)
+                    .padding(.bottom, Spacing.large)
+                    .accessibilityHidden(true)
 
                 Button {
                     activeSheet = .requests
@@ -222,20 +224,19 @@ struct MainView: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("Pending requests, \(model.safety.pending.count)")
 
-                // A thin line between the app's own buttons and your people. Everything still scrolls together.
-                Capsule()
-                    .fill(Color.cardSecondary.opacity(0.4))
-                    .frame(width: 1, height: 44)
-                    .padding(.bottom, Spacing.large)
-                    .accessibilityHidden(true)
-
-                // People and folders, in the order you've arranged them.
-                ForEach(model.barItems) { item in
-                    switch item {
-                    case .friend(let friend): friendItem(friend)
-                    case .folder(let folder): folderItem(folder)
+                Button {
+                    activeSheet = .addFriend
+                } label: {
+                    VStack(spacing: Spacing.tight) {
+                        Image(systemName: "plus")
+                            .font(.title2.weight(.semibold))
+                            .frame(width: 52, height: 52)
+                            .background(Color.zoodBlue, in: Circle())
+                            .foregroundStyle(.white)
+                        Text("Add").font(.caption)
                     }
                 }
+                .buttonStyle(.plain)
             }
             .padding(.horizontal, Spacing.large)
             .padding(.vertical, Spacing.medium)
@@ -283,7 +284,6 @@ struct MainView: View {
             .frame(width: barItemWidth)
             // Like the Home Screen: the lifted item's spot is empty, and everything else jiggles.
             .opacity(dragging == id ? 0 : 1)
-            .modifier(Jiggle(active: dragging != nil && dragging != id))
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .ignore)
@@ -328,7 +328,6 @@ struct MainView: View {
             }
             .frame(width: barItemWidth)
             .opacity(dragging == id ? 0 : 1)
-            .modifier(Jiggle(active: dragging != nil && dragging != id))
             // The tile's position is read once, when the folder opens, to place its card; the card then stays
             // put. If the tile moves while the folder is open, the bar is being scrolled, so the folder closes.
             .background(GeometryReader { tile in
@@ -461,7 +460,6 @@ struct MainView: View {
             }
             .frame(width: barItemWidth)
             .opacity(dragging == .friend(friend.id) ? 0 : 1)
-            .modifier(Jiggle(active: dragging != nil && dragging != .friend(friend.id)))
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .ignore)

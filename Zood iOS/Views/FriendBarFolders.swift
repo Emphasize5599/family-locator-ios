@@ -44,30 +44,6 @@ private final class DragEndWatcher: NSObject {
     }
 }
 
-/// The Home Screen's "jiggle" while you're arranging: a slight, endless rock back and forth. Each item starts
-/// at a slightly different moment, like app icons. Off when Reduce Motion is on.
-struct Jiggle: ViewModifier {
-    let active: Bool
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var tilted = false
-
-    func body(content: Content) -> some View {
-        content
-            .rotationEffect(.degrees(active && !reduceMotion ? (tilted ? 2 : -2) : 0))
-            .onAppear { if active { start() } }
-            .compatOnChange(of: active) { on in
-                if on { start() } else { withAnimation(.easeOut(duration: 0.1)) { tilted = false } }
-            }
-    }
-
-    private func start() {
-        guard !reduceMotion else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + .random(in: 0...0.12)) {
-            withAnimation(.easeInOut(duration: 0.13).repeatForever(autoreverses: true)) { tilted = true }
-        }
-    }
-}
-
 /// Drop handling for one item in the bar, or for the empty part of the bar (`target == nil`).
 struct BarItemDropDelegate: DropDelegate {
     let target: BarItemID?

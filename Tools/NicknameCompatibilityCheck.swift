@@ -89,6 +89,41 @@ struct NicknameCompatibilityCheck {
               arrangedBack.barOrder?.count == 2 else {
             fatalError("Folders or bar order lost in the backup round trip")
         }
+        // Cross-platform: write a full iPhone backup for Android's test to read, and read Android's if given.
+        var full = Snapshot()
+        let friendID = Data(repeating: 2, count: 16)
+        full.nickname = "Ben"
+        full.avatar = Data([0xFF, 0xD8, 0xFF])
+        full.users = [.init(userId: friendID, publicKey: Data(repeating: 3, count: 32), username: "alexdemo")]
+        full.friends = [.init(userId: friendID, sendingBoxId: Data(repeating: 4, count: 32), receivingBoxId: Data(repeating: 5, count: 32),
+                              nickname: "Dad", sharedNickname: "Alex", linkedContactName: "Alex Rivera",
+                              linkedContactId: "ABC-123", linkedContactPlatform: "ios")]
+        full.blocked = [.init(userId: Data(repeating: 9, count: 16), publicKey: Data(repeating: 8, count: 32), username: "blockeddemo")]
+        let fullFolderID = UUID(uuidString: "11111111-2222-3333-4444-555555555555")!
+        full.folders = [.init(id: fullFolderID.uuidString, name: "Family", members: [friendID])]
+        full.barOrder = ["folder:" + fullFolderID.uuidString]
+        full.activeDevice = .init(id: "ios-device", platform: "ios", since: 1_700_000_000_000)
+        full.timestamp = 1_700_000_000_000
+        let args = CommandLine.arguments
+        if args.count > 1 {
+            try ZoodJSON.encoder.encode(full).write(to: URL(fileURLWithPath: args[1]))  // the app's real encoder
+        }
+        if args.count > 2 {
+            let android = try ZoodJSON.decoder.decode(Snapshot.self, from: Data(contentsOf: URL(fileURLWithPath: args[2])))
+            guard android.nickname == "Ana", android.avatar == Data([0x89, 0x50]),
+                  android.users.first?.username == "momdemo",
+                  android.friends.first?.nickname == "Mom", android.friends.first?.sharedNickname == "Maria",
+                  android.friends.first?.sendingBoxId == Data(repeating: 6, count: 32),
+                  android.friends.first?.linkedContactName == "Maria Lopez",
+                  android.friends.first?.linkedContactPlatform == "android",
+                  android.blocked?.first?.username == "blockedandroid",
+                  android.folders?.first?.name == "Kids", android.folders?.first?.members.count == 1,
+                  android.barOrder?.count == 2,
+                  android.activeDevice == .init(id: "android-device", platform: "android", since: 1_800_000_000_000) else {
+                fatalError("An Android-written backup didn't restore every field on iPhone")
+            }
+            print("Android-written backup: every field read correctly on iPhone.")
+        }
         print("Nickname precedence, explicit resets, legacy messages/backups, shared backup fields, blocked users, linked contacts, folders and bar order passed.")
     }
 }

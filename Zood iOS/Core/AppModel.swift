@@ -57,6 +57,8 @@ final class AppModel: ObservableObject {
     @Published private(set) var folders: [FriendFolder] = []
     /// The order of the friend bar after Add and Requests (see `barItems`). Saved on this iPhone per account.
     @Published private(set) var barOrder: [BarItemID] = []
+    /// Set when this iPhone signed itself out because the account was signed in on another device.
+    @Published var signedOutElsewhere = false
     /// The running timed share, if any (see `TimedShare`).
     @Published private(set) var timedShare: TimedShare?
     /// Friends whose phones we're asking "can you answer location requests?" before showing Unsupported.
@@ -304,12 +306,15 @@ final class AppModel: ObservableObject {
         }
         restored.friends = restored.friends.filter { safety.blocked[$0.key] == nil }
         local = restored
+        // This is now the account's active device; any other signed-in device signs itself out.
+        DeviceSession.claim(creds.userID)
         applyContactLinks(for: creds.userID)
         // This iPhone's own arrangement wins; otherwise the backup's comes back.
         folders = FriendFolderStore.load(for: creds.userID)
         barOrder = FriendFolderStore.loadOrder(for: creds.userID)
         if folders.isEmpty, !restoredFolders.isEmpty { setFolders(restoredFolders) }
         if barOrder.isEmpty, !restoredOrder.isEmpty { setBarOrder(restoredOrder) }
+        scheduleBackup()  // records the claim right away
         LocalDataStore.save(local)
         phase = .signedIn
         startSession()
@@ -376,7 +381,10 @@ final class AppModel: ObservableObject {
         socket.start()
         location.startBaseline()
         applyLiveMode()
-        Task { await refresh() }
+        Task {
+            await refresh()
+            await checkStillActiveDevice()
+        }
     }
 
     private func applyLiveMode() {
@@ -391,7 +399,31 @@ final class AppModel: ObservableObject {
         guard phase == .signedIn else { return }
         socket?.start()
         applyLiveMode()
-        Task { await refresh() }
+        Task {
+            await refresh()
+            await checkStillActiveDevice()
+        }
+    }
+
+    /// Downloads and decrypts the account's backup. Nil if there isn't one or it can't be read.
+    private func remoteSnapshot() async -> Snapshot? {
+        guard let credentials,
+              let encrypted = try? await api.backup(),
+              let json = try? Crypto.secretBoxOpen(encrypted.cipherText, nonce: encrypted.nonce, key: credentials.symmetricKey) else { return nil }
+        return try? ZoodJSON.decoder.decode(Snapshot.self, from: json)
+    }
+
+    /// Signed in on another phone since we were last open? Then sign out here (see DeviceSession).
+    func checkStillActiveDevice() async {
+        guard let account = credentials?.userID, !ScreenshotTour.isEnabled else { return }
+        if let remote = await remoteSnapshot(), DeviceSession.isSuperseded(by: remote.activeDevice, account: account) {
+            signOutBecauseSupersededElsewhere()
+        }
+    }
+
+    private func signOutBecauseSupersededElsewhere() {
+        logOut()
+        signedOutElsewhere = true
     }
 
     func sceneDidEnterBackground() {
@@ -1022,7 +1054,14 @@ final class AppModel: ObservableObject {
 
     private func saveBackup() async {
         guard let credentials else { return }
+        // Never overwrite the backup of an account that's now active on another device; sign out instead.
+        let remote = await remoteSnapshot()
+        if DeviceSession.isSuperseded(by: remote?.activeDevice, account: credentials.userID) {
+            signOutBecauseSupersededElsewhere()
+            return
+        }
         var snapshot = Snapshot()
+        snapshot.activeDevice = DeviceSession.record(for: credentials.userID, remote: remote?.activeDevice)
         snapshot.users = local.users.values.map { .init(userId: $0.userID, publicKey: $0.publicKey, username: $0.username) }
         snapshot.friends = local.friends.values.map {
             .init(userId: $0.user.userID, sendingBoxId: $0.sendingBoxID, receivingBoxId: $0.receivingBoxID,

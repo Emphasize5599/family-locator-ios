@@ -142,6 +142,13 @@ nonisolated struct Snapshot: Codable, Sendable {
     var folders: [Folder]?
     /// Bar entries in order: "friend:<base64 user id>" or "folder:<folder id>".
     var barOrder: [String]?
+    /// The device the account was most recently signed in on (see DeviceSession). Shared with Android.
+    struct ActiveDevice: Codable, Sendable, Equatable {
+        var id: String
+        var platform: String
+        var since: Int64
+    }
+    var activeDevice: ActiveDevice?
     var avatar: Data?
     var nickname: String?
     /// Android refuses to restore snapshots newer than its DB schema (1).

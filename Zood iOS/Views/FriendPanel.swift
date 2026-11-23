@@ -363,10 +363,13 @@ struct FriendPanel: View {
         let button = Button {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { explanation = explanation == kind ? nil : kind }
         } label: {
+            // The tap area reaches 8 points past the icon without adding to the layout, so the (?) sits
+            // right after its text and doesn't push the line apart.
             Image(systemName: explanation == kind ? "questionmark.circle.fill" : "questionmark.circle")
                 .foregroundStyle(Color.zoodBlueDark)
-                .frame(minWidth: 30, minHeight: 30)
+                .padding(8)
                 .contentShape(Rectangle())
+                .padding(-8)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(kind == .unsupported ? "Why is on-demand refresh unsupported?" : "Why no response?")
@@ -393,8 +396,8 @@ struct FriendPanel: View {
             Group {
                 switch kind {
                 case .unsupported where friend.device?.platform != .ios:
-                    Text("\(name) has **Live Requests** turned off, so their phone isn't listening for requests.")
-                    Text("Their location still updates on its own whenever they move. Refresh comes back once \(name) turns on Live Requests in Settings.")
+                    Text("\(name) uses an **Android** phone with **Live Requests** turned off, so it isn't listening for requests.")
+                    Text("Their location still updates on its own whenever they move. Refresh comes back once \(name) turns on Live Requests in the Family Locator app's settings on their Android phone.")
                 case .unsupported:
                     Text("\(name)'s iPhone isn't listening for requests right now. Zood's servers can't wake an iPhone, so the app has to stay running in the background to hear one. That stops if **Live Requests** is off, or if the app was swiped closed.")
                     Text("Their location still updates on its own whenever they move. Refresh comes back once \(name) opens the app (and turns on Live Requests with location access **Always** if it's off).")

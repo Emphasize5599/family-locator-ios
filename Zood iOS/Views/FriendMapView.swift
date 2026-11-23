@@ -47,14 +47,40 @@ struct FriendMapView: UIViewRepresentable {
             context.coordinator.lastCommand = command
             switch command.kind {
             case .followUser:
-                map.setUserTrackingMode(.follow, animated: true)
+                // Like Android: fly to you at street level (closer if you're already zoomed in), then follow.
+                if let here = map.userLocation.location?.coordinate, CLLocationCoordinate2DIsValid(here) {
+                    Self.zoomIn(map, to: here, liftForCard: false)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { map.setUserTrackingMode(.follow, animated: true) }
+                } else {
+                    map.setUserTrackingMode(.follow, animated: true)
+                }
             case .focus(let lat, let lng):
-                // Offset south a little so the pin isn't hidden behind the friend sheet.
-                let region = MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: lat - 0.002, longitude: lng),
-                                                latitudinalMeters: 1500, longitudinalMeters: 1500)
-                map.setRegion(region, animated: true)
+                Self.zoomIn(map, to: CLLocationCoordinate2D(latitude: lat, longitude: lng), liftForCard: true)
             }
         }
+    }
+
+    /// Android's zoom level for "show me this place" (Constants.DEFAULT_ZOOM_LEVEL).
+    static let streetZoom = 15.0
+
+    /// The Android app's camera move: center on the coordinate at zoom 15, or the current zoom if it's already
+    /// closer, facing north and flat. `liftForCard` keeps a friend's pin above their card at the bottom.
+    static func zoomIn(_ map: MKMapView, to coordinate: CLLocationCoordinate2D, liftForCard: Bool) {
+        let width = max(map.bounds.width, 1)
+        // Web-map zoom from the current span: 256-point tiles, 360° of longitude at zoom 0.
+        let currentZoom = log2(360 * Double(width) / 256 / max(map.region.span.longitudeDelta, 1e-9))
+        let zoom = max(currentZoom, streetZoom)
+        let lonDelta = 360 * Double(width) / 256 / pow(2, zoom)
+        let latDelta = lonDelta * Double(map.bounds.height / width) * cos(coordinate.latitude * .pi / 180)
+        var center = coordinate
+        if liftForCard { center.latitude -= latDelta * 0.2 }
+        map.setUserTrackingMode(.none, animated: false)
+        let camera = map.camera.copy() as! MKMapCamera
+        camera.heading = 0
+        camera.pitch = 0
+        map.setCamera(camera, animated: false)
+        map.setRegion(MKCoordinateRegion(center: center, span: MKCoordinateSpan(latitudeDelta: latDelta, longitudeDelta: lonDelta)),
+                      animated: true)
     }
 
     func makeCoordinator() -> Coordinator { Coordinator(onSelect: onSelect) }

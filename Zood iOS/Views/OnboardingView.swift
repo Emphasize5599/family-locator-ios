@@ -20,6 +20,15 @@ struct OnboardingView: View {
     @State private var errorMessage: String?
 
     var body: some View {
+        content
+            .alert("Signed Out", isPresented: $model.signedOutElsewhere) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("Your account was signed in on another device, so it was signed out here. Your friends and settings are in your account backup.")
+            }
+    }
+
+    private var content: some View {
         CompatNavigationStack {
             Form {
                 Section {
