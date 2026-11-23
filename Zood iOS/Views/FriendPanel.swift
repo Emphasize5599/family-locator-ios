@@ -30,7 +30,7 @@ struct FriendPanel: View {
     var body: some View {
         if let friend = model.local.friends[friendID] {
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 12) {
                     header(friend)
                         .gesture(closeGesture)
                     actions(friend)
@@ -39,12 +39,16 @@ struct FriendPanel: View {
                             .transition(.move(edge: .top).combined(with: .opacity))
                     }
                 }
-                .padding(18)
+                .padding(16)
+                // Measure the content so the card can hug it. A PreferenceKey never got the measurement
+                // out of the ScrollView (the card stayed at its 320-point default with blank space below),
+                // so read the size directly and store it.
                 .background(GeometryReader { geometry in
-                    Color.clear.preference(key: FriendPanelHeightKey.self, value: geometry.size.height)
+                    Color.clear
+                        .onAppear { contentHeight = geometry.size.height }
+                        .compatOnChange(of: geometry.size.height) { contentHeight = $0 }
                 })
             }
-            .onPreferenceChange(FriendPanelHeightKey.self) { contentHeight = $0 }
             // Keep the friend bar and warnings reachable on short screens and at accessibility sizes.
             // A flexible height lets the surrounding stack give the card only the space that remains.
             .frame(minHeight: 0, idealHeight: min(contentHeight, maxHeight), maxHeight: min(contentHeight, maxHeight))
@@ -100,8 +104,8 @@ struct FriendPanel: View {
     // MARK: Header
 
     private func header(_ friend: Friend) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 4) {
                 AvatarView(username: friend.avatarName, imageData: friend.avatar, size: 56)
                 Spacer(minLength: 0)
                 if let platform = friend.device?.platform { PlatformBadge(platform: platform) }
@@ -123,35 +127,51 @@ struct FriendPanel: View {
                     .frame(width: 44, height: 44)
                 CloseButton(action: onClose).frame(width: 44, height: 44)
             }
-            Text(friend.displayName)
-                .font(.title2.bold())
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .fixedSize(horizontal: false, vertical: true)
-            if let loc = friend.location {
-                HStack(spacing: 10) {
-                    if let level = loc.batteryLevel {
-                        Label("\(level)%", systemImage: batterySymbol(level: level, charging: loc.batteryCharging == true))
-                    }
-                    if let movement = loc.movement, movement != "unknown", movement != "stationary" {
-                        Label(movement.replacingOccurrences(of: "_", with: " ").capitalized, systemImage: "figure.walk")
-                    }
+            // Who: the name with its battery/activity line right under it.
+            VStack(alignment: .leading, spacing: 2) {
+                Text(friend.displayName)
+                    .font(.title2.bold())
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let loc = friend.location {
+                    batteryAndActivity(loc)
                 }
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                Button { openInMaps(friend) } label: {
-                    // An inline glyph consumes space on the first line only; wrapped lines use the whole card.
-                    (Text(Image(systemName: "map.fill")) + Text(" ") + Text(address ?? "\(loc.latitude), \(loc.longitude)").underline())
-                        .font(.subheadline)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .buttonStyle(.plain)
-                .accessibilityHint("Open in Apple Maps")
             }
-            TimelineView(.periodic(from: .now, by: 1)) { context in
-                unifiedStatus(friend, now: context.date)
+            // Where and when: the address link with its status line right under it.
+            VStack(alignment: .leading, spacing: 2) {
+                if let loc = friend.location {
+                    addressLink(friend, loc)
+                }
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    unifiedStatus(friend, now: context.date)
+                }
             }
         }
+    }
+
+    private func batteryAndActivity(_ loc: FriendLocation) -> some View {
+        HStack(spacing: 10) {
+            if let level = loc.batteryLevel {
+                Label("\(level)%", systemImage: batterySymbol(level: level, charging: loc.batteryCharging == true))
+            }
+            if let movement = loc.movement, movement != "unknown", movement != "stationary" {
+                Label(movement.replacingOccurrences(of: "_", with: " ").capitalized, systemImage: "figure.walk")
+            }
+        }
+        .font(.subheadline)
+        .foregroundStyle(.secondary)
+    }
+
+    private func addressLink(_ friend: Friend, _ loc: FriendLocation) -> some View {
+        Button { openInMaps(friend) } label: {
+            // An inline glyph consumes space on the first line only; wrapped lines use the whole card.
+            (Text(Image(systemName: "map.fill")) + Text(" ") + Text(address ?? "\(loc.latitude), \(loc.longitude)").underline())
+                .font(.subheadline)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Open in Apple Maps")
     }
 
     /// One line, always below the address, for everything "freshness" related: requesting, the green
@@ -168,33 +188,45 @@ struct FriendPanel: View {
             return false
         }()
 
-        Group {
-            if showingSuccess {
-                Label("Updated", systemImage: "checkmark.circle.fill").foregroundStyle(Color.zoodGreen)
-            } else if let status, showsRequestStatus(status) {
-                statusLine(status)
-            } else if capability == .checking {
-                HStack(spacing: 6) { ProgressView().controlSize(.mini); Text("Checking…") }
-            } else if case .unsupported = capability {
-                HStack(spacing: 4) { Text("Unsupported"); infoButton(for: .unsupported) }
-            } else if let loc = friend.location {
-                // A relative time ("5 min. ago") reads best today; an older update gets a date so
-                // "Updated 2 days ago" can't be mistaken for something more recent.
-                if Calendar.current.isDateInToday(loc.time) {
-                    Text("Updated \(loc.time.relativeDescription)")
-                } else {
-                    Text("Updated \(loc.time.formatted(date: .abbreviated, time: .shortened))")
-                }
-            } else {
-                Text(friend.theyShare ? "Waiting for their first location…" : "Not sharing their location with you")
-            }
+        // Both lines stay in the layout and cross-fade with opacity. Swapping views with a transition
+        // inside this once-a-second TimelineView could leave the "Updated …" time invisible after the
+        // check faded (seen on iOS 17), so nothing is inserted or removed here.
+        ZStack(alignment: .leading) {
+            regularStatus(friend, status: status, capability: capability)
+                .opacity(showingSuccess ? 0 : 1)
+            Label("Updated", systemImage: "checkmark.circle.fill")
+                .foregroundStyle(Color.zoodGreen)
+                .opacity(showingSuccess ? 1 : 0)
+                .accessibilityHidden(!showingSuccess)
         }
         .font(.footnote)
         .foregroundStyle(.secondary)
         .frame(maxWidth: .infinity, alignment: .leading)
         .fixedSize(horizontal: false, vertical: true)
-        .transition(.opacity)
         .animation(.easeInOut(duration: 0.35), value: showingSuccess)
+    }
+
+    /// The status line when no green check is showing: request progress if there is any, otherwise how
+    /// fresh their location is.
+    @ViewBuilder
+    private func regularStatus(_ friend: Friend, status: UpdateRequestStatus?, capability: RequestCapability) -> some View {
+        if let status, showsRequestStatus(status) {
+            statusLine(status)
+        } else if capability == .checking {
+            HStack(spacing: 6) { ProgressView().controlSize(.mini); Text("Checking…") }
+        } else if case .unsupported = capability {
+            HStack(spacing: 4) { Text("Unsupported"); infoButton(for: .unsupported) }
+        } else if let loc = friend.location {
+            // A relative time ("5 min. ago") reads best today; an older update gets a date so
+            // "Updated 2 days ago" can't be mistaken for something more recent.
+            if Calendar.current.isDateInToday(loc.time) {
+                Text("Updated \(loc.time.relativeDescription)")
+            } else {
+                Text("Updated \(loc.time.formatted(date: .abbreviated, time: .shortened))")
+            }
+        } else {
+            Text(friend.theyShare ? "Waiting for their first location…" : "Not sharing their location with you")
+        }
     }
 
     /// Request results that should replace the "Updated …" time until they go stale.
@@ -211,15 +243,17 @@ struct FriendPanel: View {
     // MARK: Actions
 
     private func actions(_ friend: Friend) -> some View {
-        HStack(alignment: .top) {
+        HStack(spacing: 12) {
             refreshColumn(friend)
-            Spacer()
-            VStack(alignment: .trailing, spacing: 4) {
-                Toggle("Share my location", isOn: sharingBinding(friend))
-                    .labelsHidden()
-                    .tint(.zoodBlue)
-                Text("Share my location").font(.caption).foregroundStyle(.secondary)
+            Spacer(minLength: 8)
+            Toggle(isOn: sharingBinding(friend)) {
+                Text("Share my location")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.trailing)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
             }
+            .tint(.zoodBlue)
         }
     }
 
@@ -230,9 +264,10 @@ struct FriendPanel: View {
             withAnimation { explanation = nil }
             Task { await model.requestLocationUpdate(from: friend) }
         } label: {
+            // The button style adds its own padding, so this keeps the whole button about 44 points tall.
             Image(systemName: "arrow.clockwise")
                 .font(.body.weight(.semibold))
-                .frame(minWidth: 44, minHeight: 44)
+                .frame(width: 30, height: 30)
         }
         .accessibilityLabel("Refresh location")
         .prominentActionStyle(tint: .zoodBlue)
@@ -433,13 +468,5 @@ private extension Array where Element: Hashable {
     func removingDuplicates() -> [Element] {
         var seen = Set<Element>()
         return filter { seen.insert($0).inserted }
-    }
-}
-
-private struct FriendPanelHeightKey: PreferenceKey {
-    static var defaultValue: CGFloat = 320
-
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
     }
 }

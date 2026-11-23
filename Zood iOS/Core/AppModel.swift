@@ -136,6 +136,12 @@ final class AppModel: ObservableObject {
             fixture.nickname = "Alex Golden Gate Family"
         }
         local.friends = [fixture.id: fixture]  // start each scene from the same fixture set
+        requestStatuses = [:]
+        if scene == "friend-updated" {
+            // A Refresh that just succeeded: the green check, then the regular "Updated …" time.
+            // Dated a few seconds ahead so the check is still showing once the scene has loaded.
+            requestStatuses[fixture.id] = .responded(.finished, Date().addingTimeInterval(5))
+        }
         if scene == "map-many-friends" {
             // Enough friends to make the friend bar scroll, for checking its rounded-corner clipping.
             for (index, name) in ["Bailey", "Casey", "Devon", "Emerson", "Finley", "Harper"].enumerated() {
