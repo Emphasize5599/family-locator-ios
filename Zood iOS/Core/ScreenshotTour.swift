@@ -124,7 +124,7 @@ private struct ScreenshotTourSceneView: View {
             case "requests", "requests-empty": RequestsView()
             case "safety-number": SafetyNumberView(friend: ScreenshotTour.friend)
             case "timed-share": TimedShareView()
-            case "settings", "settings-support": SettingsView()
+            case "settings", "settings-support", "settings-nickname": SettingsView()
             case "notices": CompatNavigationStack { NoticesView() }
             case "avatar-crop":
                 if let data = ScreenshotTour.framingTestPhoto(tall: true), let image = UIImage(data: data) {

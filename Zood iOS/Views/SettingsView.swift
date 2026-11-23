@@ -18,7 +18,15 @@ struct SettingsView: View {
                     } label: {
                         HStack(spacing: Spacing.medium) {
                             AvatarView(username: model.credentials?.username ?? "?", imageData: model.local.myAvatar, size: 56)
-                            Text("@\(model.credentials?.username ?? "")").font(.headline)
+                            // Your nickname (if you've set one) with your @username under it.
+                            VStack(alignment: .leading, spacing: Spacing.hairline) {
+                                if let nickname = model.local.myNickname {
+                                    Text(nickname).font(.headline)
+                                    Text("@\(model.credentials?.username ?? "")").font(.subheadline).foregroundStyle(.secondary)
+                                } else {
+                                    Text("@\(model.credentials?.username ?? "")").font(.headline)
+                                }
+                            }
                         }
                     }
                 }
@@ -197,7 +205,7 @@ struct AccountView: View {
                 Task { await model.setMyAvatar(jpeg) }
             }, onCancel: { framingPhoto = nil })
         }
-        .navigationTitle(model.credentials?.username ?? String(localized: "Account"))
+        .navigationTitle(model.local.myNickname ?? model.credentials.map { "@\($0.username)" } ?? String(localized: "Account"))
         .navigationBarTitleDisplayMode(.inline)
         .alert("Log out?", isPresented: $confirmingLogOut) {
             Button("Cancel", role: .cancel) {}

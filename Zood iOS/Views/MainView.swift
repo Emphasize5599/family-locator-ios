@@ -42,16 +42,9 @@ struct MainView: View {
                     if let friend = model.local.friends[id] { select(friend) }
                 }, onBackgroundTap: {
                     closeFriend()
+                    closeFolder()
                 })
                 .ignoresSafeArea()
-
-                if openFolderID != nil {
-                    // Like a Home Screen folder: the map dims, and tapping it closes the folder.
-                    Color.black.opacity(0.2)
-                        .ignoresSafeArea()
-                        .onTapGesture { closeFolder() }
-                        .transition(.opacity)
-                }
 
                 VStack(spacing: Spacing.medium) {
                     if !model.isConnected {
@@ -288,8 +281,9 @@ struct MainView: View {
                     .lineLimit(1)
             }
             .frame(width: barItemWidth)
-            // The spot of whoever is being dragged stays as a faint placeholder while the others make room.
-            .opacity(dragging == id ? 0.3 : 1)
+            // Like the Home Screen: the lifted item's spot is empty, and everything else jiggles.
+            .opacity(dragging == id ? 0 : 1)
+            .modifier(Jiggle(active: dragging != nil && dragging != id))
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .ignore)
@@ -297,14 +291,15 @@ struct MainView: View {
         .accessibilityAddTraits(.isButton)
         .accessibilityAction(named: Text("Move Left")) { model.nudgeBarItem(id, by: -1) }
         .accessibilityAction(named: Text("Move Right")) { model.nudgeBarItem(id, by: 1) }
+        .contentShape(.dragPreview, Circle())
         .onDrag({
             dragging = id
             closeFolder()
             BarHaptics.lift()
-            return barDragProvider()
+            return barDragProvider { if dragging == id { dragging = nil; folderTarget = nil } }
         }, preview: {
-            BarDragPreview(title: friend.displayName) {
-                AvatarView(username: friend.avatarName, imageData: friend.displayAvatar, size: 72)
+            BarDragPreview(shape: Circle()) {
+                AvatarView(username: friend.avatarName, imageData: friend.displayAvatar, size: 64)
             }
         })
         .onDrop(of: [.plainText], delegate: BarItemDropDelegate(target: id, model: model,
@@ -332,7 +327,8 @@ struct MainView: View {
                     .lineLimit(1)
             }
             .frame(width: barItemWidth)
-            .opacity(dragging == id ? 0.3 : 1)
+            .opacity(dragging == id ? 0 : 1)
+            .modifier(Jiggle(active: dragging != nil && dragging != id))
             // The tile's position is read once, when the folder opens, to place its card; the card then stays
             // put. If the tile moves while the folder is open, the bar is being scrolled, so the folder closes.
             .background(GeometryReader { tile in
@@ -350,13 +346,14 @@ struct MainView: View {
         .accessibilityHint(Text("Opens the folder"))
         .accessibilityAction(named: Text("Move Left")) { model.nudgeBarItem(id, by: -1) }
         .accessibilityAction(named: Text("Move Right")) { model.nudgeBarItem(id, by: 1) }
+        .contentShape(.dragPreview, RoundedRectangle(cornerRadius: 16, style: .continuous))
         .onDrag({
             dragging = id
             closeFolder()
             BarHaptics.lift()
-            return barDragProvider()
+            return barDragProvider { if dragging == id { dragging = nil; folderTarget = nil } }
         }, preview: {
-            BarDragPreview(title: title) { FolderTile(members: members, size: 72) }
+            BarDragPreview(shape: RoundedRectangle(cornerRadius: 20, style: .continuous)) { FolderTile(members: members, size: 64) }
         })
         .onDrop(of: [.plainText], delegate: BarItemDropDelegate(target: id, model: model,
                                                                 dragging: $dragging, folderTarget: $folderTarget))
@@ -463,7 +460,8 @@ struct MainView: View {
                     .lineLimit(1)
             }
             .frame(width: barItemWidth)
-            .opacity(dragging == .friend(friend.id) ? 0.3 : 1)
+            .opacity(dragging == .friend(friend.id) ? 0 : 1)
+            .modifier(Jiggle(active: dragging != nil && dragging != .friend(friend.id)))
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .ignore)
@@ -478,13 +476,14 @@ struct MainView: View {
             }
         }
         // The folder stays open while you rearrange inside it; drag onto the bar to take someone out.
+        .contentShape(.dragPreview, Circle())
         .onDrag({
             dragging = .friend(friend.id)
             BarHaptics.lift()
-            return barDragProvider()
+            return barDragProvider { if dragging == .friend(friend.id) { dragging = nil } }
         }, preview: {
-            BarDragPreview(title: friend.displayName) {
-                AvatarView(username: friend.avatarName, imageData: friend.displayAvatar, size: 72)
+            BarDragPreview(shape: Circle()) {
+                AvatarView(username: friend.avatarName, imageData: friend.displayAvatar, size: 64)
             }
         })
         .onDrop(of: [.plainText], delegate: FolderGridDropDelegate(folderID: folder.id, member: friend.id, model: model, dragging: $dragging))

@@ -129,7 +129,8 @@ struct OnboardingView: View {
     }
 
     private var normalizedUsername: String {
-        username.trimmingCharacters(in: .whitespaces).lowercased()
+        // A leading @ is fine to type (it's how usernames are shown); it's removed before anything is sent.
+        Username.forLookup(username)
     }
 
     private var canSubmit: Bool {

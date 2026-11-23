@@ -151,6 +151,8 @@ nonisolated struct PendingRequest: Codable, Identifiable, Sendable {
     var boxID: Data
     var nickname: String?
     var id: Data { user.userID }
+    /// Their shared nickname if they sent one, otherwise "@username".
+    var displayName: String { nickname ?? "@\(user.username)" }
 }
 
 nonisolated struct SafetyState: Codable, Sendable {

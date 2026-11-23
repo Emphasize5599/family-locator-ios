@@ -33,7 +33,7 @@ struct DeleteAccountView: View {
                 Button("Delete Account", role: .destructive) {
                     showingConfirmation = true
                 }
-                .disabled(isDeleting || model.credentials?.username != confirmation.trimmingCharacters(in: .whitespacesAndNewlines))
+                .disabled(isDeleting || model.credentials?.username != Username.forLookup(confirmation))
                 if isDeleting {
                     ProgressView("Deleting account…")
                 }

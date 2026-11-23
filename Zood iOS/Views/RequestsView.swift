@@ -29,7 +29,7 @@ struct RequestsView: View {
                 }
                 ForEach(requests) { request in
                     VStack(alignment: .leading, spacing: Spacing.large) {
-                        Label(request.nickname ?? "@\(request.user.username)", systemImage: "person.crop.circle")
+                        Label(request.displayName, systemImage: "person.crop.circle")
                             .font(.headline)
                         if request.nickname != nil {
                             // Consent is tied to an account, so show its username even when a shared name exists.
@@ -70,8 +70,8 @@ struct RequestsView: View {
             }
         } message: { decision in
             Text(decision.block
-                 ? "@\(decision.request.user.username) won't be able to send you requests on this iPhone. You can unblock them in Settings › Account › Blocked Users."
-                 : "This dismisses @\(decision.request.user.username)'s request. They can send another one later.")
+                 ? "\(decision.request.displayName) won't be able to send you requests on this iPhone. You can unblock them in Settings › Account › Blocked Users."
+                 : "This dismisses \(decision.request.displayName)'s request. They can send another one later.")
         }
     }
 
@@ -99,7 +99,8 @@ struct BlockedUsersView: View {
                 if users.isEmpty { Text("No blocked users").foregroundStyle(.secondary) }
                 ForEach(users) { user in
                     VStack(alignment: .leading, spacing: Spacing.small) {
-                        Text(user.username).font(.headline)
+                        // Blocked users are always listed by account, never by a nickname.
+                        Text("@\(user.username)").font(.headline)
                         Button { selected = user } label: { Text("Unblock").frame(minHeight: 44) }
                             .buttonStyle(.borderless)
                     }

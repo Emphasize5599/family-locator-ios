@@ -39,7 +39,7 @@ struct SafetyNumberView: View {
                     Image(systemName: "lock.shield.fill")
                         .font(.system(size: 48))
                         .foregroundStyle(Color.zoodBlue)
-                    Text("If you want to verify the security of your encryption with \(friend.user.username), compare the number below with the number on their device.")
+                    Text("If you want to verify the security of your encryption with \(friend.displayName), compare the number below with the number on their device.")
                         .font(.subheadline)
                         .multilineTextAlignment(.center)
                         .foregroundStyle(.secondary)

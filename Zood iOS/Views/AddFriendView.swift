@@ -37,7 +37,7 @@ struct AddFriendView: View {
     }
 
     private var inviteText: String {
-        "Install Family Locator (iPhone) or Zood Location (Android) so we can securely share our location with each other. My username is \(model.credentials?.username ?? "")."
+        "Install Family Locator (iPhone) or Zood Location (Android) so we can securely share our location with each other. My username is @\(model.credentials?.username ?? "")."
     }
 
     private func add() {

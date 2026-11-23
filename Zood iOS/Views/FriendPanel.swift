@@ -34,7 +34,8 @@ struct FriendPanel: View {
                     header(friend)
                         .gesture(closeGesture)
                     actions(friend)
-                    if let explanation {
+                    // iOS 16.4+ shows these as popovers from the (?); earlier versions open them inline here.
+                    if let explanation, !Self.usesPopovers {
                         explanationTile(explanation, friend: friend)
                             .transition(.move(edge: .top).combined(with: .opacity))
                     }
@@ -71,7 +72,7 @@ struct FriendPanel: View {
             .alert("Could Not Block User", isPresented: Binding(get: { blockError != nil }, set: { if !$0 { blockError = nil } })) {
                 Button("OK") { blockError = nil }
             } message: { Text(blockError ?? "") }
-            .alert("Remove & Block \(friend.user.username)?", isPresented: $confirmingBlock) {
+            .alert("Remove & Block \(friend.displayName)?", isPresented: $confirmingBlock) {
                 Button("Cancel", role: .cancel) {}
                 Button("Remove & Block", role: .destructive) {
                     Task {
@@ -82,7 +83,7 @@ struct FriendPanel: View {
             } message: {
                 Text("Stops sharing and blocks their requests on this iPhone. Previously received locations may remain on their device. You can unblock them in Settings.")
             }
-            .alert("Remove \(friend.user.username)?", isPresented: $confirmingRemove) {
+            .alert("Remove \(friend.displayName)?", isPresented: $confirmingRemove) {
                 Button("Cancel", role: .cancel) {}
                 Button("Remove", role: .destructive) {
                     Task { await model.removeFriend(friend) }
@@ -239,24 +240,31 @@ struct FriendPanel: View {
         .animation(.easeInOut(duration: 0.35), value: showingSuccess)
     }
 
+    /// A relative time ("5 min. ago") reads best today; an older update gets a date so "Updated 2 days ago"
+    /// can't be mistaken for something more recent.
+    private func updatedText(_ loc: FriendLocation) -> Text {
+        if Calendar.current.isDateInToday(loc.time) {
+            return Text("Updated \(loc.time.relativeDescription)")
+        }
+        return Text("Updated \(loc.time.formatted(date: .abbreviated, time: .shortened))")
+    }
+
     /// The status line when no green check is showing: request progress if there is any, otherwise how
     /// fresh their location is.
     @ViewBuilder
     private func regularStatus(_ friend: Friend, status: UpdateRequestStatus?, capability: RequestCapability) -> some View {
         if let status, showsRequestStatus(status) {
-            statusLine(status)
+            statusLine(status, friend: friend)
         } else if capability == .checking {
             HStack(spacing: Spacing.tight) { ProgressView().controlSize(.mini); Text("Checking…") }
         } else if case .unsupported = capability {
-            HStack(spacing: Spacing.tight) { Text("Unsupported"); infoButton(for: .unsupported) }
-        } else if let loc = friend.location {
-            // A relative time ("5 min. ago") reads best today; an older update gets a date so
-            // "Updated 2 days ago" can't be mistaken for something more recent.
-            if Calendar.current.isDateInToday(loc.time) {
-                Text("Updated \(loc.time.relativeDescription)")
-            } else {
-                Text("Updated \(loc.time.formatted(date: .abbreviated, time: .shortened))")
+            // Keep the update time; the unsupported note goes underneath it.
+            VStack(alignment: .leading, spacing: Spacing.tight) {
+                if let loc = friend.location { updatedText(loc) }
+                HStack(spacing: Spacing.tight) { Text("On-demand refresh unsupported"); infoButton(for: .unsupported, friend: friend) }
             }
+        } else if let loc = friend.location {
+            updatedText(loc)
         } else {
             Text(friend.theyShare ? "Waiting for their first location…" : "Not sharing their location with you")
         }
@@ -290,26 +298,38 @@ struct FriendPanel: View {
         }
     }
 
+    /// Refresh is hidden while their phone can't answer requests; it comes back once a later check finds it can.
+    @ViewBuilder
     private func refreshColumn(_ friend: Friend) -> some View {
         let capability = model.requestCapability(for: friend)
         let status = model.requestStatuses[friend.id].flatMap { $0.isStale ? nil : $0 }
-        return Button {
+        if case .unsupported = capability {
+            EmptyView()
+        } else {
+            refreshButton(friend, capability: capability, status: status)
+        }
+    }
+
+    private func refreshButton(_ friend: Friend, capability: RequestCapability, status: UpdateRequestStatus?) -> some View {
+        Button {
             withAnimation { explanation = nil }
             Task { await model.requestLocationUpdate(from: friend) }
         } label: {
-            // A round icon button like the rest of the card's controls. The style adds its own padding,
-            // so the circle ends up about 44 points across.
+            // Drawn exactly like the bottom bar's Add and Requests buttons: a 52-point filled circle.
             Image(systemName: "arrow.clockwise")
-                .font(.body.weight(.semibold))
-                .frame(width: 30, height: 30)
+                .font(.title2.weight(.semibold))
+                .frame(width: 52, height: 52)
+                .background(Color.zoodBlue, in: Circle())
+                .foregroundStyle(.white)
         }
+        .buttonStyle(.plain)
         .accessibilityLabel("Refresh location")
-        .prominentActionStyle(tint: .zoodBlue, circle: true)
         .disabled(capability != .supported || isInFlight(status))
+        .opacity(capability != .supported || isInFlight(status) ? 0.4 : 1)
     }
 
     @ViewBuilder
-    private func statusLine(_ status: UpdateRequestStatus) -> some View {
+    private func statusLine(_ status: UpdateRequestStatus, friend: Friend) -> some View {
         switch status {
         case .sent:
             Label("Requesting…", systemImage: "antenna.radiowaves.left.and.right").font(.footnote).foregroundStyle(Color.cardSecondary)
@@ -325,55 +345,85 @@ struct FriendPanel: View {
         case .noResponse:
             HStack(spacing: Spacing.tight) {
                 Text("No response").font(.footnote.weight(.medium)).foregroundStyle(Color.zoodOrange)
-                infoButton(for: .noResponse)
+                infoButton(for: .noResponse, friend: friend)
             }
         }
     }
 
-    private func infoButton(for kind: Explanation) -> some View {
-        Button {
+    /// Popovers that stay popovers on iPhone need iOS 16.4 (`presentationCompactAdaptation`).
+    static var usesPopovers: Bool {
+        if #available(iOS 16.4, *) { return true }
+        return false
+    }
+
+    /// The (?) next to a status. On iOS 16.4+ it opens a small popover anchored to itself, the way Apple uses
+    /// popovers for brief, optional help: tap outside to dismiss, no buttons. Earlier iOS opens it inline.
+    @ViewBuilder
+    private func infoButton(for kind: Explanation, friend: Friend) -> some View {
+        let button = Button {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { explanation = explanation == kind ? nil : kind }
         } label: {
             Image(systemName: explanation == kind ? "questionmark.circle.fill" : "questionmark.circle")
                 .foregroundStyle(Color.zoodBlueDark)
+                .frame(minWidth: 30, minHeight: 30)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(kind == .unsupported ? "Why is this unsupported?" : "Why no response?")
+        .accessibilityLabel(kind == .unsupported ? "Why is on-demand refresh unsupported?" : "Why no response?")
+        if #available(iOS 16.4, *) {
+            button.popover(isPresented: Binding(get: { explanation == kind }, set: { if !$0 { explanation = nil } }),
+                           arrowEdge: .bottom) {
+                explanationText(kind, friend: friend)
+                    .padding(Spacing.large)
+                    .frame(idealWidth: 320)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .presentationCompactAdaptation(.popover)
+            }
+        } else {
+            button
+        }
     }
 
-    private func explanationTile(_ kind: Explanation, friend: Friend) -> some View {
-        let name = friend.user.username
+    /// The explanation itself, shared by the popover and the inline fallback.
+    private func explanationText(_ kind: Explanation, friend: Friend) -> some View {
+        let name = friend.displayName
         return VStack(alignment: .leading, spacing: Spacing.small) {
-            HStack {
-                Label(kind == .unsupported ? "Why is Refresh unsupported?" : "Why didn't they respond?",
-                      systemImage: "info.circle.fill")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.floatingAccent)
-                Spacer()
+            Text(kind == .unsupported ? "Why is on-demand refresh unsupported?" : "Why didn't they respond?")
+                .font(.headline)
+            Group {
+                switch kind {
+                case .unsupported where friend.device?.platform != .ios:
+                    Text("\(name) has **Live Requests** turned off, so their phone isn't listening for requests.")
+                    Text("Their location still updates on its own whenever they move. Refresh comes back once \(name) turns on Live Requests in Settings.")
+                case .unsupported:
+                    Text("\(name)'s iPhone isn't listening for requests right now. Zood's servers can't wake an iPhone, so the app has to stay running in the background to hear one. That stops if **Live Requests** is off, or if the app was swiped closed.")
+                    Text("Their location still updates on its own whenever they move. Refresh comes back once \(name) opens the app (and turns on Live Requests with location access **Always** if it's off).")
+                case .noResponse:
+                    Text("Requests only reach phones that currently have the app running in the background. \(name)'s phone may be offline, in Low Power Mode, or the app may have been swiped closed.")
+                    Text("Their location will still update the next time they move or open the app.")
+                }
+            }
+            .font(.subheadline)
+            // Primary text: secondary gray is too faint on a translucent popover.
+        }
+    }
+
+    /// iOS 15–16.3: the explanation opens inline under the actions, with its own close button.
+    private func explanationTile(_ kind: Explanation, friend: Friend) -> some View {
+        explanationText(kind, friend: friend)
+            .overlay(alignment: .topTrailing) {
                 Button {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { explanation = nil }
                 } label: {
                     Image(systemName: "xmark").font(.footnote.weight(.bold)).foregroundStyle(Color.cardSecondary)
+                        .frame(minWidth: 30, minHeight: 30)
                 }
                 .accessibilityLabel("Close")
             }
-            switch kind {
-            case .unsupported where friend.device?.platform != .ios:
-                Text("\(name) has **Live Requests** turned off, so their phone isn't listening for requests.")
-                Text("Their location still updates on its own whenever they move. To enable Refresh, \(name) can turn on Live Requests in Settings.")
-            case .unsupported:
-                Text("\(name)'s iPhone isn't listening for requests right now. Zood's servers can't wake an iPhone, so the app has to stay running in the background to hear one. That stops if **Live Requests** is off, or if the app was swiped closed.")
-                Text("Their location still updates on its own whenever they move. To enable Refresh, \(name) can open the app (and turn on Live Requests with location access **Always** if it's off).")
-            case .noResponse:
-                Text("Requests only reach phones that currently have the app running in the background. \(name)'s phone may be offline, in Low Power Mode, or the app may have been swiped closed.")
-                Text("Their location will still update the next time they move or open the app.")
-            }
-        }
-        .font(.footnote)
-        .padding(Spacing.large)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.zoodBlue.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.zoodBlue.opacity(0.35)))
+            .padding(Spacing.large)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.zoodBlue.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.zoodBlue.opacity(0.35)))
     }
 
     // MARK: Helpers

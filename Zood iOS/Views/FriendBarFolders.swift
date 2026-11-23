@@ -25,8 +25,47 @@ let barItemWidth: CGFloat = 64
 
 /// What's being dragged lives in view state (SwiftUI drops carry an item provider, not our IDs), so the
 /// provider itself is just a token that only this app understands.
-func barDragProvider() -> NSItemProvider {
-    NSItemProvider(object: "family-locator-bar-item" as NSString)
+///
+/// iOS doesn't tell the app when a drag is cancelled or dropped outside it, but it releases the provider when
+/// the drag session ends; `onEnd` runs then, so the bar can stop jiggling no matter how the drag finished.
+func barDragProvider(onEnd: @escaping () -> Void) -> NSItemProvider {
+    let provider = NSItemProvider(object: "family-locator-bar-item" as NSString)
+    objc_setAssociatedObject(provider, &DragEndWatcher.key, DragEndWatcher(onEnd), .OBJC_ASSOCIATION_RETAIN)
+    return provider
+}
+
+private final class DragEndWatcher: NSObject {
+    static var key: UInt8 = 0
+    private let onEnd: () -> Void
+    init(_ onEnd: @escaping () -> Void) { self.onEnd = onEnd }
+    deinit {
+        let onEnd = onEnd
+        DispatchQueue.main.async { onEnd() }
+    }
+}
+
+/// The Home Screen's "jiggle" while you're arranging: a slight, endless rock back and forth. Each item starts
+/// at a slightly different moment, like app icons. Off when Reduce Motion is on.
+struct Jiggle: ViewModifier {
+    let active: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var tilted = false
+
+    func body(content: Content) -> some View {
+        content
+            .rotationEffect(.degrees(active && !reduceMotion ? (tilted ? 2 : -2) : 0))
+            .onAppear { if active { start() } }
+            .compatOnChange(of: active) { on in
+                if on { start() } else { withAnimation(.easeOut(duration: 0.1)) { tilted = false } }
+            }
+    }
+
+    private func start() {
+        guard !reduceMotion else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + .random(in: 0...0.12)) {
+            withAnimation(.easeInOut(duration: 0.13).repeatForever(autoreverses: true)) { tilted = true }
+        }
+    }
 }
 
 /// Drop handling for one item in the bar, or for the empty part of the bar (`target == nil`).
@@ -127,25 +166,17 @@ struct FolderGridDropDelegate: DropDelegate {
     }
 }
 
-/// What you see under your finger while dragging: bigger than the bar's circles, with the name on a pill,
-/// so it stays visible around a thumb.
-struct BarDragPreview<Icon: View>: View {
-    let title: String
+/// What lifts under your finger, like a Home Screen icon: just the icon, a little larger, with its label left
+/// behind. The drag-preview content shape makes the system's lift platter match the icon's own shape, so
+/// there's no rectangle around it.
+struct BarDragPreview<Icon: View, S: Shape>: View {
+    let shape: S
     @ViewBuilder var icon: () -> Icon
 
     var body: some View {
-        VStack(spacing: Spacing.tight) {
-            icon()
-                .frame(width: 72, height: 72)
-                .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
-            Text(title)
-                .font(.caption.weight(.semibold))
-                .lineLimit(1)
-                .padding(.horizontal, Spacing.small)
-                .padding(.vertical, Spacing.hairline)
-                .background(.regularMaterial, in: Capsule())
-        }
-        .padding(Spacing.small)
+        icon()
+            .frame(width: 64, height: 64)
+            .contentShape(.dragPreview, shape)
     }
 }
 

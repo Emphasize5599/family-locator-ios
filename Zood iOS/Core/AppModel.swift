@@ -148,6 +148,8 @@ final class AppModel: ObservableObject {
         }
         local.friends = [fixture.id: fixture]  // start each scene from the same fixture set
         requestStatuses = [:]
+        // Your own shared nickname, so Settings shows it with @username underneath.
+        local.myNickname = scene == "settings-nickname" ? "Family Demo" : nil
         if scene == "friend-unsupported" {
             // Their phone has said it can't answer Refresh, and we've already re-checked.
             local.friends[fixture.id]?.device?.liveRequests = false
