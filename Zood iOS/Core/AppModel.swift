@@ -887,7 +887,7 @@ final class AppModel: ObservableObject {
     /// A nil result means the incoming request was approved or they already share with us.
     func prepareAddFriend(username: String) async throws -> ZoodUser? {
         let username = Username.forLookup(username)
-        guard username != credentials?.username else { throw FriendError.cantAddSelf }
+        guard username != credentials.map({ Username.forLookup($0.username) }) else { throw FriendError.cantAddSelf }
         if let request = pendingRequest(username: username) {
             try await approveRequest(request)
             return nil
@@ -899,11 +899,13 @@ final class AppModel: ObservableObject {
         }
         let result = try await api.searchUser(username: username)
         let user = ZoodUser(userID: result.id, username: result.username, publicKey: result.publicKey)
+        guard user.userID != credentials?.userID else { throw FriendError.cantAddSelf }
         guard safety.blocked[user.userID] == nil else { throw FriendError.blocked }
         return try await acceptIncomingIfPresent(user) ? nil : user
     }
 
     func confirmAddFriendSharing(with user: ZoodUser) async throws {
+        guard user.userID != credentials?.userID else { throw FriendError.cantAddSelf }
         guard await syncInbox() else { throw FriendError.inboxUnavailable }
         if try await acceptIncomingIfPresent(user) { return }
         try await startSharing(with: user)
@@ -929,6 +931,7 @@ final class AppModel: ObservableObject {
     }
 
     func startSharing(with user: ZoodUser) async throws {
+        guard user.userID != credentials?.userID else { throw FriendError.cantAddSelf }
         guard safety.blocked[user.userID] == nil else { throw FriendError.blocked }
         // Re-send the existing box if we already have one, exactly like FriendshipManager does.
         let box = local.friends[user.userID]?.sendingBoxID ?? Crypto.randomBytes(ZoodConstants.dropBoxIDLength)
