@@ -55,6 +55,8 @@ final class AppModel: ObservableObject {
     @Published private(set) var requestStatuses: [Data: UpdateRequestStatus] = [:]
     /// Friend-bar folders (see FriendFolders.swift). Saved on this iPhone per account.
     @Published private(set) var folders: [FriendFolder] = []
+    /// The order of the friend bar after Add and Requests (see `barItems`). Saved on this iPhone per account.
+    @Published private(set) var barOrder: [BarItemID] = []
     /// The running timed share, if any (see `TimedShare`).
     @Published private(set) var timedShare: TimedShare?
     /// Friends whose phones we're asking "can you answer location requests?" before showing Unsupported.
@@ -125,6 +127,7 @@ final class AppModel: ObservableObject {
             if let account = credentials?.userID {
                 applyContactLinks(for: account)
                 folders = FriendFolderStore.load(for: account)
+                barOrder = FriendFolderStore.loadOrder(for: account)
             }
             startSession()
             // Resume a timed share that was running when the app was last closed, unless it has expired.
@@ -157,6 +160,7 @@ final class AppModel: ObservableObject {
             requestStatuses[fixture.id] = .responded(.finished, Date().addingTimeInterval(5))
         }
         folders = []
+        barOrder = []
         if ["map-many-friends", "friend-overlap", "map-folders", "map-folders-open"].contains(scene) {
             // Enough friends to make the friend bar scroll, for checking its rounded-corner clipping.
             for (index, name) in ["Bailey", "Casey", "Devon", "Emerson", "Finley", "Harper"].enumerated() {
@@ -167,6 +171,20 @@ final class AppModel: ObservableObject {
                 extra.nickname = name
                 local.friends[extra.id] = extra
             }
+        }
+        if scene == "friend-contact-photo" {
+            // Framing check: non-square photos that skip the linking step's square crop, to prove every
+            // renderer fills and crops. Correct framing shows a round yellow circle and no red or green.
+            local.friends[fixture.id]?.linkedContact = LinkedContact(identifier: "", name: "Alex Rivera",
+                                                                     photo: ScreenshotTour.framingTestPhoto(tall: true))
+            local.friends[fixture.id]?.nickname = "Alex Rivera"
+            var wide = fixture
+            wide.user = ZoodUser(userID: Data(repeating: 30, count: 16), username: "widedemo", publicKey: Data(repeating: 30, count: 32))
+            wide.nickname = "Wide Photo"
+            wide.linkedContact = LinkedContact(identifier: "", name: "Wide Photo", photo: ScreenshotTour.framingTestPhoto(tall: false))
+            wide.location?.latitude += 0.004  // a little apart, so both map pins are visible
+            wide.location?.longitude += 0.003
+            local.friends[wide.id] = wide
         }
         if scene.hasPrefix("map-folders") {
             // A "Family" folder of Bailey, Casey and Devon (the extra friends above).
@@ -256,6 +274,8 @@ final class AppModel: ObservableObject {
         // Restore friends from the encrypted server-side backup (shared format with Android).
         var restored = LocalData()
         var restoredBlocks: [ZoodUser] = []
+        var restoredFolders: [FriendFolder] = []
+        var restoredOrder: [BarItemID] = []
         let authed = OscarAPI(accessToken: login.accessToken)
         do {
             let encrypted = try await authed.backup()
@@ -263,6 +283,10 @@ final class AppModel: ObservableObject {
             let snapshot = try ZoodJSON.decoder.decode(Snapshot.self, from: json)
             restored = Self.localData(from: snapshot)
             restoredBlocks = (snapshot.blocked ?? []).map { ZoodUser(userID: $0.userId, username: $0.username, publicKey: $0.publicKey) }
+            restoredFolders = (snapshot.folders ?? []).compactMap { folder in
+                UUID(uuidString: folder.id).map { FriendFolder(id: $0, name: folder.name, members: folder.members) }
+            }
+            restoredOrder = (snapshot.barOrder ?? []).compactMap(BarItemID.init(backupValue:))
         } catch let error as OscarError where error.code == OscarError.backupNotFound {
             // Brand-new account.
         }
@@ -279,7 +303,11 @@ final class AppModel: ObservableObject {
         restored.friends = restored.friends.filter { safety.blocked[$0.key] == nil }
         local = restored
         applyContactLinks(for: creds.userID)
+        // This iPhone's own arrangement wins; otherwise the backup's comes back.
         folders = FriendFolderStore.load(for: creds.userID)
+        barOrder = FriendFolderStore.loadOrder(for: creds.userID)
+        if folders.isEmpty, !restoredFolders.isEmpty { setFolders(restoredFolders) }
+        if barOrder.isEmpty, !restoredOrder.isEmpty { setBarOrder(restoredOrder) }
         LocalDataStore.save(local)
         phase = .signedIn
         startSession()
@@ -325,6 +353,7 @@ final class AppModel: ObservableObject {
         safetyError = nil
         requestStatuses = [:]
         folders = []
+        barOrder = []
         probingDevices = []
         lastProbe = [:]
         processedMessageIDs = []
@@ -869,6 +898,15 @@ final class AppModel: ObservableObject {
         folders = next
         guard let account = credentials?.userID, !ScreenshotTour.isEnabled else { return }
         FriendFolderStore.save(next, for: account)
+        scheduleBackup()
+    }
+
+    /// Replaces the friend bar's order and saves it for this account (not in the screenshot tour).
+    func setBarOrder(_ next: [BarItemID]) {
+        barOrder = next
+        guard let account = credentials?.userID, !ScreenshotTour.isEnabled else { return }
+        FriendFolderStore.saveOrder(next, for: account)
+        scheduleBackup()
     }
 
     /// Combines this iPhone's contact links with any restored from the backup. A link made on this phone
@@ -896,7 +934,17 @@ final class AppModel: ObservableObject {
             links[id] = contact
             ContactLinkStore.save(links, for: account)
         }
-        updateFriend(id) { $0.linkedContact = contact }
+        updateFriend(id) { friend in
+            let previous = friend.linkedContact
+            friend.linkedContact = contact
+            if let contact {
+                // Linking a contact names the friend after them (first and last name).
+                friend.nickname = Nickname.normalized(contact.name)
+            } else if let previous, friend.nickname == Nickname.normalized(previous.name) {
+                // Unlinking undoes that, unless the nickname was changed since.
+                friend.nickname = nil
+            }
+        }
         scheduleBackup()
     }
 
@@ -981,8 +1029,11 @@ final class AppModel: ObservableObject {
                   linkedContactId: $0.linkedContact?.identifier,
                   linkedContactPlatform: $0.linkedContact == nil ? nil : "ios")
         }
-        // Blocks ride along in the same end-to-end encrypted backup, so they come back after signing in again.
+        // Blocks, folders and the bar's order ride along in the same end-to-end encrypted backup, so they come
+        // back after signing in again.
         snapshot.blocked = safety.blocked.values.map { .init(userId: $0.userID, publicKey: $0.publicKey, username: $0.username) }
+        snapshot.folders = folders.map { .init(id: $0.id.uuidString, name: $0.name, members: $0.members) }
+        snapshot.barOrder = barOrder.map(\.backupValue)
         snapshot.nickname = local.myNickname
         snapshot.avatar = local.myAvatar
         snapshot.timestamp = Int64(Date().timeIntervalSince1970 * 1000)

@@ -4,6 +4,8 @@ struct SettingsView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
+    @AppStorage(FolderGrid.columnsKey) private var folderColumns = FolderGrid.defaultColumns
+    @AppStorage(FolderGrid.rowsKey) private var folderRows = FolderGrid.defaultRows
 
     var body: some View {
         CompatNavigationStack {
@@ -59,6 +61,19 @@ struct SettingsView: View {
                             openURL(URL(string: UIApplication.openSettingsURLString)!)
                         }
                     }
+                }
+
+                Section {
+                    Stepper(value: $folderColumns, in: FolderGrid.columnRange) {
+                        LabeledContentCompat("Folder Columns", value: "\(folderColumns)")
+                    }
+                    Stepper(value: $folderRows, in: FolderGrid.rowRange) {
+                        LabeledContentCompat("Folder Rows", value: "\(folderRows)")
+                    }
+                } header: {
+                    Text("Friend Bar")
+                } footer: {
+                    Text("Folders open as a \(folderColumns) × \(folderRows) grid; bigger folders scroll. Long-press anyone in the bar to move them, or hold them over someone to make a folder.")
                 }
 
                 Section("Privacy & Support") {
@@ -179,17 +194,7 @@ struct AccountView: View {
 
     /// Square-crops and downsizes to 256×256 JPEG, roughly what Android's avatar cropper produces.
     private static func avatarJPEG(from data: Data) -> Data? {
-        guard let image = UIImage(data: data) else { return nil }
-        let side = min(image.size.width, image.size.height)
-        let crop = CGRect(x: (image.size.width - side) / 2, y: (image.size.height - side) / 2, width: side, height: side)
-        let target = CGSize(width: 256, height: 256)
-        let renderer = UIGraphicsImageRenderer(size: target)
-        let resized = renderer.image { _ in
-            image.draw(in: CGRect(x: -crop.minX * target.width / side, y: -crop.minY * target.height / side,
-                                  width: image.size.width * target.width / side,
-                                  height: image.size.height * target.height / side))
-        }
-        return resized.jpegData(compressionQuality: 0.8)
+        AvatarImage.squareJPEG(from: data)
     }
 }
 
@@ -221,5 +226,24 @@ struct NoticesView: View {
             .font(.footnote)
             .foregroundStyle(.secondary)
             .padding(.vertical, Spacing.tight)
+    }
+}
+
+/// A title with a trailing value, like `LabeledContent` (iOS 16+), back to iOS 15.
+private struct LabeledContentCompat: View {
+    let title: LocalizedStringKey
+    let value: String
+
+    init(_ title: LocalizedStringKey, value: String) {
+        self.title = title
+        self.value = value
+    }
+
+    var body: some View {
+        HStack {
+            Text(title)
+            Spacer()
+            Text(value).foregroundStyle(.secondary).monospacedDigit()
+        }
     }
 }

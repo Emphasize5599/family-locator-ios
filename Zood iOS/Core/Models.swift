@@ -133,6 +133,15 @@ nonisolated struct Snapshot: Codable, Sendable {
     /// People you've blocked (Family Locator only; older clients ignore it). Optional so older backups,
     /// which don't have it, still decode.
     var blocked: [User]?
+    /// Friend-bar folders and the bar's order (Family Locator only; older clients ignore them).
+    struct Folder: Codable, Sendable {
+        var id: String
+        var name: String?
+        var members: [Data]
+    }
+    var folders: [Folder]?
+    /// Bar entries in order: "friend:<base64 user id>" or "folder:<folder id>".
+    var barOrder: [String]?
     var avatar: Data?
     var nickname: String?
     /// Android refuses to restore snapshots newer than its DB schema (1).

@@ -192,7 +192,7 @@ final class FriendAnnotationView: MKAnnotationView {
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
     func configure(with friend: Friend) {
-        image = Self.render(username: friend.avatarName, avatar: friend.avatar, size: size)
+        image = Self.render(username: friend.avatarName, avatar: friend.displayAvatar, size: size)
         accessibilityLabel = friend.displayName
     }
 
@@ -202,7 +202,8 @@ final class FriendAnnotationView: MKAnnotationView {
             let circle = UIBezierPath(ovalIn: rect.insetBy(dx: 1, dy: 1))
             circle.addClip()
             if let avatar, let photo = UIImage(data: avatar) {
-                photo.draw(in: rect)
+                // Fill and crop, never stretch: a non-square photo would otherwise be squashed into the pin.
+                photo.draw(in: AvatarImage.fillRect(for: photo, in: rect))
             } else {
                 UIColor(AvatarView.color(for: username)).setFill()
                 circle.fill()

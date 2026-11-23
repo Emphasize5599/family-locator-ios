@@ -77,6 +77,18 @@ struct NicknameCompatibilityCheck {
               fromAndroid.friends.first?.linkedContactPlatform == "android" else {
             fatalError("Android-written linked contact not readable")
         }
-        print("Nickname precedence, explicit resets, legacy messages/backups, shared backup fields, blocked users and linked contacts passed.")
+        // Folders and the bar's order.
+        var arranged = Snapshot()
+        let folderID = UUID()
+        arranged.folders = [.init(id: folderID.uuidString, name: "Family", members: [user.id])]
+        arranged.barOrder = ["folder:" + folderID.uuidString, "friend:" + user.id.base64EncodedString()]
+        let arrangedJSON = try encoder.encode(arranged)
+        guard String(decoding: arrangedJSON, as: UTF8.self).contains("bar_order") else { fatalError("bar_order key missing") }
+        let arrangedBack = try decoder.decode(Snapshot.self, from: arrangedJSON)
+        guard arrangedBack.folders?.first?.name == "Family", arrangedBack.folders?.first?.members == [user.id],
+              arrangedBack.barOrder?.count == 2 else {
+            fatalError("Folders or bar order lost in the backup round trip")
+        }
+        print("Nickname precedence, explicit resets, legacy messages/backups, shared backup fields, blocked users, linked contacts, folders and bar order passed.")
     }
 }

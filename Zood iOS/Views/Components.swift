@@ -56,6 +56,33 @@ struct AvatarView: View {
     }
 }
 
+/// Photo framing shared by profile photos, contact photos and map pins, so a face is never squashed.
+enum AvatarImage {
+    /// The largest centered square of `image`, as a rectangle to draw the whole image into so that square
+    /// exactly fills `target` (fill-and-crop, never stretch).
+    static func fillRect(for image: UIImage, in target: CGRect) -> CGRect {
+        let side = min(image.size.width, image.size.height)
+        guard side > 0 else { return target }
+        let scale = target.width / side
+        let width = image.size.width * scale
+        let height = image.size.height * scale
+        return CGRect(x: target.midX - width / 2, y: target.midY - height / 2, width: width, height: height)
+    }
+
+    /// Center-crops to a square and downsizes to `side`×`side` JPEG, roughly what Android's avatar cropper
+    /// produces. Used for your own photo. (Linked contacts keep their Contacts framing and aren't re-cropped.)
+    static func squareJPEG(from data: Data, side: CGFloat = 256) -> Data? {
+        guard let image = UIImage(data: data) else { return nil }
+        let target = CGRect(x: 0, y: 0, width: side, height: side)
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1
+        let squared = UIGraphicsImageRenderer(size: target.size, format: format).image { _ in
+            image.draw(in: fillRect(for: image, in: target))
+        }
+        return squared.jpegData(compressionQuality: 0.8)
+    }
+}
+
 extension Date {
     /// "just now", "5 min ago", etc.
     var relativeDescription: String {

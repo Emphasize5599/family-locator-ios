@@ -153,7 +153,7 @@ struct FriendPanel: View {
     }
 
     private func avatar(_ friend: Friend) -> some View {
-        AvatarView(username: friend.avatarName, imageData: friend.avatar, size: 56)
+        AvatarView(username: friend.avatarName, imageData: friend.displayAvatar, size: 56)
     }
 
     /// Platform logo, ✎, ⋯ and ✕, all the same size.

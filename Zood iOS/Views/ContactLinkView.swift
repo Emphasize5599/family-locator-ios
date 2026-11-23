@@ -15,7 +15,7 @@ struct ContactLinkView: View {
 
     var body: some View {
         ContentFittedSheet(title: "Linked Contact", showsCloseButton: true) {
-            Text("Choose a contact to show their name for this friend. A nickname you've set takes priority. Only that contact's name and a reference to it are kept, here and in your end-to-end encrypted backup. Your other contacts are never read or uploaded.")
+            Text("Choose a contact to use their name as this friend's nickname and their photo as the friend's picture. Only that contact's name, photo and a reference to it are kept on this iPhone, and the name and reference in your end-to-end encrypted backup. Your other contacts are never read or uploaded.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
             if let contact = model.local.friends[friendID]?.linkedContact {
@@ -62,11 +62,19 @@ private struct ContactPicker: UIViewControllerRepresentable {
         }
 
         func contactPicker(_ picker: CNContactPickerViewController, didSelect contact: CNContact) {
-            // Fall back to the company name for business cards, and to a placeholder for blank entries,
-            // so the friend card never ends up with an empty title.
-            let name = CNContactFormatter.string(from: contact, style: .fullName) ?? contact.organizationName
+            // First and last name become the friend's nickname. Fall back to the formatted name, then the company
+            // name for business cards, and finally a placeholder, so the card never ends up with an empty title.
+            let parts = [contact.givenName, contact.familyName].map { $0.trimmingCharacters(in: .whitespaces) }
+            var name = parts.filter { !$0.isEmpty }.joined(separator: " ")
+            if name.isEmpty { name = CNContactFormatter.string(from: contact, style: .fullName) ?? "" }
+            if name.isEmpty { name = contact.organizationName }
+            // The picker hands back the chosen card with its thumbnail; nothing else from Contacts is read.
+            // The thumbnail is the contact photo as the person framed it in Contacts (the full `imageData` is the
+            // uncropped original), so it's used as-is: re-cropping here could undo their framing.
+            let photo = contact.isKeyAvailable(CNContactThumbnailImageDataKey) ? contact.thumbnailImageData : nil
             onSelect(LinkedContact(identifier: contact.identifier,
-                                   name: name.isEmpty ? String(localized: "Unnamed Contact") : name))
+                                   name: name.isEmpty ? String(localized: "Unnamed Contact") : name,
+                                   photo: photo))
         }
 
         func contactPickerDidCancel(_ picker: CNContactPickerViewController) {

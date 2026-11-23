@@ -101,6 +101,8 @@ nonisolated struct Friend: Codable, Hashable, Sendable, Identifiable {
 
     var displayName: String { nickname ?? linkedContact?.name ?? sharedNickname ?? "@\(user.username)" }
     var avatarName: String { nickname ?? linkedContact?.name ?? sharedNickname ?? user.username }
+    /// The picture to show for this friend: their linked contact's photo, otherwise the photo they shared.
+    var displayAvatar: Data? { linkedContact?.photo ?? avatar }
 
     var id: Data { user.userID }
     var weShare: Bool { sendingBoxID != nil }
@@ -214,7 +216,11 @@ nonisolated enum Username {
 /// encrypted backup (the server can't read either). Never sent to the friend.
 nonisolated struct LinkedContact: Codable, Hashable, Sendable {
     var identifier: String
+    /// First and last name from the contact card (company name for business cards).
     var name: String
+    /// The contact's photo as framed in Contacts (its thumbnail), shown as the friend's avatar. Kept on this
+    /// iPhone only (not in the backup), so the backup stays small; it returns when the friend is linked again.
+    var photo: Data?
 }
 
 nonisolated enum ContactLinkStore {

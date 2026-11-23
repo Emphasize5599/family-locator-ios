@@ -26,6 +26,27 @@ enum ScreenshotTour {
     static let credentials = Credentials(username: "familydemo", userID: Data(repeating: 1, count: 16), accessToken: "offline-demo",
         keyPair: KeyPair(publicKey: Data(repeating: 1, count: 32), secretKey: Data(repeating: 0, count: 32)),
         symmetricKey: Data(repeating: 0, count: 32), passwordSalt: Data(repeating: 0, count: 16))
+
+    /// A deliberately non-square test photo: a blue square with a yellow circle, plus red/green bands outside
+    /// it (above and below when tall, left and right when wide). Framed correctly, only the square shows.
+    static func framingTestPhoto(tall: Bool) -> Data? {
+        let square: CGFloat = 120, band: CGFloat = 90
+        let size = tall ? CGSize(width: square, height: square + 2 * band) : CGSize(width: square + 2 * band, height: square)
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1
+        let image = UIGraphicsImageRenderer(size: size, format: format).image { context in
+            UIColor.systemRed.setFill()
+            context.fill(tall ? CGRect(x: 0, y: 0, width: square, height: band) : CGRect(x: 0, y: 0, width: band, height: square))
+            UIColor.systemGreen.setFill()
+            context.fill(tall ? CGRect(x: 0, y: band + square, width: square, height: band) : CGRect(x: band + square, y: 0, width: band, height: square))
+            let middle = tall ? CGRect(x: 0, y: band, width: square, height: square) : CGRect(x: band, y: 0, width: square, height: square)
+            UIColor.systemBlue.setFill()
+            context.fill(middle)
+            UIColor.systemYellow.setFill()
+            UIBezierPath(ovalIn: middle.insetBy(dx: 15, dy: 15)).fill()
+        }
+        return image.pngData()
+    }
     #endif
 }
 
@@ -80,7 +101,7 @@ private struct ScreenshotTourSceneView: View {
             showingSheet = false
             sheetAppeared = false
             do { try await Task.sleep(nanoseconds: 450_000_000) } catch { return }
-            let needsSheet = !["map", "map-many-friends", "map-folders", "map-folders-open", "friend-overlap", "friend", "friend-short-name", "friend-long-name", "friend-updated", "friend-unsupported", "onboarding"].contains(scene)
+            let needsSheet = !["map", "map-many-friends", "map-folders", "map-folders-open", "friend-overlap", "friend", "friend-short-name", "friend-long-name", "friend-updated", "friend-unsupported", "friend-contact-photo", "onboarding"].contains(scene)
             showingSheet = needsSheet
             if needsSheet {
                 for _ in 0..<50 {
