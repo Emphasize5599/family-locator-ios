@@ -174,7 +174,7 @@ final class AppModel: ObservableObject {
         }
         folders = []
         barOrder = []
-        if ["map-many-friends", "friend-overlap", "map-folders", "map-folders-open"].contains(scene) {
+        if ["map-many-friends", "friend-overlap"].contains(scene) || scene.hasPrefix("map-folders") {
             // Enough friends to make the friend bar scroll, for checking its rounded-corner clipping.
             for (index, name) in ["Bailey", "Casey", "Devon", "Emerson", "Finley", "Harper"].enumerated() {
                 var extra = fixture
@@ -201,7 +201,8 @@ final class AppModel: ObservableObject {
         }
         if scene.hasPrefix("map-folders") {
             // A "Family" folder of Bailey, Casey and Devon (the extra friends above).
-            folders = [FriendFolder(name: "Family", members: [20, 21, 22].map { Data(repeating: UInt8($0), count: 16) })]
+            let name = scene.hasSuffix("long") ? "Grandparents, aunts and uncles in Texas" : "Family"
+            folders = [FriendFolder(name: name, members: [20, 21, 22].map { Data(repeating: UInt8($0), count: 16) })]
         }
         if scene != "requests-empty" {
             safety.pending[ScreenshotTour.requester.id] = PendingRequest(user: ScreenshotTour.requester, boxID: Data(repeating: 7, count: 16), nickname: "Taylor")

@@ -101,7 +101,7 @@ private struct ScreenshotTourSceneView: View {
             showingSheet = false
             sheetAppeared = false
             do { try await Task.sleep(nanoseconds: 450_000_000) } catch { return }
-            let needsSheet = !["map", "map-many-friends", "map-folders", "map-folders-open", "friend-overlap", "friend", "friend-short-name", "friend-long-name", "friend-updated", "friend-unsupported", "friend-contact-photo", "onboarding"].contains(scene)
+            let needsSheet = !["map", "map-many-friends", "map-folders", "map-folders-open", "map-folders-open-long", "friend-overlap", "friend", "friend-short-name", "friend-long-name", "friend-updated", "friend-unsupported", "friend-contact-photo", "onboarding"].contains(scene)
             showingSheet = needsSheet
             if needsSheet {
                 for _ in 0..<50 {

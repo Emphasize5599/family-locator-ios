@@ -143,7 +143,7 @@ struct MainView: View {
                 mapCommand = MapCommand(kind: .focus(latitude: loc.latitude, longitude: loc.longitude))
             }
             if ["friend", "friend-short-name", "friend-long-name", "friend-updated", "friend-unsupported", "friend-contact-photo"].contains(ScreenshotTour.scene ?? ""), let friend = model.friends.first { select(friend) }
-            if ScreenshotTour.scene == "map-folders-open" { openFolderID = model.friendFolders.first?.id }
+            if ScreenshotTour.scene?.hasPrefix("map-folders-open") == true { openFolderID = model.friendFolders.first?.id }
             // Overlapping pins: open a friend from the middle of the stack; their pin should come to the front.
             if ScreenshotTour.scene == "friend-overlap", let friend = model.friends.first(where: { $0.nickname == "Devon" }) { select(friend) }
             // Screenshot/UI checks: SIMCTL_CHILD_ZOOD_OPEN_FIRST=1 opens the first friend's card at launch.
@@ -408,18 +408,20 @@ struct MainView: View {
         let gridInset = Spacing.tight
         let gridHeight = CGFloat(visibleRows) * cellHeight + CGFloat(visibleRows - 1) * Spacing.large + 2 * gridInset
         let gridWidth = CGFloat(usedColumns) * barItemWidth + CGFloat(usedColumns - 1) * Spacing.large
-        // Only a floor so the header (name, ⋯ and ✕) never gets cramped; otherwise the grid sets the width,
-        // so a two-person folder is visibly narrower than a three-person one.
-        let headerWidth: CGFloat = 140
+        // By default the grid sets the width (a two-person folder is narrower than a three-person one). A longer
+        // name widens the card to fit it on one line, up to the screen margins; only then does it wrap.
+        let title = folder.name ?? String(localized: "Folder")
+        let titleWidth = (title as NSString).size(withAttributes: [.font: UIFont.preferredFont(forTextStyle: .headline)]).width
+        let headerWidth = ceil(titleWidth) + Spacing.small + 2 * 44 + Spacing.tight
         let margin = Spacing.medium
-        let width = min(max(gridWidth, headerWidth) + 2 * Spacing.large, screenWidth - 2 * margin)
+        let width = min(max(gridWidth, headerWidth, 140) + 2 * Spacing.large, screenWidth - 2 * margin)
         let tileX = openFolderTileMidX ?? screenWidth / 2
         let centerX = min(max(tileX, margin + width / 2), screenWidth - margin - width / 2)
         return VStack(alignment: .leading, spacing: Spacing.small) {
             HStack(spacing: Spacing.tight) {
-                Text(folder.name ?? String(localized: "Folder"))
+                Text(title)
                     .font(.headline)
-                    .lineLimit(1)
+                    .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: Spacing.small)
                 // The same UIKit ⋯ as the friend card, so it's the same size and tint.
                 PanelMenuButton(accessibilityLabel: String(localized: "Folder options"), actions: folderMenuActions(folder))
