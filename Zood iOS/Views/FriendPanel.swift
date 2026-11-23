@@ -488,10 +488,8 @@ struct FriendPanel: View {
     }
 }
 
-/// The ⋯ menu as a UIKit button + UIMenu. SwiftUI's `Menu` refreshes its open popup whenever the surrounding view
-/// updates (new location, reconnect, …), which made "Remove Friend" flash. A UIMenu only changes when we replace
-/// it, which we do only when its items change. The actions read the latest closures, so they never go stale.
-private struct FriendMenu: UIViewRepresentable {
+/// The username expands in place, keeping the other friend actions available.
+private struct FriendMenu: View {
     let linked: Bool
     let username: String
     let linkContact: () -> Void
@@ -499,63 +497,77 @@ private struct FriendMenu: UIViewRepresentable {
     let remove: () -> Void
     let block: () -> Void
 
-    func makeCoordinator() -> Coordinator { Coordinator() }
+    @State private var isPresented = false
+    @State private var usernameExpanded = false
+    @State private var afterDismissal: (() -> Void)?
 
-    func makeUIView(context: Context) -> UIButton {
-        let button = UIButton(type: .system)
-        button.setImage(UIImage(systemName: "ellipsis.circle", withConfiguration: panelIconConfig), for: .normal)
-        button.tintColor = UIColor(Color.zoodBlueDark)
-        button.showsMenuAsPrimaryAction = true
-        if #available(iOS 16, *) { button.preferredMenuElementOrder = .fixed }
-        button.accessibilityLabel = String(localized: "More")
-        button.setContentHuggingPriority(.required, for: .horizontal)
-        button.setContentHuggingPriority(.required, for: .vertical)
-        return button
-    }
-
-    func updateUIView(_ button: UIButton, context: Context) {
-        let coordinator = context.coordinator
-        coordinator.linkContact = linkContact
-        coordinator.viewSafetyNumber = viewSafetyNumber
-        coordinator.remove = remove
-        coordinator.block = block
-
-        // Rebuild only when a title changes ("Link Contact" vs "Linked Contact"), so an open menu never flashes.
-        guard coordinator.builtFor != linked else { return }
-        coordinator.builtFor = linked
-
-        // Top to bottom as shown under the card: the remove actions first (Remove & Block above Remove Friend),
-        // then the views, with Link Contact (which replaced "Open in Maps") last, nearest the ⋯ button.
-        var items: [UIMenuElement] = []
-        items.append(UIAction(title: String(localized: "Remove & Block"), image: UIImage(systemName: "hand.raised"), attributes: .destructive) { [weak coordinator] _ in
-            coordinator?.block?()
-        })
-        items.append(UIAction(title: String(localized: "Remove Friend"), image: UIImage(systemName: "person.crop.circle.badge.minus"), attributes: .destructive) { [weak coordinator] _ in
-            coordinator?.remove?()
-        })
-        items.append(UIAction(title: String(localized: "View Safety Number"), image: UIImage(systemName: "lock.shield")) { [weak coordinator] _ in
-            coordinator?.viewSafetyNumber?()
-        })
-        items.append(UIMenu(title: String(localized: "View Username"), image: UIImage(systemName: "at"), children: [
-            UIAction(title: "@\(username)", image: UIImage(systemName: "doc.on.doc")) { _ in
-                UIPasteboard.general.string = "@\(username)"
+    var body: some View {
+        PanelIconButton(systemName: "ellipsis.circle", tint: UIColor(Color.zoodBlueDark),
+                        accessibilityLabel: String(localized: "More")) {
+            usernameExpanded = false
+            isPresented = true
+        }
+        .popover(isPresented: $isPresented, attachmentAnchor: .rect(.bounds), arrowEdge: .top) {
+            if #available(iOS 16.4, *) {
+                menu.presentationCompactAdaptation(.popover)
+            } else {
+                menu
             }
-        ]))
-        items.append(UIAction(title: String(localized: linked ? "Linked Contact" : "Link Contact"),
-                              image: UIImage(systemName: "person.crop.circle.badge.plus")) { [weak coordinator] _ in
-            coordinator?.linkContact?()
-        })
-        // iOS 16+ keeps this order (`.fixed`); iOS 15 lists a menu from the button outward, so reverse it there.
-        if #unavailable(iOS 16) { items.reverse() }
-        button.menu = UIMenu(children: items)
+        }
     }
 
-    final class Coordinator {
-        var builtFor: Bool?
-        var linkContact: (() -> Void)?
-        var viewSafetyNumber: (() -> Void)?
-        var remove: (() -> Void)?
-        var block: (() -> Void)?
+    private var menu: some View {
+        VStack(spacing: 0) {
+            row("Remove & Block", icon: "hand.raised", destructive: true) { dismissThen(block) }
+            Divider()
+            row("Remove Friend", icon: "person.crop.circle.badge.minus", destructive: true) { dismissThen(remove) }
+            Divider()
+            row("View Safety Number", icon: "lock.shield") { dismissThen(viewSafetyNumber) }
+            Divider()
+            row("View Username", icon: usernameExpanded ? "chevron.down" : "chevron.right") {
+                withAnimation(.easeInOut(duration: 0.15)) { usernameExpanded.toggle() }
+            }
+            .accessibilityValue(usernameExpanded ? Text("Expanded") : Text("Collapsed"))
+            if usernameExpanded {
+                row("@\(username)", icon: "doc.on.doc") {
+                    UIPasteboard.general.string = "@\(username)"
+                    isPresented = false
+                }
+            }
+            Divider()
+            row(linked ? "Linked Contact" : "Link Contact", icon: "person.crop.circle.badge.plus") {
+                dismissThen(linkContact)
+            }
+        }
+        .padding(.vertical, Spacing.tight)
+        .frame(width: 260)
+        .fixedSize(horizontal: false, vertical: true)
+        .onDisappear {
+            guard let action = afterDismissal else { return }
+            afterDismissal = nil
+            DispatchQueue.main.async(execute: action)
+        }
+    }
+
+    private func row(_ title: LocalizedStringKey, icon: String, destructive: Bool = false,
+                     action: @escaping () -> Void) -> some View {
+        Button(role: destructive ? .destructive : nil, action: action) {
+            HStack(spacing: Spacing.medium) {
+                Text(title)
+                Spacer(minLength: Spacing.small)
+                Image(systemName: icon).accessibilityHidden(true)
+            }
+            .padding(.horizontal, Spacing.large)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+            .foregroundStyle(destructive ? Color.zoodRed : Color.primary)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func dismissThen(_ action: @escaping () -> Void) {
+        afterDismissal = action
+        isPresented = false
     }
 }
 
