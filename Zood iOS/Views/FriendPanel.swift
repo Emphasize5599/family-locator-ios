@@ -569,7 +569,7 @@ private struct FriendMenu: UIViewRepresentable {
                 UIPasteboard.general.string = handle
             }
         ]))
-        items.append(UIAction(title: String(localized: linked ? "Linked Contact" : "Link Contact"),
+        items.append(UIAction(title: String(localized: linked ? "Manage Linked Contact" : "Link Contact"),
                               image: UIImage(systemName: "person.crop.circle.badge.plus")) { [weak coordinator] _ in
             coordinator?.linkContact?()
         })

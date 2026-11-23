@@ -87,7 +87,9 @@ struct MainView: View {
                                 folderPopup(folder, screenWidth: geometry.size.width)
                                     .fixedSize(horizontal: false, vertical: true)
                                     .padding(.bottom, barHeight + Spacing.medium)
-                                    .transition(.scale(scale: 0.85, anchor: .bottom).combined(with: .opacity))
+                                    // Grows out of (and shrinks back into) the folder's tile in the bar.
+                                    .transition(.scale(scale: 0.2, anchor: folderAnchor(folder, screenWidth: geometry.size.width))
+                                        .combined(with: .opacity))
                             }
                         }
                 }
@@ -213,16 +215,25 @@ struct MainView: View {
                     activeSheet = .requests
                 } label: {
                     VStack(spacing: Spacing.tight) {
-                        Image(systemName: model.safety.pending.isEmpty ? "bell" : "bell.badge.fill")
-                            .font(.title2.weight(.semibold))
-                            .frame(width: 52, height: 52)
-                            .background(Color.zoodBlue, in: Circle())
-                            .foregroundStyle(.white)
-                        Text("Requests (\(model.safety.pending.count))").font(.caption)
+                        // A red dot on the bell (like Android's) says a request is waiting; the label stays short.
+                        Group {
+                            if model.safety.pending.isEmpty {
+                                Image(systemName: "bell").foregroundStyle(.white)
+                            } else {
+                                // The badge layer comes first: a red dot on a white bell.
+                                Image(systemName: "bell.badge.fill")
+                                    .symbolRenderingMode(.palette)
+                                    .foregroundStyle(Color.red, Color.white)
+                            }
+                        }
+                        .font(.title2.weight(.semibold))
+                        .frame(width: 52, height: 52)
+                        .background(Color.zoodBlue, in: Circle())
+                        Text("Requests").font(.caption)
                     }
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Pending requests, \(model.safety.pending.count)")
+                .accessibilityLabel(model.safety.pending.isEmpty ? Text("Requests") : Text("Requests, \(model.safety.pending.count) waiting"))
 
                 Button {
                     activeSheet = .addFriend
@@ -397,6 +408,34 @@ struct MainView: View {
     ///
     /// The card is as wide as its grid needs, and opens centered above the folder's tile; near either edge it
     /// stops at the screen margin instead.
+    /// Centered over the folder's tile, or pinned to the screen margin when the tile is near an edge.
+    private func folderCenterX(width: CGFloat, screenWidth: CGFloat) -> CGFloat {
+        let margin = Spacing.medium
+        let tileX = openFolderTileMidX ?? screenWidth / 2
+        return min(max(tileX, margin + width / 2), screenWidth - margin - width / 2)
+    }
+
+    /// The folder tile's position in the card's own (unshifted) frame, as the point the card grows from.
+    private func folderAnchor(_ folder: FriendFolder, screenWidth: CGFloat) -> UnitPoint {
+        let width = folderCardWidth(folder, screenWidth: screenWidth)
+        let tileX = openFolderTileMidX ?? screenWidth / 2
+        // The card is laid out centered on screen, then shifted by an offset; the scale's anchor is in the
+        // unshifted frame, so subtract the frame's left edge.
+        let frameLeft = (screenWidth - width) / 2
+        return UnitPoint(x: (tileX - frameLeft) / width, y: 1)
+    }
+
+    private func folderCardWidth(_ folder: FriendFolder, screenWidth: CGFloat) -> CGFloat {
+        let members = folder.members.compactMap { model.local.friends[$0] }
+        let columns = min(max(folderColumns, FolderGrid.columnRange.lowerBound), FolderGrid.columnRange.upperBound)
+        let usedColumns = max(1, min(columns, members.count))
+        let gridWidth = CGFloat(usedColumns) * barItemWidth + CGFloat(usedColumns - 1) * Spacing.large
+        let title = folder.name ?? String(localized: "Folder")
+        let titleWidth = (title as NSString).size(withAttributes: [.font: UIFont.preferredFont(forTextStyle: .headline)]).width
+        let headerWidth = ceil(titleWidth) + Spacing.small + 2 * 44 + Spacing.tight
+        return min(max(gridWidth, headerWidth, 140) + 2 * Spacing.large, screenWidth - 2 * Spacing.medium)
+    }
+
     private func folderPopup(_ folder: FriendFolder, screenWidth: CGFloat) -> some View {
         let members = folder.members.compactMap { model.local.friends[$0] }
         let columns = min(max(folderColumns, FolderGrid.columnRange.lowerBound), FolderGrid.columnRange.upperBound)
@@ -415,8 +454,7 @@ struct MainView: View {
         let headerWidth = ceil(titleWidth) + Spacing.small + 2 * 44 + Spacing.tight
         let margin = Spacing.medium
         let width = min(max(gridWidth, headerWidth, 140) + 2 * Spacing.large, screenWidth - 2 * margin)
-        let tileX = openFolderTileMidX ?? screenWidth / 2
-        let centerX = min(max(tileX, margin + width / 2), screenWidth - margin - width / 2)
+        let centerX = folderCenterX(width: width, screenWidth: screenWidth)
         return VStack(alignment: .leading, spacing: Spacing.small) {
             HStack(spacing: Spacing.tight) {
                 Text(title)
