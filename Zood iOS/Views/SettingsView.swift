@@ -5,26 +5,18 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
 
-    @State private var showingPhotoPicker = false
-
     var body: some View {
         CompatNavigationStack {
             ScrollViewReader { proxy in
             Form {
                 Section {
-                    // The tile opens the Account page; Change Photo is its own blue-text button inside it.
+                    // The tile is just who you are; Change Photo, nickname and the rest live inside Account.
                     NavigationLink {
                         AccountView(onLogOut: { dismiss() }).environmentObject(model)
                     } label: {
                         HStack(spacing: Spacing.medium) {
                             AvatarView(username: model.credentials?.username ?? "?", imageData: model.local.myAvatar, size: 56)
-                            VStack(alignment: .leading, spacing: Spacing.hairline) {
-                                Text("@\(model.credentials?.username ?? "")").font(.headline)
-                                Button("Change Photo") { showingPhotoPicker = true }
-                                    .font(.subheadline)
-                                    .buttonStyle(.borderless)
-                                    .frame(minHeight: 44)
-                            }
+                            Text("@\(model.credentials?.username ?? "")").font(.headline)
                         }
                     }
                 }
@@ -85,10 +77,8 @@ struct SettingsView: View {
                 Section("About") {
                     NavigationLink("Notices & Trademarks") { NoticesView() }
                     Link("Open-Source Licenses", destination: AppInformation.licensesURL)
+                    // The Zood relationship and other rights notices are in Notices & Trademarks.
                     Link("Source Code (AGPL-3.0)", destination: URL(string: "https://github.com/Emphasize5599/family-locator-ios")!)
-                    Text("Built on the open-source Zood Location protocol and servers. Not affiliated with Tangled Wires, LLC.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
                 }
             }
             .task {
@@ -107,13 +97,6 @@ struct SettingsView: View {
                     Button("Done") { dismiss() }
                 }
             }
-            .sheet(isPresented: $showingPhotoPicker) {
-                ImagePicker { data in
-                    showingPhotoPicker = false
-                    guard let data, let jpeg = Self.avatarJPEG(from: data) else { return }
-                    Task { await model.setMyAvatar(jpeg) }
-                }
-            }
         }
         .compatFullHeightSheet()
     }
@@ -126,34 +109,30 @@ struct SettingsView: View {
         default: return String(localized: "Not Set")
         }
     }
-
-    /// Square-crops and downsizes to 256×256 JPEG, roughly what Android's avatar cropper produces.
-    private static func avatarJPEG(from data: Data) -> Data? {
-        guard let image = UIImage(data: data) else { return nil }
-        let side = min(image.size.width, image.size.height)
-        let crop = CGRect(x: (image.size.width - side) / 2, y: (image.size.height - side) / 2, width: side, height: side)
-        let target = CGSize(width: 256, height: 256)
-        let renderer = UIGraphicsImageRenderer(size: target)
-        let resized = renderer.image { _ in
-            image.draw(in: CGRect(x: -crop.minX * target.width / side, y: -crop.minY * target.height / side,
-                                  width: image.size.width * target.width / side,
-                                  height: image.size.height * target.height / side))
-        }
-        return resized.jpegData(compressionQuality: 0.8)
-    }
 }
 
-/// Account submenu: blocked users, log out and account deletion, entered from the profile tile in Settings.
+/// Account submenu: change photo, nickname, blocked users, log out and account deletion, entered from the profile tile in Settings.
 struct AccountView: View {
     @EnvironmentObject private var model: AppModel
     /// Closes Settings after logging out.
     let onLogOut: () -> Void
     @State private var confirmingLogOut = false
+    @State private var showingPhotoPicker = false
     @State private var nickname = ""
     @State private var savingNickname = false
 
     var body: some View {
         Form {
+            Section {
+                Button {
+                    showingPhotoPicker = true
+                } label: {
+                    HStack(spacing: Spacing.medium) {
+                        AvatarView(username: model.credentials?.username ?? "?", imageData: model.local.myAvatar, size: 44)
+                        Text("Change Photo")
+                    }
+                }
+            }
             Section {
                 TextField("Nickname (optional)", text: $nickname).textContentType(.nickname)
                 Button(savingNickname ? "Saving…" : "Save Nickname") {
@@ -179,6 +158,13 @@ struct AccountView: View {
             }
         }
         .onAppear { nickname = model.local.myNickname ?? "" }
+        .sheet(isPresented: $showingPhotoPicker) {
+            ImagePicker { data in
+                showingPhotoPicker = false
+                guard let data, let jpeg = Self.avatarJPEG(from: data) else { return }
+                Task { await model.setMyAvatar(jpeg) }
+            }
+        }
         .navigationTitle(model.credentials?.username ?? String(localized: "Account"))
         .navigationBarTitleDisplayMode(.inline)
         .confirmationDialog("Log out?", isPresented: $confirmingLogOut, titleVisibility: .visible) {
@@ -189,6 +175,21 @@ struct AccountView: View {
         } message: {
             Text("Your friends are backed up to your account and will come back when you sign in again.")
         }
+    }
+
+    /// Square-crops and downsizes to 256×256 JPEG, roughly what Android's avatar cropper produces.
+    private static func avatarJPEG(from data: Data) -> Data? {
+        guard let image = UIImage(data: data) else { return nil }
+        let side = min(image.size.width, image.size.height)
+        let crop = CGRect(x: (image.size.width - side) / 2, y: (image.size.height - side) / 2, width: side, height: side)
+        let target = CGSize(width: 256, height: 256)
+        let renderer = UIGraphicsImageRenderer(size: target)
+        let resized = renderer.image { _ in
+            image.draw(in: CGRect(x: -crop.minX * target.width / side, y: -crop.minY * target.height / side,
+                                  width: image.size.width * target.width / side,
+                                  height: image.size.height * target.height / side))
+        }
+        return resized.jpegData(compressionQuality: 0.8)
     }
 }
 

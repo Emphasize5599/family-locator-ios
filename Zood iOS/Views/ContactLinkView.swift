@@ -4,8 +4,9 @@ import SwiftUI
 /// Lets someone link a friend to a person in their own Contacts, so the friend shows up under the name
 /// they already know. Opened from "Link Contact" in the friend card's ⋯ menu.
 ///
-/// Privacy: the link lives only on this device. It is never uploaded or added to the encrypted backup,
-/// because a contact identifier means nothing on another phone and the address book is not ours to share.
+/// Privacy: only the chosen contact's name and its Contacts identifier are kept, on this device and in the
+/// end-to-end encrypted backup (so the link survives signing in again; the server can't read it). The rest of
+/// the address book is never read or uploaded, and the link is never sent to the friend.
 struct ContactLinkView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
@@ -14,7 +15,7 @@ struct ContactLinkView: View {
 
     var body: some View {
         ContentFittedSheet(title: "Linked Contact", showsCloseButton: true) {
-            Text("Choose a contact to use their name on this device. A nickname you've set takes priority. Contacts are never uploaded.")
+            Text("Choose a contact to show their name for this friend. A nickname you've set takes priority. Only that contact's name and a reference to it are kept, here and in your end-to-end encrypted backup. Your other contacts are never read or uploaded.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
             if let contact = model.local.friends[friendID]?.linkedContact {

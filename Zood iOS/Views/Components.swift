@@ -78,6 +78,8 @@ enum Spacing {
     static let large: CGFloat = 16
     /// Separating major blocks.
     static let xLarge: CGFloat = 24
+    /// Side margins of bottom sheets, matching the system's sheet and inset-grouped list margins.
+    static let sheetMargin: CGFloat = 20
 }
 
 /// Shared by every icon in the friend card's header (platform logo, ✎, ⋯, ✕) so they're exactly the same size.

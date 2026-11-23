@@ -210,7 +210,8 @@ nonisolated enum Username {
     }
 }
 
-/// Only the selected contact's name and local identifier are retained. Never part of a server Snapshot.
+/// Only the selected contact's name and identifier are retained, on this device and in the end-to-end
+/// encrypted backup (the server can't read either). Never sent to the friend.
 nonisolated struct LinkedContact: Codable, Hashable, Sendable {
     var identifier: String
     var name: String

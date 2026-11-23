@@ -45,6 +45,38 @@ struct NicknameCompatibilityCheck {
         }
         let oldSnapshot = try decoder.decode(Snapshot.self, from: Data("{\"schema_version\":1,\"timestamp\":0,\"users\":[],\"friends\":[]}".utf8))
         guard oldSnapshot.nickname == nil else { fatalError("Legacy backup rejected") }
-        print("Nickname precedence, explicit resets, legacy messages/backups and shared backup fields passed.")
+        guard oldSnapshot.blocked == nil, oldSnapshot.friends.isEmpty else { fatalError("Legacy backup grew fields") }
+
+        // Blocks and linked contacts ride along in the same backup under snake_case keys that Android's
+        // Gson (LOWER_CASE_WITH_UNDERSCORES) reads, and older clients simply ignore.
+        var extended = Snapshot()
+        extended.users = snapshot.users
+        extended.friends = [.init(userId: user.id, linkedContactName: "Alex Rivera",
+                                  linkedContactId: "ABC-123", linkedContactPlatform: "ios")]
+        extended.blocked = [.init(userId: Data(repeating: 9, count: 16), publicKey: Data(repeating: 8, count: 32), username: "blockeddemo")]
+        let extendedJSON = try encoder.encode(extended)
+        let text = String(decoding: extendedJSON, as: UTF8.self)
+        guard text.contains("\"blocked\""), text.contains("linked_contact_name"),
+              text.contains("linked_contact_id"), text.contains("linked_contact_platform") else {
+            fatalError("New backup keys aren't the snake_case names Android expects")
+        }
+        let back = try decoder.decode(Snapshot.self, from: extendedJSON)
+        guard back.blocked?.first?.username == "blockeddemo",
+              back.friends.first?.linkedContactName == "Alex Rivera",
+              back.friends.first?.linkedContactId == "ABC-123",
+              back.friends.first?.linkedContactPlatform == "ios" else {
+            fatalError("Blocked users or linked contacts lost in the backup round trip")
+        }
+        // A backup written by Android: the name restores, its lookup URI is for Android only.
+        let fromAndroid = try decoder.decode(Snapshot.self, from: Data("""
+            {"schema_version":1,"timestamp":0,"users":[],"blocked":[],
+             "friends":[{"user_id":"AgICAgICAgICAgICAgICAg==","linked_contact_name":"Mom",
+                         "linked_contact_id":"content://com.android.contacts/1","linked_contact_platform":"android"}]}
+            """.utf8))
+        guard fromAndroid.friends.first?.linkedContactName == "Mom",
+              fromAndroid.friends.first?.linkedContactPlatform == "android" else {
+            fatalError("Android-written linked contact not readable")
+        }
+        print("Nickname precedence, explicit resets, legacy messages/backups, shared backup fields, blocked users and linked contacts passed.")
     }
 }

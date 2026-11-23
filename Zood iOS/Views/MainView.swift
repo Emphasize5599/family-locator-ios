@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct MainView: View {
     @EnvironmentObject private var model: AppModel
@@ -7,6 +8,12 @@ struct MainView: View {
     /// The friend whose card is showing above the friend bar (an inline card, not a sheet, so the bar stays usable).
     @State private var selectedFriendID: Data?
     @State private var activeSheet: ActiveSheet?
+    /// Friend-bar folders that are open (showing their members inline).
+    @State private var expandedFolders: Set<UUID> = []
+    /// The friend or folder a dragged friend is hovering over, highlighted until it's dropped.
+    @State private var dropTarget: FriendBarDropTarget?
+    @State private var renamingFolder: FriendFolder?
+    @State private var folderName = ""
 
     private enum ActiveSheet: Identifiable, Equatable {
         case addFriend
@@ -79,6 +86,12 @@ struct MainView: View {
         .compatOnChange(of: model.local.friends.keys.count) { _ in
             if let id = selectedFriendID, model.local.friends[id] == nil { selectedFriendID = nil }
         }
+        .alert("Rename Folder", isPresented: Binding(get: { renamingFolder != nil }, set: { if !$0 { renamingFolder = nil } }),
+               presenting: renamingFolder) { folder in
+            TextField("Folder name", text: $folderName)
+            Button("Save") { model.renameFolder(folder.id, to: folderName) }
+            Button("Cancel", role: .cancel) {}
+        }
         .alert("Could Not Save Request", isPresented: Binding(get: { model.safetyError != nil }, set: { if !$0 { model.safetyError = nil } })) {
             Button("OK") { model.safetyError = nil }
         } message: { Text(model.safetyError ?? "") }
@@ -89,6 +102,7 @@ struct MainView: View {
                 mapCommand = MapCommand(kind: .focus(latitude: loc.latitude, longitude: loc.longitude))
             }
             if ["friend", "friend-short-name", "friend-long-name", "friend-updated", "friend-unsupported"].contains(ScreenshotTour.scene ?? ""), let friend = model.friends.first { select(friend) }
+            if ScreenshotTour.scene == "map-folders-open" { expandedFolders = Set(model.friendFolders.map(\.id)) }
             // Overlapping pins: open a friend from the middle of the stack; their pin should come to the front.
             if ScreenshotTour.scene == "friend-overlap", let friend = model.friends.first(where: { $0.nickname == "Devon" }) { select(friend) }
             // Screenshot/UI checks: SIMCTL_CHILD_ZOOD_OPEN_FIRST=1 opens the first friend's card at launch.
@@ -167,33 +181,22 @@ struct MainView: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("Pending requests, \(model.safety.pending.count)")
 
-                ForEach(model.friends) { friend in
-                    Button {
-                        select(friend)
-                    } label: {
-                        VStack(spacing: Spacing.tight) {
-                            AvatarView(username: friend.avatarName, imageData: friend.avatar, size: 52)
-                                .opacity(friend.theyShare ? 1 : 0.5)
-                            Text(friend.displayName)
-                                .font(.caption)
-                                .lineLimit(1)
-                                .frame(maxWidth: 64)
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(friend.displayName)
-                    .accessibilityAddTraits(.isButton)
+                // Folders first, then everyone who isn't in one.
+                ForEach(model.friendFolders) { folder in
+                    folderItem(folder)
+                }
+                ForEach(model.ungroupedFriends) { friend in
+                    friendItem(friend, inFolder: false)
                 }
             }
-            // Matches the edge fade below, so nothing is faded until it actually scrolls toward an edge.
-            .padding(.horizontal, Spacing.xLarge)
+            .padding(.horizontal, Spacing.large)
             .padding(.vertical, Spacing.medium)
+            // Dropping a folder member on an empty part of the bar takes them out of the folder.
+            .contentShape(Rectangle())
+            .onDrop(of: [.plainText], delegate: FriendDropDelegate(target: .bar, hovered: $dropTarget, onDrop: handleDrop))
         }
         // A ScrollView clips to a plain rectangle, so the Add button and avatars slid over the bar's
-        // rounded corners while scrolling. Fade them out across the corner radius at each end instead,
-        // so they're gone before they reach the curve, then clip to the bar's shape as a backstop.
-        .mask(edgeFade(width: 24))
+        // rounded corners while scrolling. Clipping to the bar's own shape keeps them inside it.
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         #if DEBUG
         // Tour check: start scrolled partway, so buttons sit under the bar's rounded corners.
@@ -208,14 +211,132 @@ struct MainView: View {
         .padding(.horizontal, Spacing.medium)
     }
 
-    /// Opaque in the middle, fading to clear over `width` points at the left and right edges.
-    private func edgeFade(width: CGFloat) -> some View {
-        HStack(spacing: 0) {
-            LinearGradient(colors: [.clear, .black], startPoint: .leading, endPoint: .trailing)
-                .frame(width: width)
-            Rectangle().fill(Color.black)
-            LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing)
-                .frame(width: width)
+    // MARK: Friend bar items and folders
+
+    /// A friend in the bar. Long-press and drag to put them in a folder (see FriendBarFolders.swift).
+    @ViewBuilder
+    private func friendItem(_ friend: Friend, inFolder: Bool) -> some View {
+        let hovered = dropTarget == .friend(friend.id)
+        let item = Button {
+            select(friend)
+        } label: {
+            VStack(spacing: Spacing.tight) {
+                AvatarView(username: friend.avatarName, imageData: friend.avatar, size: 52)
+                    .opacity(friend.theyShare ? 1 : 0.5)
+                    // Ring and a little lift while another friend hovers here: dropping makes a folder.
+                    .overlay(Circle().stroke(Color.zoodBlue, lineWidth: 3).opacity(hovered ? 1 : 0))
+                    .scaleEffect(hovered ? 1.1 : 1)
+                    .animation(.easeOut(duration: 0.15), value: hovered)
+                Text(friend.displayName)
+                    .font(.caption)
+                    .lineLimit(1)
+                    .frame(maxWidth: 64)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(friend.displayName)
+        .accessibilityAddTraits(.isButton)
+        .onDrag { FriendDrag.provider(for: friend.id) }
+        .onDrop(of: [.plainText], delegate: FriendDropDelegate(target: .friend(friend.id), hovered: $dropTarget, onDrop: handleDrop))
+        .id(friend.id)
+
+        if inFolder {
+            // Also reachable without dragging (and by VoiceOver).
+            item
+                .contextMenu {
+                    Button {
+                        model.removeFromFolder(friend.id)
+                    } label: {
+                        Label("Remove from Folder", systemImage: "folder.badge.minus")
+                    }
+                }
+                .accessibilityAction(named: Text("Remove from Folder")) { model.removeFromFolder(friend.id) }
+        } else {
+            item
+        }
+    }
+
+    /// A folder: a tile of its members' avatars. Tap to open it and show the members inline, inside a tinted group.
+    private func folderItem(_ folder: FriendFolder) -> some View {
+        let members = folder.members.compactMap { model.local.friends[$0] }
+        let expanded = expandedFolders.contains(folder.id)
+        let hovered = dropTarget == .folder(folder.id)
+        let title = folder.name ?? String(localized: "Folder")
+        return HStack(spacing: Spacing.large) {
+            Button {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
+                    if expanded { expandedFolders.remove(folder.id) } else { expandedFolders.insert(folder.id) }
+                }
+            } label: {
+                VStack(spacing: Spacing.tight) {
+                    Group {
+                        if expanded {
+                            Image(systemName: "folder.fill")
+                                .font(.title2)
+                                .foregroundStyle(Color.zoodBlueDark)
+                                .frame(width: 52, height: 52)
+                                .background(Color.zoodBlue.opacity(0.3), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        } else {
+                            FolderTile(members: members)
+                        }
+                    }
+                    .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color.zoodBlue, lineWidth: 3).opacity(hovered ? 1 : 0))
+                    .scaleEffect(hovered ? 1.1 : 1)
+                    .animation(.easeOut(duration: 0.15), value: hovered)
+                    Text(title)
+                        .font(.caption)
+                        .lineLimit(1)
+                        .frame(maxWidth: 64)
+                }
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text("\(title), folder of \(members.count)"))
+            .accessibilityHint(expanded ? Text("Closes the folder") : Text("Shows who's in it"))
+            .onDrop(of: [.plainText], delegate: FriendDropDelegate(target: .folder(folder.id), hovered: $dropTarget, onDrop: handleDrop))
+            .contextMenu {
+                if #available(iOS 16, *) {
+                    Button {
+                        folderName = folder.name ?? ""
+                        renamingFolder = folder
+                    } label: {
+                        Label("Rename Folder", systemImage: "pencil")
+                    }
+                }
+                Button(role: .destructive) {
+                    expandedFolders.remove(folder.id)
+                    model.ungroupFolder(folder.id)
+                } label: {
+                    Label("Ungroup", systemImage: "folder.badge.minus")
+                }
+            }
+
+            if expanded {
+                ForEach(members) { friend in
+                    friendItem(friend, inFolder: true)
+                }
+            }
+        }
+        // The open folder's members sit on a tinted group that reaches just past them, without moving the layout.
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color.zoodBlue.opacity(expanded ? 0.15 : 0))
+                .padding(.horizontal, -Spacing.small)
+                .padding(.vertical, -Spacing.tight)
+        )
+    }
+
+    private func handleDrop(_ friendID: Data, on target: FriendBarDropTarget) {
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
+            switch target {
+            case .friend(let other):
+                model.groupFriend(friendID, with: other)
+            case .folder(let folderID):
+                model.moveFriend(friendID, toFolder: folderID)
+            case .bar:
+                if model.folder(containing: friendID) != nil { model.removeFromFolder(friendID) }
+            }
         }
     }
 

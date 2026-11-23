@@ -200,6 +200,9 @@ struct FriendPanel: View {
         }
         .buttonStyle(.plain)
         .accessibilityHint("Open in Apple Maps")
+        // The underline eats into the gap below the address, so the even 4-point gap to the status line
+        // looked tighter here than between the other lines. A little extra space evens it out visually.
+        .padding(.bottom, 3)
     }
 
     /// One line, always below the address, for everything "freshness" related: requesting, the green
@@ -292,13 +295,14 @@ struct FriendPanel: View {
             withAnimation { explanation = nil }
             Task { await model.requestLocationUpdate(from: friend) }
         } label: {
-            // The button style adds its own padding, so this keeps the whole button about 44 points tall.
+            // A round icon button like the rest of the card's controls. The style adds its own padding,
+            // so the circle ends up about 44 points across.
             Image(systemName: "arrow.clockwise")
                 .font(.body.weight(.semibold))
                 .frame(width: 30, height: 30)
         }
         .accessibilityLabel("Refresh location")
-        .prominentActionStyle(tint: .zoodBlue)
+        .prominentActionStyle(tint: .zoodBlue, circle: true)
         .disabled(capability != .supported || isInFlight(status))
     }
 

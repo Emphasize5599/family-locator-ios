@@ -116,6 +116,12 @@ nonisolated struct Snapshot: Codable, Sendable {
         var receivingBoxId: Data?
         var nickname: String?
         var sharedNickname: String?
+        /// The phone contact this friend is linked to (Family Locator only; stock Zood ignores these keys).
+        /// The name restores on any device; the id is a Contacts identifier on iOS or a lookup URI on
+        /// Android, so it's only reused on the same platform (`linkedContactPlatform`).
+        var linkedContactName: String?
+        var linkedContactId: String?
+        var linkedContactPlatform: String?
     }
     struct User: Codable, Sendable {
         var userId: Data
@@ -124,6 +130,9 @@ nonisolated struct Snapshot: Codable, Sendable {
     }
     var friends: [Friend] = []
     var users: [User] = []
+    /// People you've blocked (Family Locator only; older clients ignore it). Optional so older backups,
+    /// which don't have it, still decode.
+    var blocked: [User]?
     var avatar: Data?
     var nickname: String?
     /// Android refuses to restore snapshots newer than its DB schema (1).

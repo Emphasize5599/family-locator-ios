@@ -75,11 +75,16 @@ extension View {
 
     /// The panel's main action: prominent Liquid Glass on iOS 26+, filled bordered button before that.
     @ViewBuilder
-    func prominentActionStyle(tint: Color) -> some View {
+    /// `circle: true` makes a round button, for icon-only actions (this design uses circles for those).
+    func prominentActionStyle(tint: Color, circle: Bool = false) -> some View {
         if #available(iOS 26, *), !LegacyStyle.isForced {
-            buttonStyle(.glassProminent).tint(tint)
+            if circle {
+                buttonStyle(.glassProminent).buttonBorderShape(.circle).tint(tint)
+            } else {
+                buttonStyle(.glassProminent).tint(tint)
+            }
         } else {
-            buttonStyle(LegacyProminentButtonStyle(tint: tint))
+            buttonStyle(LegacyProminentButtonStyle(tint: tint, circle: circle))
         }
     }
 
@@ -186,7 +191,7 @@ struct ContentFittedSheet<Content: View>: View {
     var body: some View {
         GeometryReader { outer in
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: Spacing.large) {
                     HStack {
                         Text(title).font(.headline)
                         Spacer()
@@ -198,9 +203,11 @@ struct ContentFittedSheet<Content: View>: View {
                     }
                     content()
                 }
-                .padding(.horizontal, 24)
-                .padding(.top, 24)
-                .padding(.bottom, keyboardHeight > 0 ? 8 : 24)
+                // System sheet spacing: the header sits just below the drag indicator (whose own area is
+                // about 15 pt), content uses the standard 20 pt sheet margins, and the bottom matches the sides.
+                .padding(.horizontal, Spacing.sheetMargin)
+                .padding(.top, Spacing.medium)
+                .padding(.bottom, keyboardHeight > 0 ? Spacing.small : Spacing.sheetMargin)
                 .frame(maxWidth: .infinity)
                 .background(GeometryReader { geometry in
                     Color.clear.preference(key: FittedSheetHeightKey.self, value: geometry.size.height)
@@ -234,16 +241,29 @@ private struct FittedSheetHeightKey: PreferenceKey {
 /// The filled button used before iOS 26. The system `.borderedProminent` turns a disabled button into a gray
 /// box with a gray icon, which read as a blank square in Dark Mode; this keeps the tint and icon and simply
 /// dims the whole button, so it's clear what the button is and that it's unavailable.
+/// It also follows `.controlSize(.large)` like the system bordered styles, so it matches a neighbouring
+/// `.bordered` button (Timed Sharing's Copy Link / Share Link were different heights without this).
 private struct LegacyProminentButtonStyle: ButtonStyle {
     let tint: Color
+    var circle = false
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.controlSize) private var controlSize
 
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .foregroundStyle(.white)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 7)
-            .background(tint, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .opacity(isEnabled ? (configuration.isPressed ? 0.75 : 1) : 0.4)
+        let large = controlSize == .large
+        return Group {
+            if circle {
+                configuration.label
+                    .padding(large ? 10 : 7)
+                    .background(tint, in: Circle())
+            } else {
+                configuration.label
+                    .padding(.horizontal, large ? 20 : 14)
+                    .padding(.vertical, large ? 14 : 7)
+                    .background(tint, in: RoundedRectangle(cornerRadius: large ? 14 : 12, style: .continuous))
+            }
+        }
+        .foregroundStyle(.white)
+        .opacity(isEnabled ? (configuration.isPressed ? 0.75 : 1) : 0.4)
     }
 }
