@@ -402,8 +402,8 @@ struct FriendPanel: View {
             Group {
                 switch kind {
                 case .unsupported where friend.device?.platform != .ios:
-                    Text("\(name) uses an **Android** phone with **Live Requests** turned off, so it isn't listening for requests.")
-                    Text("Their location still updates on its own whenever they move. Refresh comes back once \(name) turns on Live Requests in the Family Locator app's settings on their Android phone.")
+                    Text("\(name)’s phone reported that it can’t answer on-demand requests right now. They can open Family Locator and check Live Requests and location access.")
+                    Text("The map can still show their last published location.")
                 case .unsupported:
                     Text("\(name)'s iPhone isn't listening for requests right now. Zood's servers can't wake an iPhone, so the app has to stay running in the background to hear one. That stops if **Live Requests** is off, or if the app was swiped closed.")
                     Text("Their location still updates on its own whenever they move. Refresh comes back once \(name) opens the app (and turns on Live Requests with location access **Always** if it's off).")

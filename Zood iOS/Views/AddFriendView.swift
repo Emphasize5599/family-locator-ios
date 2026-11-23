@@ -8,6 +8,7 @@ struct AddFriendView: View {
     @State private var isWorking = false
     @State private var errorMessage: String?
     @State private var showingInvite = false
+    @State private var sharingCandidate: ZoodUser?
 
     var body: some View {
         ContentFittedSheet(title: "Add Friend") {
@@ -16,14 +17,16 @@ struct AddFriendView: View {
                 .autocorrectionDisabled()
                 .textFieldStyle(.roundedBorder)
                 .onSubmit(add)
-            Text("They'll start seeing your location right away. You'll see theirs after they share with you and you approve their request. Works with people using Zood on Android too.")
+            Text(model.pendingRequest(username: username) != nil
+                 ? "Approve their incoming request to see their location."
+                 : "Enter a username to check for an incoming request or start sharing.")
                 .font(.footnote).foregroundStyle(.secondary)
             if let errorMessage {
                 Label(errorMessage, systemImage: "exclamationmark.triangle.fill").foregroundStyle(Color.zoodRed)
             }
             Button(action: add) {
                 HStack {
-                    Text("Add")
+                    Text(model.pendingRequest(username: username) == nil ? "Add" : "Approve Request")
                     if isWorking { ProgressView() }
                 }.frame(maxWidth: .infinity, minHeight: 44)
             }
@@ -32,6 +35,23 @@ struct AddFriendView: View {
             Button { showingInvite = true } label: {
                 Label("Invite Someone", systemImage: "square.and.arrow.up").frame(minHeight: 44)
             }
+        }
+        .alert("Share your location?", isPresented: Binding(get: { sharingCandidate != nil },
+                                                             set: { if !$0 { sharingCandidate = nil } }),
+               presenting: sharingCandidate) { user in
+            Button("Cancel", role: .cancel) {}
+            Button("Share My Location") {
+                isWorking = true
+                Task {
+                    defer { isWorking = false }
+                    do {
+                        try await model.confirmAddFriendSharing(with: user)
+                        dismiss()
+                    } catch { errorMessage = error.localizedDescription }
+                }
+            }
+        } message: { user in
+            Text("Allow @\(user.username) to see your location.")
         }
         .sheet(isPresented: $showingInvite) { ActivityView(items: [inviteText]) }
     }
@@ -46,8 +66,11 @@ struct AddFriendView: View {
         errorMessage = nil
         Task {
             do {
-                try await model.addFriend(username: username)
-                dismiss()
+                if let user = try await model.prepareAddFriend(username: username) {
+                    sharingCandidate = user
+                } else {
+                    dismiss()
+                }
             } catch {
                 errorMessage = error.localizedDescription
             }

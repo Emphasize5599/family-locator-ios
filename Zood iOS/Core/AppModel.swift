@@ -64,6 +64,11 @@ final class AppModel: ObservableObject {
     /// Friends whose phones we're asking "can you answer location requests?" before showing Unsupported.
     @Published private(set) var probingDevices: Set<Data> = []
     private var lastProbe: [Data: Date] = [:]
+    @Published private var unavailableUntil: [Data: Date] = [:]
+    private var inboxPoll: Task<Void, Never>?
+    private var inboxSync: Task<Bool, Never>?
+    private var inboxSyncID: UUID?
+    private var inboxChanged = false
     private var timedShareExpiry: Task<Void, Never>?
 
     let location = LocationService()
@@ -157,6 +162,7 @@ final class AppModel: ObservableObject {
             local.friends[fixture.id]?.device?.liveRequests = false
             local.friends[fixture.id]?.device?.platform = .ios  // also shows the Apple logo
             lastProbe[fixture.id] = Date()
+            unavailableUntil[fixture.id] = .distantFuture
         }
         if scene == "friend-updated" {
             // A Refresh that just succeeded: the green check, then the regular "Updated …" time.
@@ -211,8 +217,9 @@ final class AppModel: ObservableObject {
     var advertisesLiveRequests: Bool {
         // Staying awake in the background needs CLBackgroundActivitySession (iOS 17+). Older iPhones get suspended
         // while stationary, so they honestly report that they can't answer Refresh.
-        guard LocationService.supportsBackgroundSession else { return false }
-        return liveRequestsEnabled && location.hasAlwaysPermission && location.liveArmed
+        if isForeground && location.hasAnyPermission { return true }
+        return LocationService.supportsBackgroundSession && liveRequestsEnabled
+            && location.hasAlwaysPermission && location.liveArmed
     }
 
     /// Whether this iPhone's iOS version can support Live Requests at all.
@@ -349,6 +356,12 @@ final class AppModel: ObservableObject {
         backupTask?.cancel()
         backupTask = nil
         stopTimedShare()
+        inboxPoll?.cancel()
+        inboxPoll = nil
+        inboxSync?.cancel()
+        inboxSync = nil
+        inboxSyncID = nil
+        inboxChanged = false
         socket?.stop()
         socket = nil
         location.stopAll()
@@ -363,6 +376,7 @@ final class AppModel: ObservableObject {
         barOrder = []
         probingDevices = []
         lastProbe = [:]
+        unavailableUntil = [:]
         processedMessageIDs = []
         phase = .signedOut
     }
@@ -379,6 +393,7 @@ final class AppModel: ObservableObject {
             if let box = friend.receivingBoxID { socket.watch(box) }
         }
         socket.start()
+        startInboxPolling()
         location.startBaseline()
         applyLiveMode()
         Task {
@@ -393,11 +408,14 @@ final class AppModel: ObservableObject {
 
     func sceneDidBecomeActive() {
         guard !ScreenshotTour.isEnabled else { return }
+        let returningFromBackground = !isForeground
         isForeground = true
         if timedShare?.isExpired == true { stopTimedShare() }
         location.setForeground(true)
         guard phase == .signedIn else { return }
+        if returningFromBackground { socket?.stop() }
         socket?.start()
+        startInboxPolling()
         applyLiveMode()
         Task {
             await refresh()
@@ -428,21 +446,76 @@ final class AppModel: ObservableObject {
 
     func sceneDidEnterBackground() {
         isForeground = false
+        inboxPoll?.cancel()
+        inboxPoll = nil
         location.setForeground(false)
         // Without live mode iOS will suspend us shortly; the socket goes with it and that's expected.
     }
 
-    /// Pull anything we missed while disconnected.
-    func refresh() async {
-        guard !ScreenshotTour.isEnabled else { return }
-        guard phase == .signedIn else { return }
-        if let messages = try? await api.messages() {
-            for message in messages { await process(message) }
+    private func startInboxPolling() {
+        guard isForeground, inboxPoll == nil else { return }
+        inboxPoll = Task { [weak self] in
+            while !Task.isCancelled {
+                do { try await Task.sleep(nanoseconds: 10_000_000_000) } catch { return }
+                guard let self, self.isForeground else { return }
+                _ = await self.syncInbox()
+            }
         }
+    }
+
+    /// Read durable messages in server ID order. WebSocket notifications trigger this immediately.
+    private func syncInbox() async -> Bool {
+        guard !ScreenshotTour.isEnabled, let token = credentials?.accessToken else { return false }
+        if let inboxSync { return await inboxSync.value }
+        let connection = api
+        let id = UUID()
+        inboxSyncID = id
+        let task = Task { [weak self] in
+            guard let self else { return false }
+            defer {
+                if self.inboxSyncID == id {
+                    self.inboxSync = nil
+                    self.inboxSyncID = nil
+                }
+            }
+            repeat {
+                self.inboxChanged = false
+                guard let messages = try? await connection.messages() else { return false }
+                var retrySenders: Set<Data> = []
+                for message in messages.sorted(by: { $0.id < $1.id }) {
+                    guard !Task.isCancelled, self.credentials?.accessToken == token else { return false }
+                    guard !retrySenders.contains(message.senderId) else { continue }
+                    guard await self.process(message, token: token) else {
+                        retrySenders.insert(message.senderId)
+                        continue
+                    }
+                    if message.id > 0, (try? await connection.deleteMessage(id: message.id)) != nil,
+                       self.credentials?.accessToken == token {
+                        self.processedMessageIDs.remove(message.id)
+                    }
+                }
+                if !self.inboxChanged {
+                    return retrySenders.isEmpty && !Task.isCancelled && self.credentials?.accessToken == token
+                }
+            } while !Task.isCancelled && self.credentials?.accessToken == token
+            return false
+        }
+        inboxSync = task
+        return await task.value
+    }
+
+    /// Catch up on both inbox messages and friends' last published locations.
+    func refresh() async {
+        guard !ScreenshotTour.isEnabled, let token = credentials?.accessToken else { return }
+        _ = await syncInbox()
+        guard credentials?.accessToken == token else { return }
         for friend in local.friends.values {
             guard let box = friend.receivingBoxID,
                   let pkg = try? await api.pickUpPackage(boxID: box) else { continue }
-            await processPackage(pkg, from: friend.user)
+            guard credentials?.accessToken == token else { return }
+            if local.friends[friend.id]?.receivingBoxID == box {
+                await processPackage(pkg, from: friend.user)
+            }
         }
     }
 
@@ -457,7 +530,12 @@ final class AppModel: ObservableObject {
             guard let friend = local.friends.values.first(where: { $0.receivingBoxID == boxID }) else { return }
             Task { await processPackage(pkg, from: friend.user) }
         case .message(let message):
-            Task { await process(message) }
+            if message.id > 0 {
+                inboxChanged = true
+                Task { _ = await syncInbox() }
+            } else if let token = credentials?.accessToken {
+                Task { _ = await process(message, token: token) }
+            }
         case .invalidToken:
             logOut()
         }
@@ -465,25 +543,45 @@ final class AppModel: ObservableObject {
 
     // MARK: - Incoming
 
-    private func process(_ message: InboxMessage) async {
-        if message.id != 0 {
-            guard processedMessageIDs.insert(message.id).inserted else { return }
+    /// Returns false if a durable message should stay in the inbox for a later attempt.
+    private func process(_ message: InboxMessage, token: String) async -> Bool {
+        guard let credentials, credentials.accessToken == token else { return false }
+        if processedMessageIDs.contains(message.id) { return true }
+        guard message.senderId.count == ZoodConstants.userIDLength,
+              message.senderId != credentials.userID, safety.blocked[message.senderId] == nil else { return true }
+        let sender: ZoodUser
+        do {
+            guard let knownUser = try await user(for: message.senderId),
+                  self.credentials?.accessToken == token else { return false }
+            sender = knownUser
+        } catch let error as OscarError where error.code == OscarError.userNotFound {
+            return true
+        } catch {
+            return false
         }
-        defer {
-            if message.id != 0 { Task { try? await api.deleteMessage(id: message.id) } }
-        }
-        guard let credentials, message.senderId.count == ZoodConstants.userIDLength else { return }
-
-        // Messages from our own account are for the web client's device browser and Android's "scream" feature,
-        // neither of which this app supports.
-        if message.senderId == credentials.userID || safety.blocked[message.senderId] != nil { return }
-        guard let sender = await user(for: message.senderId),
-              let plain = try? Crypto.boxOpen(message.cipherText, nonce: message.nonce,
+        guard let plain = try? Crypto.boxOpen(message.cipherText, nonce: message.nonce,
                                               senderPublicKey: sender.publicKey,
                                               receiverSecretKey: credentials.keyPair.secretKey),
               let comm = try? ZoodJSON.decoder.decode(UserComm.self, from: plain),
-              comm.isValid else { return }
-        await handle(comm, from: sender)
+              comm.isValid else { return true }
+        do {
+            try await handle(comm, from: sender)
+            if message.id > 0, self.credentials?.accessToken == token {
+                processedMessageIDs.insert(message.id)
+            }
+            return self.credentials?.accessToken == token
+        } catch {
+            safetyError = error.localizedDescription
+            return false
+        }
+    }
+
+    private func fetchPackage(from user: ZoodUser, box: Data) async {
+        guard let token = credentials?.accessToken,
+              let package = try? await api.pickUpPackage(boxID: box),
+              credentials?.accessToken == token,
+              local.friends[user.userID]?.receivingBoxID == box else { return }
+        await processPackage(package, from: user)
     }
 
     private func processPackage(_ pkg: EncryptedData, from user: ZoodUser) async {
@@ -492,10 +590,10 @@ final class AppModel: ObservableObject {
                                               receiverSecretKey: credentials.keyPair.secretKey),
               let comm = try? ZoodJSON.decoder.decode(UserComm.self, from: plain),
               comm.isValid else { return }
-        await handle(comm, from: user)
+        try? await handle(comm, from: user)
     }
 
-    private func handle(_ comm: UserComm, from user: ZoodUser) async {
+    private func handle(_ comm: UserComm, from user: ZoodUser) async throws {
         guard safety.blocked[user.userID] == nil else { return }
         // A friend's profile may change while the map is open. Refresh only the shared name:
         // a name chosen by this account remains private and must never be overwritten remotely.
@@ -527,7 +625,7 @@ final class AppModel: ObservableObject {
                     if Self.isNearDuplicate(incoming, of: existing), !Self.deviceChanged(comm, friend) { return }
                 }
                 friend.location = incoming
-                Self.recordDevice(from: comm, into: &friend)
+                Self.recordDevice(from: comm, into: &friend, reportedAt: min(newTime, Date()))
             }
             if let friend = local.friends[user.userID], friend.device?.liveRequests == false {
                 Task { await refreshDeviceStatusIfNeeded(friend) }
@@ -538,22 +636,22 @@ final class AppModel: ObservableObject {
             guard local.friends[user.userID]?.theyShare == true else {
                 var next = safety
                 next.pending[user.userID] = PendingRequest(user: user, boxID: box, nickname: Nickname.normalized(comm.nickname))
-                do { try saveSafety(next) } catch { safetyError = error.localizedDescription }
+                try saveSafety(next)
                 return
             }
             upsertFriend(user) { $0.receivingBoxID = box }
             socket?.watch(box)
             scheduleBackup()
-            if let pkg = try? await api.pickUpPackage(boxID: box) { await processPackage(pkg, from: user) }
+            Task { await fetchPackage(from: user, box: box) }
         case .locationSharingRevocation:
             if comm.friendRemoved == true {
-                do { try forgetFriend(user.userID) } catch { safetyError = error.localizedDescription }
+                try forgetFriend(user.userID)
                 return
             }
             if safety.pending[user.userID] != nil {
                 var next = safety
                 next.pending[user.userID] = nil
-                do { try saveSafety(next) } catch { safetyError = error.localizedDescription }
+                try saveSafety(next)
             }
             updateFriend(user.userID) { friend in
                 friend.receivingBoxID = nil
@@ -561,7 +659,7 @@ final class AppModel: ObservableObject {
             }
             scheduleBackup()
         case .locationUpdateRequest:
-            await answerLocationRequest(from: user)
+            Task { await answerLocationRequest(from: user) }
         case .locationUpdateRequestReceived:
             guard let action = comm.locationUpdateRequestAction else { return }
             updateFriend(user.userID) { Self.recordDevice(from: comm, into: &$0) }
@@ -576,8 +674,19 @@ final class AppModel: ObservableObject {
             reply.liveRequests = advertisesLiveRequests
             try? await send(reply, to: user, urgent: true, transient: true)
         case .deviceStatus:
+            guard local.friends[user.userID]?.theyShare == true else { return }
             updateFriend(user.userID) { Self.recordDevice(from: comm, into: &$0) }
             probingDevices.remove(user.userID)
+            if comm.liveRequests == false {
+                let expiration = Date().addingTimeInterval(30)
+                unavailableUntil[user.userID] = expiration
+                Task {
+                    try? await Task.sleep(nanoseconds: 30_000_000_000)
+                    if unavailableUntil[user.userID] == expiration { unavailableUntil[user.userID] = nil }
+                }
+            } else if comm.liveRequests == true {
+                unavailableUntil[user.userID] = nil
+            }
         case .avatarRequest:
             guard let friend = local.friends[user.userID] else { return }
             var profile = UserComm(type: .nicknameUpdate)
@@ -607,12 +716,16 @@ final class AppModel: ObservableObject {
 
     private static func deviceChanged(_ comm: UserComm, _ friend: Friend) -> Bool {
         guard comm.platform != nil || comm.liveRequests != nil else { return false }
-        return comm.platform != friend.device?.platform || comm.liveRequests != friend.device?.liveRequests
+        return comm.platform.map { $0 != friend.device?.platform } == true
+            || comm.liveRequests.map { $0 != friend.device?.liveRequests } == true
     }
 
-    private static func recordDevice(from comm: UserComm, into friend: inout Friend) {
-        guard comm.platform != nil || comm.liveRequests != nil else { return }
-        friend.device = FriendDevice(platform: comm.platform, liveRequests: comm.liveRequests, reportedAt: Date())
+    private static func recordDevice(from comm: UserComm, into friend: inout Friend, reportedAt: Date = Date()) {
+        guard comm.platform != nil || comm.liveRequests != nil,
+              friend.device.map({ reportedAt >= $0.reportedAt }) ?? true else { return }
+        friend.device = FriendDevice(platform: comm.platform ?? friend.device?.platform,
+                                     liveRequests: comm.liveRequests ?? friend.device?.liveRequests,
+                                     reportedAt: reportedAt)
     }
 
     /// Answers a friend's "request location update". Same contract as george's handleLocationUpdateRequest.
@@ -766,21 +879,51 @@ final class AppModel: ObservableObject {
 
     // MARK: - Friends
 
-    func addFriend(username: String) async throws {
+    func pendingRequest(username: String) -> PendingRequest? {
+        let username = Username.forLookup(username)
+        return safety.pending.values.first { $0.user.username == username && safety.blocked[$0.id] == nil }
+    }
+
+    /// A nil result means the incoming request was approved or they already share with us.
+    func prepareAddFriend(username: String) async throws -> ZoodUser? {
         let username = Username.forLookup(username)
         guard username != credentials?.username else { throw FriendError.cantAddSelf }
+        if let request = pendingRequest(username: username) {
+            try await approveRequest(request)
+            return nil
+        }
+        guard await syncInbox() else { throw FriendError.inboxUnavailable }
+        if let request = pendingRequest(username: username) {
+            try await approveRequest(request)
+            return nil
+        }
         let result = try await api.searchUser(username: username)
         let user = ZoodUser(userID: result.id, username: result.username, publicKey: result.publicKey)
-        local.users[user.userID] = user
+        guard safety.blocked[user.userID] == nil else { throw FriendError.blocked }
+        return try await acceptIncomingIfPresent(user) ? nil : user
+    }
+
+    func confirmAddFriendSharing(with user: ZoodUser) async throws {
+        guard await syncInbox() else { throw FriendError.inboxUnavailable }
+        if try await acceptIncomingIfPresent(user) { return }
         try await startSharing(with: user)
     }
 
+    private func acceptIncomingIfPresent(_ user: ZoodUser) async throws -> Bool {
+        if let request = safety.pending[user.userID], safety.blocked[user.userID] == nil {
+            try await approveRequest(request)
+            return true
+        }
+        return local.friends[user.userID]?.theyShare == true
+    }
+
     enum FriendError: LocalizedError {
-        case cantAddSelf, blocked
+        case cantAddSelf, blocked, inboxUnavailable
         var errorDescription: String? {
             switch self {
             case .cantAddSelf: return "You can't add yourself."
             case .blocked: return "Unblock this person in Settings before sharing with them."
+            case .inboxUnavailable: return "Couldn’t check for incoming requests. Try again."
             }
         }
     }
@@ -860,10 +1003,8 @@ final class AppModel: ObservableObject {
         }
         socket?.watch(request.boxID)
         scheduleBackup()
-        if let pkg = try? await api.pickUpPackage(boxID: request.boxID) {
-            await processPackage(pkg, from: request.user)
-        }
-        try? await send(UserComm(type: .avatarRequest), to: request.user, urgent: false, transient: false)
+        Task { await fetchPackage(from: request.user, box: request.boxID) }
+        Task { try? await send(UserComm(type: .avatarRequest), to: request.user, urgent: false, transient: false) }
     }
 
     func blockUser(_ user: ZoodUser) async throws {
@@ -909,8 +1050,7 @@ final class AppModel: ObservableObject {
 
     /// Before saying a friend's phone can't answer requests, make sure that's still true: their last report may be
     /// stale (e.g. they reopened the app but haven't moved, so no new location carried the updated flag).
-    /// Re-reads their latest location package, then asks their phone directly. A phone that's listening replies
-    /// at once; if nothing comes back in a few seconds, it really can't be reached right now.
+    /// Only a direct reply can confirm unavailability. A timeout leaves manual Refresh available.
     func refreshDeviceStatusIfNeeded(_ friend: Friend) async {
         guard !ScreenshotTour.isEnabled else { return }
         guard friend.theyShare, friend.device?.liveRequests == false, !probingDevices.contains(friend.id) else { return }
@@ -919,11 +1059,8 @@ final class AppModel: ObservableObject {
         probingDevices.insert(friend.id)
         defer { probingDevices.remove(friend.id) }
 
-        if let box = friend.receivingBoxID, let pkg = try? await api.pickUpPackage(boxID: box) {
-            await processPackage(pkg, from: friend.user)
-        }
-        guard local.friends[friend.id]?.device?.liveRequests == false else { return }
-        try? await send(UserComm(type: .deviceStatusRequest), to: friend.user, urgent: true, transient: true)
+        let probe = Task { try? await send(UserComm(type: .deviceStatusRequest), to: friend.user, urgent: true, transient: true) }
+        defer { probe.cancel() }
         for _ in 0..<12 {
             do {
                 try await Task.sleep(nanoseconds: 500_000_000)
@@ -937,10 +1074,12 @@ final class AppModel: ObservableObject {
 
     func requestCapability(for friend: Friend) -> RequestCapability {
         guard friend.theyShare else { return .notSharing }
-        // Same rule as the Android fork: only an explicit "false" is unsupported. Stock Zood never reports.
+        // Cached reports can trigger a probe. Only a recent direct reply can suppress Refresh.
         if friend.device?.liveRequests == false {
-            return probingDevices.contains(friend.id) || lastProbe[friend.id] == nil
-                ? .checking : .unsupported(friend.device?.platform)
+            if probingDevices.contains(friend.id) { return .checking }
+            if let expiration = unavailableUntil[friend.id], expiration > Date() {
+                return .unsupported(friend.device?.platform)
+            }
         }
         return .supported
     }
@@ -1031,9 +1170,11 @@ final class AppModel: ObservableObject {
 
     // MARK: - Local data helpers
 
-    private func user(for id: Data) async -> ZoodUser? {
+    private func user(for id: Data) async throws -> ZoodUser? {
         if let known = local.users[id] { return known }
-        guard let info = try? await api.user(id: id) else { return nil }
+        guard let token = credentials?.accessToken else { return nil }
+        let info = try await api.user(id: id)
+        guard credentials?.accessToken == token else { return nil }
         let user = ZoodUser(userID: id, username: info.username, publicKey: info.publicKey)
         local.users[id] = user
         LocalDataStore.save(local)

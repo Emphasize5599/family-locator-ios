@@ -28,7 +28,7 @@ struct RequestsView: View {
                         .frame(maxWidth: .infinity)
                 }
                 ForEach(requests) { request in
-                    VStack(alignment: .leading, spacing: Spacing.large) {
+                    VStack(alignment: .leading, spacing: Spacing.small) {
                         Label(request.displayName, systemImage: "person.crop.circle")
                             .font(.headline)
                         if request.nickname != nil {
@@ -37,16 +37,23 @@ struct RequestsView: View {
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                         }
-                        Text("Wants to share their location with you.")
-                        Button { perform { try await model.approveRequest(request) } } label: { Text("Approve").frame(maxWidth: .infinity, minHeight: 44) }
+                        HStack(spacing: Spacing.tight) {
+                            Button { perform { try await model.approveRequest(request) } } label: {
+                                Text("Approve").frame(maxWidth: .infinity, minHeight: 36)
+                            }
                             .buttonStyle(.borderedProminent)
-                        HStack {
-                            Button(role: .destructive) { decision = RequestDecision(request: request, block: false) } label: { Text("Deny").frame(minWidth: 44, minHeight: 44) }
-                            Spacer()
-                            Button(role: .destructive) { decision = RequestDecision(request: request, block: true) } label: { Text("Block").frame(minWidth: 44, minHeight: 44) }
+                            Button(role: .destructive) { decision = RequestDecision(request: request, block: false) } label: {
+                                Text("Deny").frame(maxWidth: .infinity, minHeight: 36)
+                            }
+                            .buttonStyle(.bordered)
+                            Button(role: .destructive) { decision = RequestDecision(request: request, block: true) } label: {
+                                Text("Block").frame(maxWidth: .infinity, minHeight: 36)
+                            }
+                            .buttonStyle(.bordered)
                         }
+                        .controlSize(.small)
                     }
-                    .padding(Spacing.large)
+                    .padding(Spacing.medium)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20))
                 }

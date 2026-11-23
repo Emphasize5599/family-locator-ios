@@ -23,6 +23,8 @@ final class OscarSocket {
     private let onEvent: (SocketEvent) -> Void
     private var task: URLSessionWebSocketTask?
     private var watched: Set<Data> = []
+    private var generation = UUID()
+    private var lastPong: TimeInterval = 0
     private var runLoop: Task<Void, Never>?
     private(set) var isConnected = false
 
@@ -33,12 +35,13 @@ final class OscarSocket {
 
     func start() {
         guard runLoop == nil else { return }
+        let generation = generation
         runLoop = Task { [weak self] in
             var backoff: UInt64 = 2
             while !Task.isCancelled {
                 guard let self else { return }
                 let started = Date()
-                let stop = await self.runOnce()
+                let stop = await self.runOnce(generation: generation)
                 if stop || Task.isCancelled { return }
                 // A connection that stayed up for a while was healthy; retry quickly after it drops.
                 if Date().timeIntervalSince(started) > 60 { backoff = 2 }
@@ -49,6 +52,7 @@ final class OscarSocket {
     }
 
     func stop() {
+        generation = UUID()
         runLoop?.cancel()
         runLoop = nil
         task?.cancel(with: .goingAway, reason: nil)
@@ -61,54 +65,66 @@ final class OscarSocket {
         send(command: Self.cmdWatch, boxID: boxID)
     }
 
-    /// One connection lifetime. Returns `true` if we should stop retrying (bad credentials).
-    private func runOnce() async -> Bool {
-        let ticket: String
+    /// One connection lifetime. A pong or server message confirms that the handshake completed.
+    private func runOnce(generation: UUID) async -> Bool {
+        let url: URL
         do {
-            ticket = try await api.sessionTicket().ticket
+            let ticket = try await api.sessionTicket().ticket
+            var components = URLComponents(string: "wss://\(OscarAPI.host)/1/sockets")!
+            components.queryItems = [URLQueryItem(name: "ticket", value: ticket)]
+            url = components.url!
         } catch let error as OscarError where error.code == OscarError.invalidAccessToken {
-            onEvent(.invalidToken)
+            if self.generation == generation { onEvent(.invalidToken) }
             return true
         } catch {
             return false
         }
+        guard self.generation == generation, !Task.isCancelled else { return true }
 
-        var components = URLComponents(string: "wss://\(OscarAPI.host)/1/sockets")!
-        components.queryItems = [URLQueryItem(name: "ticket", value: ticket)]
-        let task = URLSession.shared.webSocketTask(with: components.url!)
+        let task = URLSession.shared.webSocketTask(with: url)
         self.task = task
         task.resume()
-
-        // Keep-alive pings; the server and NATs drop idle connections otherwise.
-        let pinger = Task { [weak task] in
+        lastPong = ProcessInfo.processInfo.systemUptime
+        let pinger = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 20_000_000_000)
-                task?.sendPing { _ in }
-            }
-        }
-        defer { pinger.cancel() }
-
-        var first = true
-        while !Task.isCancelled {
-            let message: URLSessionWebSocketTask.Message
-            do {
-                if first {
-                    // The handshake completes lazily; re-subscribe once it's up.
-                    first = false
-                    setConnected(true)
-                    for box in watched { send(command: Self.cmdWatch, boxID: box) }
+                task.sendPing { error in
+                    Task { @MainActor [weak self] in
+                        guard let self, self.task === task else { return }
+                        if error != nil {
+                            task.cancel()
+                        } else {
+                            self.lastPong = ProcessInfo.processInfo.systemUptime
+                            self.didConnect()
+                        }
+                    }
                 }
-                message = try await task.receive()
-            } catch {
-                break
-            }
-            if case .data(let data) = message {
-                handle(data)
+                do { try await Task.sleep(nanoseconds: 12_000_000_000) } catch { return }
+                if let self, ProcessInfo.processInfo.systemUptime - self.lastPong >= 12 {
+                    task.cancel()
+                    return
+                }
             }
         }
-        setConnected(false)
-        self.task = nil
+        defer {
+            pinger.cancel()
+            task.cancel()
+            if self.task === task {
+                self.task = nil
+                setConnected(false)
+            }
+        }
+        while !Task.isCancelled, self.task === task {
+            guard let message = try? await task.receive(), self.task === task else { break }
+            didConnect()
+            if case .data(let data) = message { handle(data) }
+        }
         return false
+    }
+
+    private func didConnect() {
+        guard !isConnected else { return }
+        for box in watched { send(command: Self.cmdWatch, boxID: box) }
+        setConnected(true)
     }
 
     private func setConnected(_ connected: Bool) {
@@ -154,7 +170,9 @@ private nonisolated struct SocketPush: Decodable {
     var type: String?
 
     var inboxMessage: InboxMessage? {
-        guard type == "message_received", let cipherText, let nonce, let senderId else { return nil }
+        guard type == nil || type == "message_received",
+              let cipherText, !cipherText.isEmpty, let nonce, !nonce.isEmpty,
+              let senderId, senderId.count == ZoodConstants.userIDLength else { return nil }
         return InboxMessage(id: Int64(id ?? "") ?? 0, senderId: senderId, cipherText: cipherText, nonce: nonce,
                             sentDate: Int64(sentDate ?? ""))
     }
