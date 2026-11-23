@@ -1,3 +1,12 @@
+# Working style
+
+Work autonomously. Don't stop to ask permission for routine next steps; do them and report afterward.
+
+- Carry work through: fix what you find, build, verify (see Verification resources), commit, merge to `main` and push.
+- Don't end a turn with "Should I…?" when the next step is obvious. Pick the sensible default, do it, and say what you chose.
+- Still check with the user first for anything outside the repositories or hard to undo: App Store Connect or Play Console submissions, signing with their credentials, messaging testers or other people, paid services, and deleting data.
+- Also ask when a request has more than one reasonable product answer and the choice changes what users see.
+
 # Screenshot tours in Xcode
 
 When the user asks you to run a screenshot tour from the Xcode assistant, make it visible in Xcode's device-interaction side panel, not only as PNG files or an HTML gallery.
