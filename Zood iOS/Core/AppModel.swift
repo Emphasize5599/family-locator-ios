@@ -1078,10 +1078,18 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// How long an explicit "Live Requests is off" report is trusted without re-checking (same as Android).
+    static let recentDeviceReport: TimeInterval = 6 * 60 * 60
+
     func requestCapability(for friend: Friend) -> RequestCapability {
         guard friend.theyShare else { return .notSharing }
-        // Cached reports can trigger a probe. Only a recent direct reply can suppress Refresh.
-        if friend.device?.liveRequests == false {
+        // Their phone sends its Live Requests setting with every location update and as soon as it changes.
+        // A recent "off" is trusted right away: a phone with Live Requests off usually can't answer a check.
+        // An older "off" is re-checked first, since they may have turned it back on.
+        if let device = friend.device, device.liveRequests == false {
+            if Date().timeIntervalSince(device.reportedAt) < Self.recentDeviceReport {
+                return .unsupported(device.platform)
+            }
             if probingDevices.contains(friend.id) { return .checking }
             if let expiration = unavailableUntil[friend.id], expiration > Date() {
                 return .unsupported(friend.device?.platform)

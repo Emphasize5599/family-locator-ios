@@ -222,9 +222,12 @@ struct FriendMapView: UIViewRepresentable {
             link.add(to: .main, forMode: .common)
         }
 
+        static let flightDuration: CFTimeInterval = 0.4
+
         @objc private func animateFlight(_ link: CADisplayLink) {
             guard let flight, let map = flyingMap else { stopFlight(); return }
-            let fraction = min(max((link.timestamp - flight.startedAt) / 0.78, 0), 1)
+            // About as quick as Android's camera moves (MapLibre animates them in 300 ms).
+            let fraction = min(max((link.timestamp - flight.startedAt) / Self.flightDuration, 0), 1)
             let eased = fraction * fraction * (3 - 2 * fraction)
             let frame = flight.path?.sample(eased)
             let along = frame?.along ?? eased

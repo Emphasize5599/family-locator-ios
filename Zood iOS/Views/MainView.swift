@@ -408,8 +408,9 @@ struct MainView: View {
         let gridInset = Spacing.tight
         let gridHeight = CGFloat(visibleRows) * cellHeight + CGFloat(visibleRows - 1) * Spacing.large + 2 * gridInset
         let gridWidth = CGFloat(usedColumns) * barItemWidth + CGFloat(usedColumns - 1) * Spacing.large
-        // The header (name, ⋯ and ✕) needs about this much; a one- or two-person folder still fits it.
-        let headerWidth: CGFloat = 200
+        // Only a floor so the header (name, ⋯ and ✕) never gets cramped; otherwise the grid sets the width,
+        // so a two-person folder is visibly narrower than a three-person one.
+        let headerWidth: CGFloat = 140
         let margin = Spacing.medium
         let width = min(max(gridWidth, headerWidth) + 2 * Spacing.large, screenWidth - 2 * margin)
         let tileX = openFolderTileMidX ?? screenWidth / 2
