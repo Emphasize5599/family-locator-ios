@@ -20,6 +20,8 @@ struct MainView: View {
     @State private var confirmingUngroup: FriendFolder?
     /// Where the open folder's tile sits horizontally on screen, so its card can open centered above it.
     @State private var openFolderTileMidX: CGFloat?
+    /// The friend bar's height, so an open folder can float just above it.
+    @State private var barHeight: CGFloat = 100
     @State private var folderName = ""
 
     private static let screenSpace = "main-screen"
@@ -78,11 +80,23 @@ struct MainView: View {
                         .padding(.horizontal, Spacing.large)
                         .transition(.opacity)
                     }
-                    if let folder = model.friendFolders.first(where: { $0.id == openFolderID }) {
-                        folderPopup(folder, screenWidth: geometry.size.width)
-                            .transition(.scale(scale: 0.85, anchor: .bottom).combined(with: .opacity))
-                    }
                     friendsBar
+                        .zIndex(1)  // the open folder below draws above the friend card
+                        // An open folder floats over the map just above the bar, layered on top like the
+                        // friend card, so nothing else on screen moves when it opens.
+                        .background(GeometryReader { bar in
+                            Color.clear
+                                .onAppear { barHeight = bar.size.height }
+                                .compatOnChange(of: bar.size.height) { barHeight = $0 }
+                        })
+                        .overlay(alignment: .bottom) {
+                            if let folder = model.friendFolders.first(where: { $0.id == openFolderID }) {
+                                folderPopup(folder, screenWidth: geometry.size.width)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .padding(.bottom, barHeight + Spacing.medium)
+                                    .transition(.scale(scale: 0.85, anchor: .bottom).combined(with: .opacity))
+                            }
+                        }
                 }
                 .padding(.bottom, Spacing.small)
                 .animation(.spring(response: 0.35, dampingFraction: 0.85), value: openFolderID)
@@ -473,8 +487,8 @@ struct MainView: View {
         .onDrop(of: [.plainText], delegate: FolderGridDropDelegate(folderID: folder.id, member: friend.id, model: model, dragging: $dragging))
     }
 
+    /// Opens a folder on top of everything else; an open friend card stays open underneath.
     private func openFolder(_ id: UUID) {
-        closeFriend()
         openFolderID = id
     }
 
