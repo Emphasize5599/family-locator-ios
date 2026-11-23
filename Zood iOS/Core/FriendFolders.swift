@@ -219,6 +219,20 @@ extension AppModel {
         setFolders(folders.filter { $0.id != folderID })
     }
 
+    /// Forgets a removed (or blocked) friend's place in folders and the bar, so adding them again starts fresh.
+    func dropFromBar(_ friendID: Data) {
+        let kept = foldersWithout(friendID)
+        let keptIDs = Set(kept.map(\.id))
+        let dissolved = Set(folders.map(\.id)).subtracting(keptIDs)
+        setFolders(kept)
+        setBarOrder(barOrder.filter { item in
+            switch item {
+            case .friend(let id): return id != friendID
+            case .folder(let id): return !dissolved.contains(id)
+            }
+        })
+    }
+
     /// Every folder minus `friendID`, dropping folders that are left with fewer than two people.
     private func foldersWithout(_ friendID: Data) -> [FriendFolder] {
         folders.compactMap { folder in

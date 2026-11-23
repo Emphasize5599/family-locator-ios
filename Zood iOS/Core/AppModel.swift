@@ -201,7 +201,8 @@ final class AppModel: ObservableObject {
         }
         if scene.hasPrefix("map-folders") {
             // A "Family" folder of Bailey, Casey and Devon (the extra friends above).
-            let name = scene.hasSuffix("long") ? "Grandparents, aunts and uncles in Texas" : "Family"
+            let name = scene.hasSuffix("long") ? "Grandparents, aunts and uncles in Texas"
+                : scene.hasSuffix("medium") ? "Grandparents and cousins" : "Family"
             folders = [FriendFolder(name: name, members: [20, 21, 22].map { Data(repeating: UInt8($0), count: 16) })]
         }
         if scene != "requests-empty" {
@@ -981,9 +982,11 @@ final class AppModel: ObservableObject {
             next.pending[id] = nil
             try saveSafety(next)
         }
+        // Their last location, nickname and linked contact live on the friend record and go with it.
         local.friends[id] = nil
         requestStatuses[id] = nil
         LocalDataStore.save(local)
+        dropFromBar(id)
         scheduleBackup()
     }
 
@@ -1024,13 +1027,17 @@ final class AppModel: ObservableObject {
         next.blocked[user.userID] = user
         // Persist the block before awaiting network work, so arriving grants cannot re-add them.
         try saveSafety(next)
-        let friend = local.friends[user.userID]
+        let wasFriend = local.friends[user.userID] != nil
         local.friends[user.userID] = nil
         requestStatuses[user.userID] = nil
         LocalDataStore.save(local)
+        dropFromBar(user.userID)
         scheduleBackup()
-        if friend?.weShare == true {
-            try? await send(UserComm(type: .locationSharingRevocation), to: user, urgent: false, transient: false)
+        if wasFriend {
+            // A full removal, like Remove Friend: their phone drops us too, not just our location.
+            var removal = UserComm(type: .locationSharingRevocation)
+            removal.friendRemoved = true
+            try? await send(removal, to: user, urgent: false, transient: false)
         }
     }
 

@@ -432,7 +432,7 @@ struct MainView: View {
         let gridWidth = CGFloat(usedColumns) * barItemWidth + CGFloat(usedColumns - 1) * Spacing.large
         let title = folder.name ?? String(localized: "Folder")
         let titleWidth = (title as NSString).size(withAttributes: [.font: UIFont.preferredFont(forTextStyle: .headline)]).width
-        let headerWidth = ceil(titleWidth) + Spacing.small + 2 * 44 + Spacing.tight
+        let headerWidth = ceil(titleWidth) + 2 + 3 * Spacing.tight + Spacing.small + 2 * 44  // the header row exactly, plus 2pt slack
         return min(max(gridWidth, headerWidth, 140) + 2 * Spacing.large, screenWidth - 2 * Spacing.medium)
     }
 
@@ -451,7 +451,7 @@ struct MainView: View {
         // name widens the card to fit it on one line, up to the screen margins; only then does it wrap.
         let title = folder.name ?? String(localized: "Folder")
         let titleWidth = (title as NSString).size(withAttributes: [.font: UIFont.preferredFont(forTextStyle: .headline)]).width
-        let headerWidth = ceil(titleWidth) + Spacing.small + 2 * 44 + Spacing.tight
+        let headerWidth = ceil(titleWidth) + 2 + 3 * Spacing.tight + Spacing.small + 2 * 44  // the header row exactly, plus 2pt slack
         let margin = Spacing.medium
         let width = min(max(gridWidth, headerWidth, 140) + 2 * Spacing.large, screenWidth - 2 * margin)
         let centerX = folderCenterX(width: width, screenWidth: screenWidth)
