@@ -16,9 +16,9 @@ struct SettingsView: View {
                     NavigationLink {
                         AccountView(onLogOut: { dismiss() }).environmentObject(model)
                     } label: {
-                        HStack(spacing: 14) {
+                        HStack(spacing: Spacing.medium) {
                             AvatarView(username: model.credentials?.username ?? "?", imageData: model.local.myAvatar, size: 56)
-                            VStack(alignment: .leading, spacing: 2) {
+                            VStack(alignment: .leading, spacing: Spacing.hairline) {
                                 Text("@\(model.credentials?.username ?? "")").font(.headline)
                                 Button("Change Photo") { showingPhotoPicker = true }
                                     .font(.subheadline)
@@ -71,7 +71,7 @@ struct SettingsView: View {
 
                 Section("Privacy & Support") {
                     Link(destination: AppInformation.issuesURL) {
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: Spacing.hairline) {
                             Text("Contact & Support")
                             Text("GitHub Issues (public)").font(.caption).foregroundStyle(.secondary)
                         }
@@ -83,6 +83,7 @@ struct SettingsView: View {
                 .id("support")
 
                 Section("About") {
+                    NavigationLink("Notices & Trademarks") { NoticesView() }
                     Link("Open-Source Licenses", destination: AppInformation.licensesURL)
                     Link("Source Code (AGPL-3.0)", destination: URL(string: "https://github.com/Emphasize5599/family-locator-ios")!)
                     Text("Built on the open-source Zood Location protocol and servers. Not affiliated with Tangled Wires, LLC.")
@@ -188,5 +189,36 @@ struct AccountView: View {
         } message: {
             Text("Your friends are backed up to your account and will come back when you sign in again.")
         }
+    }
+}
+
+/// Third-party rights notices: trademarks the app shows or names, and attribution for artwork and code.
+/// Full license texts live in the Open-Source Licenses page.
+struct NoticesView: View {
+    var body: some View {
+        List {
+            Section("Family Locator") {
+                notice("Family Locator is free software under the GNU Affero General Public License, version 3. It's an independent app built on the open Zood Location protocol and servers. Zood is a trademark of Tangled Wires, LLC; Family Locator isn't affiliated with or endorsed by Tangled Wires.")
+            }
+            Section("Apple") {
+                notice("Apple, the Apple logo, iPhone and Apple Maps are trademarks of Apple Inc., registered in the U.S. and other countries and regions. The Apple logo appears only to show that a friend uses an Apple device. Map data and imagery are provided by Apple Maps; see the Legal link on the map.")
+            }
+            Section("Google") {
+                notice("Android is a trademark of Google LLC. The Android logo appears only to show that a friend uses an Android device. Where the Android robot appears, it is reproduced or modified from work created and shared by Google and used according to terms described in the Creative Commons 3.0 Attribution License.")
+            }
+            Section("Open-Source Software") {
+                notice("Encryption uses libsodium by Frank Denis and contributors, under the ISC License.")
+                Link("Open-Source Licenses", destination: AppInformation.licensesURL)
+            }
+        }
+        .navigationTitle("Notices & Trademarks")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func notice(_ text: LocalizedStringKey) -> some View {
+        Text(text)
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .padding(.vertical, Spacing.tight)
     }
 }

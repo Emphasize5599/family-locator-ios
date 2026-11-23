@@ -35,7 +35,7 @@ struct SafetyNumberView: View {
 
     var body: some View {
         ContentFittedSheet(title: "Safety Number") {
-                VStack(spacing: 20) {
+                VStack(spacing: Spacing.large) {
                     Image(systemName: "lock.shield.fill")
                         .font(.system(size: 48))
                         .foregroundStyle(Color.zoodBlue)
@@ -49,7 +49,7 @@ struct SafetyNumberView: View {
                             .multilineTextAlignment(.center)
                             .lineSpacing(6)
                             .textSelection(.enabled)
-                            .padding()
+                            .padding(Spacing.large)
                             .frame(maxWidth: .infinity)
                             .background(Color.zoodBlue.opacity(0.1), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                             .accessibilityLabel("Safety number")

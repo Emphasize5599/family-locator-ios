@@ -16,7 +16,7 @@ struct BackgroundRefreshView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: Spacing.small) {
             if status == .restricted {
                 // Apple advises against warning users who cannot enable refresh themselves.
                 if showsStatus {
@@ -28,7 +28,7 @@ struct BackgroundRefreshView: View {
                 Button {
                     showingExplanation = true
                 } label: {
-                    HStack(spacing: 8) {
+                    HStack(spacing: Spacing.small) {
                         Image(systemName: lowPowerMode ? "battery.25" : "arrow.clockwise")
                         Text(warningTitle)
                             .multilineTextAlignment(.leading)
@@ -38,8 +38,8 @@ struct BackgroundRefreshView: View {
                     .foregroundStyle(Color.zoodOrange)
                 }
                 .buttonStyle(.plain)
-                .padding(.horizontal, showsStatus ? 0 : 14)
-                .padding(.vertical, showsStatus ? 0 : 8)
+                .padding(.horizontal, showsStatus ? 0 : Spacing.large)
+                .padding(.vertical, showsStatus ? 0 : Spacing.small)
                 .floatingSurface(in: RoundedRectangle(cornerRadius: 16))
                 .alert("Background App Refresh", isPresented: $showingExplanation) {
                     Button("Open Settings") {

@@ -14,8 +14,8 @@ struct TimedShareView: View {
     var body: some View {
         // Shared sheet chrome (title, Done, measured height), like Add Friend and Pending Requests.
         ContentFittedSheet(title: "Timed Sharing") {
-                VStack(spacing: 22) {
-                    VStack(spacing: 6) {
+                VStack(spacing: Spacing.xLarge) {
+                    VStack(spacing: Spacing.small) {
                         Text("Temporarily share your location with someone that doesn't have the app by sending them a link.")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
@@ -27,13 +27,13 @@ struct TimedShareView: View {
                             .font(.headline)
                     }
                     .tint(.zoodBlue)
-                    .padding(14)
+                    .padding(Spacing.large)
                     .background(Color(uiColor: .secondarySystemGroupedBackground),
                                 in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
                     countdown
 
-                    HStack(spacing: 12) {
+                    HStack(spacing: Spacing.medium) {
                         Button {
                             copyLink()
                         } label: {
@@ -71,7 +71,7 @@ struct TimedShareView: View {
             let share = model.timedShare
             let remaining = share?.remaining(at: context.date) ?? 0
             let fraction = share?.fractionRemaining(at: context.date) ?? 0
-            HStack(spacing: 28) {
+            HStack(spacing: Spacing.xLarge) {
                 adjustButton("minus", label: "Less time") { model.adjustTimedShare(longer: false) }
                 ZStack {
                     Circle()
@@ -81,7 +81,7 @@ struct TimedShareView: View {
                         .stroke(Color.zoodBlue, style: StrokeStyle(lineWidth: 10, lineCap: .round))
                         .rotationEffect(.degrees(-90))
                         .animation(.linear(duration: 1), value: fraction)
-                    VStack(spacing: 2) {
+                    VStack(spacing: Spacing.hairline) {
                         Text(TimedShare.shortLabel(remaining))
                             .font(.system(.largeTitle, design: .rounded).weight(.semibold))
                             .monospacedDigit()
@@ -178,7 +178,7 @@ struct TimedSharePeekBar: View {
         if let share = model.timedShare {
             Button(action: onTap) {
                 TimelineView(.periodic(from: .now, by: 1)) { context in
-                    HStack(spacing: 12) {
+                    HStack(spacing: Spacing.medium) {
                         ZStack {
                             Circle().stroke(Color.secondary.opacity(0.25), lineWidth: 4)
                             Circle()
@@ -187,7 +187,7 @@ struct TimedSharePeekBar: View {
                                 .rotationEffect(.degrees(-90))
                         }
                         .frame(width: 26, height: 26)
-                        VStack(alignment: .leading, spacing: 1) {
+                        VStack(alignment: .leading, spacing: Spacing.hairline) {
                             Text("Timed sharing is on").font(.subheadline.weight(.semibold))
                             Text("\(TimedShare.shortLabel(share.remaining(at: context.date))) left")
                                 .font(.caption)
@@ -197,13 +197,13 @@ struct TimedSharePeekBar: View {
                         Spacer(minLength: 0)
                         Image(systemName: "chevron.up").foregroundStyle(.secondary)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
+                    .padding(.horizontal, Spacing.large)
+                    .padding(.vertical, Spacing.medium)
                 }
                 .floatingSurface(in: RoundedRectangle(cornerRadius: 20, style: .continuous), interactive: true)
             }
             .buttonStyle(.plain)
-            .padding(.horizontal, 12)
+            .padding(.horizontal, Spacing.medium)
             .accessibilityLabel(Text("Timed sharing is on. Open timed sharing controls."))
         }
     }

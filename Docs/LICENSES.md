@@ -4,6 +4,14 @@ Family Locator is licensed under the [GNU Affero General Public License, version
 
 The full corresponding source, changes and build instructions are available in [this repository](https://github.com/Emphasize5599/family-locator-ios). For source corresponding to an installed release, select its matching release tag. Apple Maps content remains subject to Apple's terms and attribution shown by the map.
 
+## Trademarks and artwork
+
+Apple, the Apple logo, iPhone and Apple Maps are trademarks of Apple Inc., registered in the U.S. and other countries and regions. The app shows Apple's `apple.logo` SF Symbol, unmodified, only to indicate that a friend uses an Apple device.
+
+Android is a trademark of Google LLC. The Android logo is shown only to indicate that a friend uses an Android device. Where the Android robot appears, it is reproduced or modified from work created and shared by Google and used according to terms described in the [Creative Commons 3.0 Attribution License](https://creativecommons.org/licenses/by/3.0/). Until the official artwork is added to the asset catalog as `AndroidLogo`, the app shows an original robot-style placeholder.
+
+The same notices appear in the app under Settings › About › Notices & Trademarks.
+
 ## swift-sodium and libsodium
 
 Cryptographic primitives are supplied by upstream [libsodium](https://github.com/jedisct1/libsodium) 1.0.22 with the official Apple RNG selection backport, maintained by Frank Denis and contributors, rebuilt for this app's supported deployment targets. The former swift-sodium wrapper dependency is no longer linked. Source archive, checksum and reproducible build instructions are in [Vendor/Clibsodium](../Vendor/Clibsodium/README.md).

@@ -30,7 +30,7 @@ struct FriendPanel: View {
     var body: some View {
         if let friend = model.local.friends[friendID] {
             ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: Spacing.medium) {
                     header(friend)
                         .gesture(closeGesture)
                     actions(friend)
@@ -39,7 +39,7 @@ struct FriendPanel: View {
                             .transition(.move(edge: .top).combined(with: .opacity))
                     }
                 }
-                .padding(16)
+                .padding(Spacing.large)
                 // Measure the content so the card can hug it. A PreferenceKey never got the measurement
                 // out of the ScrollView (the card stayed at its 320-point default with blank space below),
                 // so read the size directly and store it.
@@ -53,7 +53,7 @@ struct FriendPanel: View {
             // A flexible height lets the surrounding stack give the card only the space that remains.
             .frame(minHeight: 0, idealHeight: min(contentHeight, maxHeight), maxHeight: min(contentHeight, maxHeight))
             .floatingSurface(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-            .padding(.horizontal, 12)
+            .padding(.horizontal, Spacing.medium)
             // Swipe down to close, like dismissing a sheet.
             .offset(y: max(0, dragOffset))
             .task(id: friend.location) { await lookUpAddress(friend.location) }
@@ -104,21 +104,17 @@ struct FriendPanel: View {
     // MARK: Header
 
     private func header(_ friend: Friend) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 4) {
+        VStack(alignment: .leading, spacing: Spacing.small) {
+            HStack(spacing: Spacing.tight) {
                 AvatarView(username: friend.avatarName, imageData: friend.avatar, size: 56)
                 Spacer(minLength: 0)
                 if let platform = friend.device?.platform { PlatformBadge(platform: platform) }
-                Button { editingNickname = true } label: {
-                    // A circled symbol at the same fixed Title 2 size as the ⋯ and × buttons beside it,
-                    // so the header icons all match.
-                    Image(systemName: "pencil.circle")
-                        .font(.title2)
-                        .dynamicTypeSize(...DynamicTypeSize.large)
-                        .foregroundStyle(Color.zoodBlueDark)  // same tint as the ⋯ button
-                        .frame(width: 44, height: 44)
+                // Drawn by UIKit with the same symbol configuration as ⋯ and ✕, so all three match.
+                PanelIconButton(systemName: "pencil.circle", tint: UIColor(Color.zoodBlueDark),
+                                accessibilityLabel: String(localized: "Edit friend's nickname")) {
+                    editingNickname = true
                 }
-                .accessibilityLabel("Edit friend's nickname")
+                .frame(width: 44, height: 44)
                 FriendMenu(linked: friend.linkedContact != nil,
                            username: friend.user.username,
                            linkContact: { linkingContact = true },
@@ -128,19 +124,14 @@ struct FriendPanel: View {
                     .frame(width: 44, height: 44)
                 CloseButton(action: onClose).frame(width: 44, height: 44)
             }
-            // Who: the name with its battery/activity line right under it.
-            VStack(alignment: .leading, spacing: 2) {
+            // Name, battery, address and status: one even gap between every line.
+            VStack(alignment: .leading, spacing: Spacing.tight) {
                 Text(friend.displayName)
                     .font(.title2.bold())
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
                 if let loc = friend.location {
                     batteryAndActivity(loc)
-                }
-            }
-            // Where and when: the address link with its status line right under it.
-            VStack(alignment: .leading, spacing: 2) {
-                if let loc = friend.location {
                     addressLink(friend, loc)
                 }
                 TimelineView(.periodic(from: .now, by: 1)) { context in
@@ -151,7 +142,7 @@ struct FriendPanel: View {
     }
 
     private func batteryAndActivity(_ loc: FriendLocation) -> some View {
-        HStack(spacing: 10) {
+        HStack(spacing: Spacing.small) {
             if let level = loc.batteryLevel {
                 Label("\(level)%", systemImage: batterySymbol(level: level, charging: loc.batteryCharging == true))
             }
@@ -214,9 +205,9 @@ struct FriendPanel: View {
         if let status, showsRequestStatus(status) {
             statusLine(status)
         } else if capability == .checking {
-            HStack(spacing: 6) { ProgressView().controlSize(.mini); Text("Checking…") }
+            HStack(spacing: Spacing.tight) { ProgressView().controlSize(.mini); Text("Checking…") }
         } else if case .unsupported = capability {
-            HStack(spacing: 4) { Text("Unsupported"); infoButton(for: .unsupported) }
+            HStack(spacing: Spacing.tight) { Text("Unsupported"); infoButton(for: .unsupported) }
         } else if let loc = friend.location {
             // A relative time ("5 min. ago") reads best today; an older update gets a date so
             // "Updated 2 days ago" can't be mistaken for something more recent.
@@ -244,9 +235,9 @@ struct FriendPanel: View {
     // MARK: Actions
 
     private func actions(_ friend: Friend) -> some View {
-        HStack(spacing: 12) {
+        HStack(spacing: Spacing.medium) {
             refreshColumn(friend)
-            Spacer(minLength: 8)
+            Spacer(minLength: Spacing.small)
             Toggle(isOn: sharingBinding(friend)) {
                 Text("Share my location")
                     .font(.subheadline)
@@ -281,7 +272,7 @@ struct FriendPanel: View {
         case .sent:
             Label("Requesting…", systemImage: "antenna.radiowaves.left.and.right").font(.footnote).foregroundStyle(Color.cardSecondary)
         case .responded(.starting, _):
-            HStack(spacing: 6) {
+            HStack(spacing: Spacing.tight) {
                 ProgressView().controlSize(.mini)
                 Text("Getting their location…").font(.footnote).foregroundStyle(Color.cardSecondary)
             }
@@ -290,7 +281,7 @@ struct FriendPanel: View {
         case .responded(.tooSoon, _):
             Text("They updated moments ago").font(.footnote).foregroundStyle(Color.cardSecondary)
         case .noResponse:
-            HStack(spacing: 4) {
+            HStack(spacing: Spacing.tight) {
                 Text("No response").font(.footnote.weight(.medium)).foregroundStyle(Color.zoodOrange)
                 infoButton(for: .noResponse)
             }
@@ -310,7 +301,7 @@ struct FriendPanel: View {
 
     private func explanationTile(_ kind: Explanation, friend: Friend) -> some View {
         let name = friend.user.username
-        return VStack(alignment: .leading, spacing: 8) {
+        return VStack(alignment: .leading, spacing: Spacing.small) {
             HStack {
                 Label(kind == .unsupported ? "Why is Refresh unsupported?" : "Why didn't they respond?",
                       systemImage: "info.circle.fill")
@@ -337,7 +328,7 @@ struct FriendPanel: View {
             }
         }
         .font(.footnote)
-        .padding(14)
+        .padding(Spacing.large)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.zoodBlue.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.zoodBlue.opacity(0.35)))

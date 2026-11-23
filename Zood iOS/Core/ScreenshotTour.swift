@@ -104,6 +104,7 @@ private struct ScreenshotTourSceneView: View {
             case "safety-number": SafetyNumberView(friend: ScreenshotTour.friend)
             case "timed-share": TimedShareView()
             case "settings", "settings-support": SettingsView()
+            case "notices": CompatNavigationStack { NoticesView() }
             case "blocked-users", "blocked-empty": CompatNavigationStack { BlockedUsersView() }
             case "delete-account": CompatNavigationStack { DeleteAccountView() }
             default: EmptyView()

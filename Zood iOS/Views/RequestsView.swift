@@ -11,16 +11,16 @@ struct RequestsView: View {
 
     var body: some View {
         ContentFittedSheet(title: "Pending Requests") {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: Spacing.large) {
                 Text("Approve people before their location and profile photo appear. Approving does not share your location back.")
                     .font(.subheadline).foregroundStyle(.secondary)
                 if requests.isEmpty {
                     Label("No pending requests", systemImage: "bell")
-                        .padding()
+                        .padding(Spacing.large)
                         .frame(maxWidth: .infinity)
                 }
                 ForEach(requests) { request in
-                    VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: Spacing.large) {
                         Label(request.nickname ?? "@\(request.user.username)", systemImage: "person.crop.circle")
                             .font(.headline)
                         if request.nickname != nil {
@@ -38,7 +38,7 @@ struct RequestsView: View {
                             Button(role: .destructive) { perform { try await model.blockUser(request.user) } } label: { Text("Block").frame(minWidth: 44, minHeight: 44) }
                         }
                     }
-                    .padding()
+                    .padding(Spacing.large)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20))
                 }
@@ -76,7 +76,7 @@ struct BlockedUsersView: View {
             Section {
                 if users.isEmpty { Text("No blocked users").foregroundStyle(.secondary) }
                 ForEach(users) { user in
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: Spacing.small) {
                         Text(user.username).font(.headline)
                         Button { selected = user } label: { Text("Unblock").frame(minHeight: 44) }
                             .buttonStyle(.borderless)

@@ -64,20 +64,45 @@ extension Date {
     }
 }
 
-/// Shared by the ⋯ and ✕ buttons so they're always exactly the same size.
-let panelIconConfig = UIImage.SymbolConfiguration(textStyle: .title2)
+/// One spacing scale for the whole app, so the gaps between related things look the same everywhere.
+enum Spacing {
+    /// A title and its subtitle in a list row.
+    static let hairline: CGFloat = 2
+    /// Lines of text that belong together (a card's name, battery, address and status); an icon and its label.
+    static let tight: CGFloat = 4
+    /// Items inside one group.
+    static let small: CGFloat = 8
+    /// Between groups, and between the controls floating over the map.
+    static let medium: CGFloat = 12
+    /// Card and sheet padding, and between sections.
+    static let large: CGFloat = 16
+    /// Separating major blocks.
+    static let xLarge: CGFloat = 24
+}
 
-/// Closes a card without applying its draft changes. UIKit like `FriendMenu`, with the same symbol configuration, so the two match.
-struct CloseButton: UIViewRepresentable {
+/// Shared by every icon in the friend card's header (platform logo, ✎, ⋯, ✕) so they're exactly the same size.
+/// A fixed point size rather than a text style: with a text style, the UIKit buttons grew with the person's text
+/// size while the SwiftUI pencil didn't, so on a phone with larger text the pencil looked smaller than ⋯ and ✕.
+let panelIconConfig = UIImage.SymbolConfiguration(pointSize: 22, weight: .regular)
+
+/// Height of the circled header symbols at `panelIconConfig`. The platform logo is drawn at this size too.
+let panelIconSide: CGFloat = UIImage(systemName: "ellipsis.circle", withConfiguration: panelIconConfig)?.size.height ?? 26
+
+/// A circled SF Symbol button for the friend card's header, drawn by UIKit with `panelIconConfig` exactly like
+/// the ⋯ menu, so ✎, ⋯ and ✕ always match.
+struct PanelIconButton: UIViewRepresentable {
+    let systemName: String
+    let tint: UIColor
+    let accessibilityLabel: String
     let action: () -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     func makeUIView(context: Context) -> UIButton {
         let button = UIButton(type: .system)
-        button.setImage(UIImage(systemName: "xmark.circle", withConfiguration: panelIconConfig), for: .normal)
-        button.tintColor = .secondaryLabel
-        button.accessibilityLabel = String(localized: "Close")
+        button.setImage(UIImage(systemName: systemName, withConfiguration: panelIconConfig), for: .normal)
+        button.tintColor = tint
+        button.accessibilityLabel = accessibilityLabel
         button.addTarget(context.coordinator, action: #selector(Coordinator.tapped), for: .touchUpInside)
         button.setContentHuggingPriority(.required, for: .horizontal)
         button.setContentHuggingPriority(.required, for: .vertical)
@@ -94,60 +119,75 @@ struct CloseButton: UIViewRepresentable {
     }
 }
 
-/// Original, simple platform silhouettes; neutral tint keeps them secondary to the person's name.
-/// Drawn inside the same circled Title 2 symbol as the ⋯ and × buttons, so all the header icons match in size.
-struct PlatformBadge: View {
-    let platform: Platform
+/// Closes a card without applying its draft changes.
+struct CloseButton: View {
+    let action: () -> Void
+
     var body: some View {
-        ZStack {
-            Image(systemName: "circle")
-                .font(.title2)
-                .dynamicTypeSize(...DynamicTypeSize.large)
-            PlatformSilhouette(platform: platform)
-                .fill(Color.cardSecondary, style: FillStyle(eoFill: true))
-                .frame(width: 11, height: 12)
-        }
-        .foregroundStyle(Color.cardSecondary)
-        .frame(width: 44, height: 44)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(platform == .ios ? "Apple device" : "Android device")
+        PanelIconButton(systemName: "xmark.circle", tint: .secondaryLabel,
+                        accessibilityLabel: String(localized: "Close"), action: action)
     }
 }
 
-private struct PlatformSilhouette: Shape {
+/// Which kind of phone a friend uses, shown at the same size as the header buttons (no circle around it).
+/// Neutral gray keeps it secondary to the person's name. See Settings › About › Notices for trademarks.
+struct PlatformBadge: View {
     let platform: Platform
+
+    var body: some View {
+        logo
+            .foregroundStyle(Color.cardSecondary)
+            .frame(width: panelIconSide, height: panelIconSide)
+            .frame(width: 44, height: 44)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(platform == .ios ? "Apple device" : "Android device")
+    }
+
+    @ViewBuilder private var logo: some View {
+        if platform == .ios {
+            // Apple's own SF Symbol for referring to Apple products, used unmodified.
+            Image(systemName: "apple.logo")
+                .resizable()
+                .scaledToFit()
+        } else if UIImage(named: "AndroidLogo") != nil {
+            // The official Android robot artwork (Google, CC BY 3.0), once it's added to the asset catalog
+            // as a template image named "AndroidLogo".
+            Image("AndroidLogo")
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+        } else {
+            // Until then, an original robot-style placeholder.
+            PlatformSilhouette()
+                .fill(style: FillStyle(eoFill: true))
+                .aspectRatio(20 / 22, contentMode: .fit)
+        }
+    }
+}
+
+/// An original, simplified robot shape used for Android until the official artwork is added.
+private struct PlatformSilhouette: Shape {
     func path(in rect: CGRect) -> Path {
         let w = rect.width
         let h = rect.height
         return Path { p in
-            if platform == .android {
-                p.addRoundedRect(in: CGRect(x: w * 0.08, y: h * 0.25, width: w * 0.84, height: h * 0.6), cornerSize: CGSize(width: w * 0.22, height: h * 0.22))
-                for x in [0.27, 0.67] {
-                    p.addEllipse(in: CGRect(x: w * x, y: h * 0.42, width: w * 0.1, height: w * 0.1))
-                }
-                for x in [0.24, 0.68] {
-                    p.addRoundedRect(in: CGRect(x: w * x, y: h * 0.79, width: w * 0.1, height: h * 0.2), cornerSize: CGSize(width: 2, height: 2))
-                }
-                p.move(to: CGPoint(x: w * 0.23, y: h * 0.31))
-                p.addLine(to: CGPoint(x: w * 0.14, y: h * 0.12))
-                p.addLine(to: CGPoint(x: w * 0.2, y: h * 0.1))
-                p.addLine(to: CGPoint(x: w * 0.31, y: h * 0.3))
-                p.closeSubpath()
-                p.move(to: CGPoint(x: w * 0.7, y: h * 0.3))
-                p.addLine(to: CGPoint(x: w * 0.8, y: h * 0.1))
-                p.addLine(to: CGPoint(x: w * 0.86, y: h * 0.12))
-                p.addLine(to: CGPoint(x: w * 0.78, y: h * 0.31))
-                p.closeSubpath()
-            } else {
-                p.move(to: CGPoint(x: w * 0.5, y: h * 0.3))
-                p.addCurve(to: CGPoint(x: w * 0.16, y: h * 0.85), control1: CGPoint(x: -w * 0.2, y: -h * 0.1), control2: CGPoint(x: -w * 0.04, y: h * 0.65))
-                p.addCurve(to: CGPoint(x: w * 0.5, y: h * 0.94), control1: CGPoint(x: w * 0.33, y: h * 1.12), control2: CGPoint(x: w * 0.35, y: h * 0.87))
-                p.addCurve(to: CGPoint(x: w * 0.9, y: h * 0.42), control1: CGPoint(x: w * 0.87, y: h * 1.15), control2: CGPoint(x: w * 1.16, y: h * 0.53))
-                p.addCurve(to: CGPoint(x: w * 0.5, y: h * 0.3), control1: CGPoint(x: w * 0.83, y: h * 0.18), control2: CGPoint(x: w * 0.64, y: h * 0.2))
-                p.closeSubpath()
-                p.addEllipse(in: CGRect(x: w * 0.8, y: h * 0.35, width: w * 0.35, height: h * 0.3))
-                p.addEllipse(in: CGRect(x: w * 0.51, y: 0, width: w * 0.23, height: h * 0.21))
+            p.addRoundedRect(in: CGRect(x: w * 0.08, y: h * 0.25, width: w * 0.84, height: h * 0.6), cornerSize: CGSize(width: w * 0.22, height: h * 0.22))
+            for x in [0.27, 0.67] {
+                p.addEllipse(in: CGRect(x: w * x, y: h * 0.42, width: w * 0.1, height: w * 0.1))
             }
+            for x in [0.24, 0.68] {
+                p.addRoundedRect(in: CGRect(x: w * x, y: h * 0.79, width: w * 0.1, height: h * 0.2), cornerSize: CGSize(width: 2, height: 2))
+            }
+            p.move(to: CGPoint(x: w * 0.23, y: h * 0.31))
+            p.addLine(to: CGPoint(x: w * 0.14, y: h * 0.12))
+            p.addLine(to: CGPoint(x: w * 0.2, y: h * 0.1))
+            p.addLine(to: CGPoint(x: w * 0.31, y: h * 0.3))
+            p.closeSubpath()
+            p.move(to: CGPoint(x: w * 0.7, y: h * 0.3))
+            p.addLine(to: CGPoint(x: w * 0.8, y: h * 0.1))
+            p.addLine(to: CGPoint(x: w * 0.86, y: h * 0.12))
+            p.addLine(to: CGPoint(x: w * 0.78, y: h * 0.31))
+            p.closeSubpath()
         }
     }
 }

@@ -23,7 +23,7 @@ struct OnboardingView: View {
         CompatNavigationStack {
             Form {
                 Section {
-                    VStack(spacing: 8) {
+                    VStack(spacing: Spacing.small) {
                         Image(systemName: "location.circle.fill")
                             .font(.system(size: 64))
                             .foregroundStyle(Color.zoodBlue)

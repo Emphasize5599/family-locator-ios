@@ -27,7 +27,7 @@ struct MainView: View {
                 })
                 .ignoresSafeArea()
 
-                VStack(spacing: 10) {
+                VStack(spacing: Spacing.medium) {
                     if !model.isConnected {
                         banner("Connecting to server…", systemImage: "wifi.exclamationmark")
                     } else if !model.location.hasAnyPermission {
@@ -35,7 +35,7 @@ struct MainView: View {
                             .onTapGesture { model.location.requestPermission() }
                     }
                     BackgroundRefreshView()
-                        .padding(.horizontal, 12)
+                        .padding(.horizontal, Spacing.medium)
                     if let id = selectedFriendID, model.local.friends[id] != nil {
                         FriendPanel(friendID: id, maxHeight: geometry.size.height * 0.65, onClose: closeFriend)
                             .id(id)
@@ -51,12 +51,12 @@ struct MainView: View {
                             Spacer()
                             circleButton("mappin.and.ellipse", label: "Timed sharing") { activeSheet = .timedShare }
                         }
-                        .padding(.horizontal, 16)
+                        .padding(.horizontal, Spacing.large)
                         .transition(.opacity)
                     }
                     friendsBar
                 }
-                .padding(.bottom, 8)
+                .padding(.bottom, Spacing.small)
                 .animation(.spring(response: 0.35, dampingFraction: 0.85), value: selectedFriendID)
                 .animation(.spring(response: 0.35, dampingFraction: 0.85), value: model.timedShare != nil)
             }
@@ -110,13 +110,13 @@ struct MainView: View {
     }
 
     private var controls: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: Spacing.medium) {
             circleButton("gearshape.fill", label: "Settings") { activeSheet = .settings }
             circleButton("location.fill", label: "My location") {
                 mapCommand = MapCommand(kind: .followUser)
             }
         }
-        .padding()
+        .padding(Spacing.large)
     }
 
     private func circleButton(_ systemImage: String, label: LocalizedStringKey, action: @escaping () -> Void) -> some View {
@@ -135,11 +135,11 @@ struct MainView: View {
     private var friendsBar: some View {
         ScrollViewReader { proxy in
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 14) {
+            HStack(spacing: Spacing.large) {
                 Button {
                     activeSheet = .addFriend
                 } label: {
-                    VStack(spacing: 4) {
+                    VStack(spacing: Spacing.tight) {
                         Image(systemName: "plus")
                             .font(.title2.weight(.semibold))
                             .frame(width: 52, height: 52)
@@ -153,7 +153,7 @@ struct MainView: View {
                 Button {
                     activeSheet = .requests
                 } label: {
-                    VStack(spacing: 4) {
+                    VStack(spacing: Spacing.tight) {
                         Image(systemName: model.safety.pending.isEmpty ? "bell" : "bell.badge.fill")
                             .font(.title2.weight(.semibold))
                             .frame(width: 52, height: 52)
@@ -169,7 +169,7 @@ struct MainView: View {
                     Button {
                         select(friend)
                     } label: {
-                        VStack(spacing: 4) {
+                        VStack(spacing: Spacing.tight) {
                             AvatarView(username: friend.avatarName, imageData: friend.avatar, size: 52)
                                 .opacity(friend.theyShare ? 1 : 0.5)
                             Text(friend.displayName)
@@ -185,8 +185,8 @@ struct MainView: View {
                 }
             }
             // Matches the edge fade below, so nothing is faded until it actually scrolls toward an edge.
-            .padding(.horizontal, 24)
-            .padding(.vertical, 10)
+            .padding(.horizontal, Spacing.xLarge)
+            .padding(.vertical, Spacing.medium)
         }
         // A ScrollView clips to a plain rectangle, so the Add button and avatars slid over the bar's
         // rounded corners while scrolling. Fade them out across the corner radius at each end instead,
@@ -203,7 +203,7 @@ struct MainView: View {
         #endif
         }
         .floatingSurface(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .padding(.horizontal, 12)
+        .padding(.horizontal, Spacing.medium)
     }
 
     /// Opaque in the middle, fading to clear over `width` points at the left and right edges.
@@ -220,8 +220,8 @@ struct MainView: View {
     private func banner(_ text: LocalizedStringKey, systemImage: String) -> some View {
         Label(text, systemImage: systemImage)
             .font(.footnote.weight(.medium))
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
+            .padding(.horizontal, Spacing.large)
+            .padding(.vertical, Spacing.small)
             .floatingSurface(in: Capsule())
     }
 

@@ -140,6 +140,7 @@ final class AppModel: ObservableObject {
         if scene == "friend-unsupported" {
             // Their phone has said it can't answer Refresh, and we've already re-checked.
             local.friends[fixture.id]?.device?.liveRequests = false
+            local.friends[fixture.id]?.device?.platform = .ios  // also shows the Apple logo
             lastProbe[fixture.id] = Date()
         }
         if scene == "friend-updated" {
