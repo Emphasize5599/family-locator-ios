@@ -782,6 +782,7 @@ final class AppModel: ObservableObject {
         if loc.horizontalAccuracy >= 0 { comm.accuracy = Float(loc.horizontalAccuracy) }
         if loc.speed >= 0 { comm.speed = Float(loc.speed) }
         if loc.course > 0 { comm.bearing = Float(loc.course) }
+        comm.movement = await MotionActivity.shared.currentMovement()
         comm.batteryLevel = Battery.level
         comm.batteryCharging = Battery.isCharging
         comm.platform = .ios

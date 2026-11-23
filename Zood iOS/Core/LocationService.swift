@@ -103,6 +103,8 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     func startBaseline() {
         isEnabled = true
         guard hasAnyPermission else { return }
+        // Once location sharing runs, follow activity too (asks for Motion & Fitness the first time).
+        MotionActivity.shared.start()
         if CLLocationManager.significantLocationChangeMonitoringAvailable() {
             manager.startMonitoringSignificantLocationChanges()
         }
