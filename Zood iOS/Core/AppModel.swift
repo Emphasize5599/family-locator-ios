@@ -135,7 +135,18 @@ final class AppModel: ObservableObject {
         if scene == "friend-long-name" {
             fixture.nickname = "Alex Golden Gate Family"
         }
-        local.friends[fixture.id] = fixture
+        local.friends = [fixture.id: fixture]  // start each scene from the same fixture set
+        if scene == "map-many-friends" {
+            // Enough friends to make the friend bar scroll, for checking its rounded-corner clipping.
+            for (index, name) in ["Bailey", "Casey", "Devon", "Emerson", "Finley", "Harper"].enumerated() {
+                var extra = fixture
+                let seed = UInt8(20 + index)
+                extra.user = ZoodUser(userID: Data(repeating: seed, count: 16), username: name.lowercased() + "demo",
+                                      publicKey: Data(repeating: seed, count: 32))
+                extra.nickname = name
+                local.friends[extra.id] = extra
+            }
+        }
         if scene != "requests-empty" {
             safety.pending[ScreenshotTour.requester.id] = PendingRequest(user: ScreenshotTour.requester, boxID: Data(repeating: 7, count: 16), nickname: "Taylor")
         }

@@ -133,6 +133,7 @@ struct MainView: View {
     // MARK: Friends bar
 
     private var friendsBar: some View {
+        ScrollViewReader { proxy in
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 14) {
                 Button {
@@ -183,14 +184,37 @@ struct MainView: View {
                     .accessibilityAddTraits(.isButton)
                 }
             }
-            .padding(.horizontal, 16)
+            // Matches the edge fade below, so nothing is faded until it actually scrolls toward an edge.
+            .padding(.horizontal, 24)
             .padding(.vertical, 10)
         }
         // A ScrollView clips to a plain rectangle, so the Add button and avatars slid over the bar's
-        // rounded corners while scrolling. Clipping to the bar's own shape keeps them inside it.
+        // rounded corners while scrolling. Fade them out across the corner radius at each end instead,
+        // so they're gone before they reach the curve, then clip to the bar's shape as a backstop.
+        .mask(edgeFade(width: 24))
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        #if DEBUG
+        // Tour check: start scrolled partway, so buttons sit under the bar's rounded corners.
+        .onAppear {
+            if ScreenshotTour.scene == "map-many-friends", let middle = model.friends.dropFirst(2).first {
+                proxy.scrollTo(middle.id, anchor: .center)
+            }
+        }
+        #endif
+        }
         .floatingSurface(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
         .padding(.horizontal, 12)
+    }
+
+    /// Opaque in the middle, fading to clear over `width` points at the left and right edges.
+    private func edgeFade(width: CGFloat) -> some View {
+        HStack(spacing: 0) {
+            LinearGradient(colors: [.clear, .black], startPoint: .leading, endPoint: .trailing)
+                .frame(width: width)
+            Rectangle().fill(Color.black)
+            LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing)
+                .frame(width: width)
+        }
     }
 
     private func banner(_ text: LocalizedStringKey, systemImage: String) -> some View {
