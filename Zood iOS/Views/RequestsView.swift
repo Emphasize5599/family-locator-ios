@@ -39,15 +39,24 @@ struct RequestsView: View {
                         }
                         HStack(spacing: Spacing.tight) {
                             Button { perform { try await model.approveRequest(request) } } label: {
-                                Text("Approve").frame(maxWidth: .infinity, minHeight: 36)
+                                Text("Approve")
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.72)
+                                    .frame(maxWidth: .infinity, minHeight: 36)
                             }
                             .buttonStyle(.borderedProminent)
                             Button(role: .destructive) { decision = RequestDecision(request: request, block: false) } label: {
-                                Text("Deny").frame(maxWidth: .infinity, minHeight: 36)
+                                Text("Deny")
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.72)
+                                    .frame(maxWidth: .infinity, minHeight: 36)
                             }
                             .buttonStyle(.bordered)
                             Button(role: .destructive) { decision = RequestDecision(request: request, block: true) } label: {
-                                Text("Block").frame(maxWidth: .infinity, minHeight: 36)
+                                Text("Block")
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.72)
+                                    .frame(maxWidth: .infinity, minHeight: 36)
                             }
                             .buttonStyle(.bordered)
                         }
