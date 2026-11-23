@@ -436,7 +436,7 @@ struct MainView: View {
                     }
                 }
                 .padding(.vertical, gridInset)
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             .frame(height: gridHeight)
         }
