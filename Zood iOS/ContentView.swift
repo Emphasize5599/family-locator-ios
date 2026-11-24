@@ -15,6 +15,8 @@ struct ContentView: View {
             appContent
             #endif
         }
+        // Friend links (amidst://add/<username>, opened from the landing page or another app).
+        .onOpenURL { model.open($0) }
         .compatOnChange(of: scenePhase) { phase in
             switch phase {
             case .active: model.sceneDidBecomeActive()

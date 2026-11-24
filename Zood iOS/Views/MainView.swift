@@ -11,6 +11,8 @@ struct MainView: View {
     @State private var selectedFriendID: Data?
     @State private var nicknameDraft: FriendNicknameDraft?
     @State private var activeSheet: ActiveSheet?
+    /// A username to fill in when Add Friend opens from a friend link.
+    @State private var addFriendPrefill: String?
     /// The friend or folder being dragged around the bar (see FriendBarFolders.swift).
     @State private var dragging: BarItemID?
     /// The item a dragged friend is held over, showing "let go to make a folder".
@@ -110,7 +112,7 @@ struct MainView: View {
         .sheet(item: $activeSheet) { sheet in
             switch sheet {
             case .addFriend:
-                AddFriendView().environmentObject(model)
+                AddFriendView(prefill: addFriendPrefill).environmentObject(model)
             case .requests:
                 RequestsView().environmentObject(model)
             case .settings:
@@ -138,6 +140,9 @@ struct MainView: View {
         .alert("Could Not Save Request", isPresented: Binding(get: { model.safetyError != nil }, set: { if !$0 { model.safetyError = nil } })) {
             Button("OK") { model.safetyError = nil }
         } message: { Text(model.safetyError ?? "") }
+        .onAppear { showPendingFriendLink() }
+        .compatOnChange(of: model.pendingFriendLink) { _ in showPendingFriendLink() }
+        .compatOnChange(of: activeSheet) { sheet in if sheet == nil { addFriendPrefill = nil } }
         .onAppear {
             if !ScreenshotTour.isEnabled { model.location.requestPermission() }
             #if DEBUG
@@ -601,6 +606,21 @@ struct MainView: View {
         }
     }
 
+
+    /// Shows the person a friend link points to: their card if they're already a friend, otherwise Add Friend with
+    /// their username filled in (the user still confirms before anything is sent). A link to yourself is ignored.
+    private func showPendingFriendLink() {
+        guard let username = model.pendingFriendLink else { return }
+        model.pendingFriendLink = nil
+        guard username != model.credentials.map({ Username.forLookup($0.username) }) else { return }
+        if let friend = model.friends.first(where: { $0.user.username == username }) {
+            activeSheet = nil
+            select(friend)
+            return
+        }
+        addFriendPrefill = username
+        activeSheet = .addFriend
+    }
     private func select(_ friend: Friend, fromPin: Bool = false) {
         closeFolder()
         let alreadySelected = selectedFriendID == friend.id

@@ -15,8 +15,15 @@ struct AddFriendView: View {
     @State private var candidate: ZoodUser?
     @State private var choiceLabelHeight: CGFloat = 0
 
-    init(preview: ZoodUser? = nil) {
+    /// Which invite the share sheet sends (see `inviteText`).
+    @State private var inviteWithLink = true
+    @State private var choosingInvite = false
+
+    /// `prefill` fills in a username from a friend link; the account check starts right away, but nothing is sent
+    /// until the user taps Continue.
+    init(preview: ZoodUser? = nil, prefill: String? = nil) {
         _candidate = State(initialValue: preview)
+        _username = State(initialValue: prefill ?? "")
     }
 
     private var handle: String { Username.forLookup(username) }
@@ -48,6 +55,15 @@ struct AddFriendView: View {
             await UsernameLookup.check(entered, registration: false, model: model) { lookup = $0 }
         }
         .sheet(isPresented: $showingInvite) { ActivityView(items: [inviteText]) }
+        // Some people want to hand out a link straight to their profile; others would rather not share their
+        // username with everyone who sees the message (for example in a group chat), so it's their choice.
+        .confirmationDialog("Share an Invite", isPresented: $choosingInvite, titleVisibility: .visible) {
+            Button("Include My Username Link") { shareInvite(withLink: true) }
+            Button("Without My Username") { shareInvite(withLink: false) }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("A username link lets people send you a friend request with one tap.")
+        }
     }
 
     private func sharingStep(for user: ZoodUser) -> some View {
@@ -118,7 +134,7 @@ struct AddFriendView: View {
         .buttonStyle(.bordered)
         .tint(pending == nil ? Color.zoodBlue : Color.zoodGreen)
         .disabled(!canContinue)
-        Button { showingInvite = true } label: {
+        Button { choosingInvite = true } label: {
             Label("Invite Someone", systemImage: "square.and.arrow.up").frame(minHeight: 44)
         }
     }
@@ -128,8 +144,18 @@ struct AddFriendView: View {
             && (pending != nil || (lookup?.username == handle && lookup?.result != .notFound))
     }
 
+    /// With a link, friends can tap it to open Add Friend with this username filled in. Without it, the invite
+    /// only points to Amidst, and the user can tell people their username another way.
     private var inviteText: String {
-        "Install Amidst (iPhone or Android) or Zood Location (Android) so we can securely share our location with each other. My username is @\(model.credentials?.username ?? "")."
+        if inviteWithLink, let link = model.myFriendLink {
+            return "Add me on Amidst, private location sharing for family and friends: \(link.absoluteString)"
+        }
+        return "Let's share our locations privately with Amidst (iPhone or Android, works with Zood Location): \(FriendLink.homeURL.absoluteString)"
+    }
+
+    private func shareInvite(withLink: Bool) {
+        inviteWithLink = withLink
+        showingInvite = true
     }
 
     private func next() {

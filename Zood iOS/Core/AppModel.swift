@@ -60,6 +60,9 @@ final class AppModel: ObservableObject {
     @Published private(set) var barOrder: [BarItemID] = []
     /// Set when this iPhone signed itself out because the account was signed in on another device.
     @Published var signedOutElsewhere = false
+    /// A username from a friend link that was opened (see `FriendLink`), waiting for the map screen to show it.
+    /// Kept here rather than in a view so a link opened while signed out is still handled right after sign-in.
+    @Published var pendingFriendLink: String?
     /// The running timed share, if any (see `TimedShare`).
     @Published private(set) var timedShare: TimedShare?
     /// Friends whose phones we're asking "can you answer location requests?" before showing Unsupported.
@@ -1014,6 +1017,16 @@ final class AppModel: ObservableObject {
     }
 
     /// An incoming friend request from this username, if one is waiting for approval.
+    /// Accepts a friend link the app was opened with. Invalid links are ignored; nothing is sent until the user
+    /// confirms in Add Friend.
+    func open(_ url: URL) {
+        guard let username = FriendLink.username(from: url) else { return }
+        pendingFriendLink = username
+    }
+
+    /// This account's own friend link, for sharing in an invite.
+    var myFriendLink: URL? { credentials.map { FriendLink.url(for: $0.username) } }
+
     func pendingRequest(username: String) -> PendingRequest? {
         let username = Username.forLookup(username)
         return safety.visibleRequests.first { $0.user.username == username }
