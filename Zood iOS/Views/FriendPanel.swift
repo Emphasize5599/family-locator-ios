@@ -138,6 +138,9 @@ struct FriendPanel: View {
                     nameContent(friend)
                     headerControls(friend)
                     Text(nicknameDraft ?? friend.displayName).font(.title2.bold())
+                        .fixedSize(horizontal: false, vertical: true)
+                        .hidden().accessibilityHidden(true)
+                    Text("M\nM").font(.title2.bold())
                         .fixedSize().hidden().accessibilityHidden(true)
                 }
             } else {
@@ -623,7 +626,9 @@ private struct FriendHeaderLayout: Layout {
         let avatar = subviews[0].sizeThatFits(.unspecified)
         let controls = subviews[2].sizeThatFits(.unspecified)
         let inlineWidth = max(0, width - avatar.width - controls.width - 2 * gap)
-        let below = inlineWidth < 44 || subviews[3].sizeThatFits(.unspecified).width > inlineWidth
+        let inlineName = subviews[3].sizeThatFits(ProposedViewSize(width: inlineWidth, height: nil))
+        let twoLines = subviews[4].sizeThatFits(.unspecified).height
+        let below = inlineWidth < 44 || inlineName.height > twoLines
         let name = subviews[1].sizeThatFits(ProposedViewSize(width: below ? width : inlineWidth, height: nil))
         return (avatar, name, controls, below)
     }

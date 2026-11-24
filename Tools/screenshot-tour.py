@@ -12,7 +12,7 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 BUNDLE = 'com.bensanzone.zood'
-SCENES = ['onboarding', 'map', 'map-many-friends', 'map-folders', 'map-folders-open', 'map-folders-open-long', 'map-folders-open-rename', 'friend-overlap', 'friend', 'friend-short-name', 'friend-long-name', 'friend-updated', 'friend-unsupported', 'friend-contact-photo', 'add-friend', 'add-friend-share', 'profile-nickname', 'requests', 'requests-empty',
+SCENES = ['onboarding', 'map', 'map-many-friends', 'map-folders', 'map-folders-open', 'map-folders-open-long', 'map-folders-open-rename', 'friend-overlap', 'friend', 'friend-short-name', 'friend-two-line-name', 'friend-long-name', 'friend-updated', 'friend-unsupported', 'friend-contact-photo', 'add-friend', 'add-friend-share', 'profile-nickname', 'requests', 'requests-empty',
           'safety-number', 'timed-share', 'friend-nickname', 'account', 'settings', 'settings-support', 'settings-nickname', 'notices', 'avatar-crop',
           'blocked-users', 'blocked-empty', 'delete-account']
 

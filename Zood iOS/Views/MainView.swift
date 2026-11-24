@@ -140,7 +140,7 @@ struct MainView: View {
             if ScreenshotTour.isEnabled, let loc = model.friends.first?.location {
                 mapCommand = MapCommand(kind: .focus(latitude: loc.latitude, longitude: loc.longitude))
             }
-            if ["friend", "friend-short-name", "friend-long-name", "friend-updated", "friend-unsupported", "friend-contact-photo", "friend-nickname"].contains(ScreenshotTour.scene ?? ""), let friend = model.friends.first { select(friend) }
+            if ["friend", "friend-short-name", "friend-two-line-name", "friend-long-name", "friend-updated", "friend-unsupported", "friend-contact-photo", "friend-nickname"].contains(ScreenshotTour.scene ?? ""), let friend = model.friends.first { select(friend) }
             if ScreenshotTour.scene?.hasPrefix("map-folders-open") == true { openFolderID = model.friendFolders.first?.id }
             if ScreenshotTour.scene == "map-folders-open-rename", let folder = model.friendFolders.first {
                 beginRename(folder)
