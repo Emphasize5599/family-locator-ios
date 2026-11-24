@@ -1,4 +1,4 @@
-# Clibsodium for Family Locator
+# Clibsodium for Amidst
 
 Upstream libsodium **1.0.22** with the official Apple RNG selection backport, release commit `77e1ce5d6dee871c49ef211222ba18ef0c486bda`.
 Source archive: https://github.com/jedisct1/libsodium/releases/download/1.0.22-RELEASE/libsodium-1.0.22.tar.gz

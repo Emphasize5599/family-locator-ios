@@ -52,7 +52,7 @@ struct BackgroundRefreshView: View {
                     if lowPowerMode {
                         Text("Low Power Mode temporarily turns off Background App Refresh. Turn off Low Power Mode in Settings > Battery to restore it. iOS does not offer a permission prompt for this setting.")
                     } else {
-                        Text("Enable Background App Refresh for Family Locator in Settings. If it is unavailable there, go to Settings > General > Background App Refresh and enable it for the system and this app. This helps background updates, but does not guarantee that iOS will keep the app running. Keep Location access set to Always and do not swipe the app closed.")
+                        Text("Enable Background App Refresh for Amidst in Settings. If it is unavailable there, go to Settings > General > Background App Refresh and enable it for the system and this app. This helps background updates, but does not guarantee that iOS will keep the app running. Keep Location access set to Always and do not swipe the app closed.")
                     }
                 }
             } else if showsStatus {

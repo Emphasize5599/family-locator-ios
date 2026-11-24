@@ -12,7 +12,7 @@ struct DeleteAccountView: View {
     var body: some View {
         Form {
             Section {
-                Text("Permanently delete your Zood account and its encrypted friends-list backup from the server. This affects this account in Family Locator and other Zood apps.")
+                Text("Permanently delete your Zood account and its encrypted friends-list backup from the server. This affects this account in Amidst and other Zood apps.")
                 Text("You will be signed out and location sharing will stop on this iPhone. Previously received locations or copies saved by other people cannot be recalled.")
             }
             Section {

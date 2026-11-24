@@ -225,8 +225,8 @@ struct AccountView: View {
 struct NoticesView: View {
     var body: some View {
         List {
-            Section("Family Locator") {
-                notice("Family Locator is free software under the GNU Affero General Public License, version 3. It's an independent app built on the open Zood Location protocol and servers. Zood is a trademark of Tangled Wires, LLC; Family Locator isn't affiliated with or endorsed by Tangled Wires.")
+            Section("Amidst") {
+                notice("Amidst is free software under the GNU Affero General Public License, version 3. It's an independent app built on the open Zood Location protocol and servers. Zood is a trademark of Tangled Wires, LLC; Amidst isn't affiliated with or endorsed by Tangled Wires.")
             }
             Section("Apple") {
                 notice("Apple, the Apple logo, iPhone and Apple Maps are trademarks of Apple Inc., registered in the U.S. and other countries and regions. The Apple logo appears only to show that a friend uses an Apple device. Map data and imagery are provided by Apple Maps; see the Legal link on the map.")

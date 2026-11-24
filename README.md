@@ -1,4 +1,4 @@
-# Family Locator for iPhone
+# Amidst for iPhone
 
 An iOS client for the [Zood Location](https://www.zood.xyz) network: end-to-end encrypted location sharing that
 works with people using Zood on Android. It talks to the public Zood server (`api.zood.xyz`) and uses the same

@@ -20,7 +20,7 @@ The app now has an in-app deletion flow, published privacy/support/license links
 - Settings > Account > Delete Account uses the real authenticated `DELETE /1/users/me` endpoint. Username entry and a final destructive confirmation explain permanent deletion. A failed request remains an error; local logout is not presented as deletion.
 - Logout/deletion cancel pending backup work, resolve location waiters, stop monitoring and streaming, clear cached fixes, cancel restart tasks and invalidate the background location session. Signed-out views cannot restart location activity just by becoming active.
 - Permission changes reapply the streaming configuration, including when access is revoked.
-- Onboarding and Settings link to the Family Locator privacy policy and support. Settings also links to open-source notices.
+- Onboarding and Settings link to the Amidst privacy policy and support. Settings also links to open-source notices.
 - The privacy manifest declares app-only preferences (`CA92.1`), no tracking, and conservative app-functionality disclosures for identifiers, optional email, precise location, optional photos, and device/location metadata. Review App Store Connect answers against the actual service behavior; the manifest does not populate those answers automatically.
 - API requests use an ephemeral URLSession with no persistent response cache or cookies, including authentication responses.
 - Timed-share text makes clear that expiry stops new uploads and cannot recall the last location or copies already received.
@@ -41,7 +41,7 @@ Before each submission, verify the credentials again. If reviewers delete the ac
 
 ## Suggested private review notes
 
-Family Locator is an independent encrypted location-sharing client compatible with Zood Location. Its functionality relies on accounts so that selected friends can exchange encrypted location packages. There are no purchases, ads, or tracking SDKs.
+Amidst is an independent encrypted location-sharing client compatible with Zood Location. Its functionality relies on accounts so that selected friends can exchange encrypted location packages. There are no purchases, ads, or tracking SDKs.
 
 Use the supplied demo credentials. The demo has one clearly identified sample companion located at a public landmark (Golden Gate Bridge); this is static test data. The demo does not share the reviewer's location with the sample friend by default. To test live sharing/Refresh, use the separately supplied companion credentials on a second device. Choose Always location access and enable Live Requests on that device. Viewing a friend's saved location does not require granting the reviewer's own location permission.
 

@@ -54,7 +54,7 @@
         "ENABLE_USER_SELECTED_FILES": "readonly",
         "GENERATE_INFOPLIST_FILE": "YES",
         "INFOPLIST_FILE": "Zood-iOS-Info.plist",
-        "INFOPLIST_KEY_CFBundleDisplayName": "Family Locator",
+        "INFOPLIST_KEY_CFBundleDisplayName": "Amidst",
         "INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription": "Allow \"Always\" so family can see where you are and request your location even when the app isn't open. Your location is end-to-end encrypted.",
         "INFOPLIST_KEY_NSMotionUsageDescription": "Lets family see whether you're walking, running, cycling or driving next to your location. It's end-to-end encrypted like your location.",
         "INFOPLIST_KEY_NSLocationWhenInUseUsageDescription": "Your location is end-to-end encrypted and shared only with the friends you choose.",

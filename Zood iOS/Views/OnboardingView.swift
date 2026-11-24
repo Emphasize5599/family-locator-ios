@@ -36,7 +36,7 @@ struct OnboardingView: View {
                         Image(systemName: "location.circle.fill")
                             .font(.system(size: 64))
                             .foregroundStyle(Color.zoodBlue)
-                        Text("Family Locator")
+                        Text("Amidst")
                             .font(.title.bold())
                         Text("End-to-end encrypted location sharing, compatible with Zood Location.")
                             .font(.subheadline)

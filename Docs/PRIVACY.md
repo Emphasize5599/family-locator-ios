@@ -1,8 +1,8 @@
-# Family Locator privacy policy
+# Amidst privacy policy
 
 Effective November 22, 2026.
 
-Family Locator is an independent, open-source iPhone client for the Zood Location network, maintained through [Emphasize5599/family-locator-ios](https://github.com/Emphasize5599/family-locator-ios). It is not affiliated with Tangled Wires, LLC. The account and encrypted-message service is operated by Zood at `api.zood.xyz`; its [mobile-app privacy policy](https://www.zood.xyz/privacy/mobile-apps) also applies to that service.
+Amidst is an independent, open-source iPhone client for the Zood Location network, maintained through [Emphasize5599/family-locator-ios](https://github.com/Emphasize5599/family-locator-ios). It is not affiliated with Tangled Wires, LLC. The account and encrypted-message service is operated by Zood at `api.zood.xyz`; its [mobile-app privacy policy](https://www.zood.xyz/privacy/mobile-apps) also applies to that service.
 
 ## Information used
 
@@ -38,6 +38,6 @@ The app does not promise to erase encrypted packages, provider backups or logs b
 
 ## Contact and changes
 
-For Family Locator support, privacy questions, or abuse reports, open an issue on the project's [GitHub Issues page](https://github.com/Emphasize5599/family-locator-ios/issues). **GitHub issues are public**, and GitHub handles your account and anything you post under its own privacy policy. Report a Problem in the app opens the GitHub Issues page; you can read it without an account, and filing an issue requires a GitHub account. Nothing is sent automatically, and no location, photo, password or encryption key is attached. Do not post passwords, location coordinates, private keys, timed-sharing links, or anything else you don't want public. Reports cannot directly suspend an account on the independently operated Zood service; backend concerns may require contacting its operator. For private account or server-data questions, use [Zood's contact page](https://www.zood.xyz/contact).
+For Amidst support, privacy questions, or abuse reports, open an issue on the project's [GitHub Issues page](https://github.com/Emphasize5599/family-locator-ios/issues). **GitHub issues are public**, and GitHub handles your account and anything you post under its own privacy policy. Report a Problem in the app opens the GitHub Issues page; you can read it without an account, and filing an issue requires a GitHub account. Nothing is sent automatically, and no location, photo, password or encryption key is attached. Do not post passwords, location coordinates, private keys, timed-sharing links, or anything else you don't want public. Reports cannot directly suspend an account on the independently operated Zood service; backend concerns may require contacting its operator. For private account or server-data questions, use [Zood's contact page](https://www.zood.xyz/contact).
 
 Policy changes will be published on this page with an updated effective date. Material changes to data use require updated disclosures and, where applicable, consent.

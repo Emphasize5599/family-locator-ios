@@ -1,6 +1,6 @@
 # Open-source licenses and attribution
 
-Family Locator is licensed under the [GNU Affero General Public License, version 3](../LICENSE), with an [additional permission](../APP_STORE_EXCEPTION.md) under section 7 for distribution through the App Store and similar stores. It implements the open Zood protocol and is compatible with the [Zood Location Android client](https://github.com/zood/george). Zood is a trademark of Tangled Wires, LLC; Family Locator is an independent project.
+Amidst is licensed under the [GNU Affero General Public License, version 3](../LICENSE), with an [additional permission](../APP_STORE_EXCEPTION.md) under section 7 for distribution through the App Store and similar stores. It implements the open Zood protocol and is compatible with the [Zood Location Android client](https://github.com/zood/george). Zood is a trademark of Tangled Wires, LLC; Amidst is an independent project.
 
 The full corresponding source, changes and build instructions are available in [this repository](https://github.com/Emphasize5599/family-locator-ios). For source corresponding to an installed release, select its matching release tag. Apple Maps content remains subject to Apple's terms and attribution shown by the map.
 

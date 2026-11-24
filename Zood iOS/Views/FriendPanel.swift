@@ -428,7 +428,7 @@ struct FriendPanel: View {
             Group {
                 switch kind {
                 case .unsupported where friend.device?.platform != .ios:
-                    Text("\(name)’s phone reported that it can’t answer on-demand requests right now. They can open Family Locator and check Live Requests and location access.")
+                    Text("\(name)’s phone reported that it can’t answer on-demand requests right now. They can open Amidst and check Live Requests and location access.")
                     Text("The map can still show their last published location.")
                 case .unsupported:
                     Text("\(name)'s iPhone isn't listening for requests right now. Zood's servers can't wake an iPhone, so the app has to stay running in the background to hear one. That stops if **Live Requests** is off, or if the app was swiped closed.")
