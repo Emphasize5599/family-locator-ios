@@ -1,26 +1,26 @@
 # Amidst on the App Store
 
-Not ready to submit. This file is the script for App Store Connect. It is not an Apple approval.
-
-Reviewer usernames and passwords stay in `.review-private/APP_REVIEW_CREDENTIALS.md`. That file is Git-ignored. Do not paste it here, into a release, or into a GitHub issue.
+This is the copy-and-paste packet for the first iOS submission. The listing decisions are settled. Complete the publisher fields and submission checks below before sending the app to review.
 
 The home-screen name is Amidst. The store name is Amidst: Where Everyone Is.
 
-## What's left to do
+Reviewer credentials are in the Git-ignored `.review-private/APP_REVIEW_CREDENTIALS.md`. Use them only in the private App Store Connect review fields.
 
-Do these before submitting. The form answers and the listing text below are ready to paste.
+## What’s left to do
 
-1. Re-check both demo accounts against the live service. Create one new disposable account, delete it through Settings → Account → Delete Account, and confirm it can no longer sign in. If a reviewer deletes a demo account, replace it and update the private file. Do not reset the sample friend while a review is open.
-2. On a physical iPhone, test Always, While Using, denied, and approximate location. Also test background updates, Live Requests, Low Power Mode, force-quit and relaunch, timed-share expiry, log out, and deletion. A simulator pass does not cover this.
-3. Archive with the publisher's distribution certificate and upload the build. The GitHub IPAs are sideloads, not App Store builds. `ITSAppUsesNonExemptEncryption` is already `YES`.
-4. Create the App Store Connect record for bundle ID `com.bensanzone.amidst`. Paste the answers and the listing from this file. Enter the publisher's own review-contact name, phone, and email. Enter the copyright name. Choose the territories.
-5. On the encryption questions, do not answer "HTTPS only." The app uses libsodium public-key encryption, secret-box encryption, and Argon2. The publisher decides which exemption applies and files any required paperwork.
-6. Take the screenshots from this build. Use fictional people. Do not show a price, the word "free," the Zood icon, or a live timed-share link.
-7. Confirm someone monitors https://github.com/Emphasize5599/family-locator-ios/issues and can escalate service abuse to the Zood operator. Deny and Block in the app are not enough on their own.
-8. Keep evidence that Amidst may use `api.zood.xyz`, in case Apple asks under guideline 5.2.2.
-9. Read https://www.zood.xyz/privacy/mobile-apps and confirm the privacy answers still match what that service stores.
+### When you talk to Dad
 
-Do not choose the Kids Category. Do not ask Brazil for a lower Shared Location rating. Do not put "free" or a price in the name, subtitle, screenshots, or previews.
+- Confirm the Apple Developer team that will publish Amidst and who will receive review questions. Have the review contact’s first and last name, phone in international format, and email ready. Confirm the copyright year and rights holder for the copyright field.
+- Create or confirm the iOS App Store Connect record for bundle ID `com.bensanzone.amidst`. Use the settled listing and questionnaire answers below. Confirm territories and complete the export-compliance questions for the selected storefronts.
+- Confirm who will monitor the listed support channel and respond to abuse reports. The app already offers Deny, Block, and Report a Problem.
+
+### Before submitting
+
+- Archive and upload a distribution-signed build from the publisher’s team. Select that build in App Store Connect. The GitHub IPAs are for sideloading.
+- Add current screenshots with fictional accounts and locations. Show the map and friends bar first. Keep prices, the word “free,” the original Zood icon, and working timed-share links out of the screenshots and previews.
+- Privately recheck both demo logins, the sample pin, and the companion flow. Check permission changes, background sharing, Live Requests, timed-share expiry, logout, and deletion on a physical iPhone. Use a separate disposable account for deletion. Keep the demo accounts available throughout review.
+- Review the completed App Privacy answers against the shipped build and known service behavior, then enter the final answers in App Store Connect. Apple calculates the age rating. Keep the existing decision to leave Kids Category off and to accept Brazil’s Shared Location rating.
+- Answer any question about third-party authorization factually. The public source documents the protocol and licensing of the code. The publisher should claim service authorization only when there is evidence for it. See Apple’s [guideline 5.2.2](https://developer.apple.com/app-store/review/guidelines/#intellectual-property).
 
 ## Answers for the submission form
 
@@ -33,10 +33,11 @@ Apple calculates the age rating from the questionnaire. Do not type a rating in 
 | Name | Amidst: Where Everyone Is |
 | Subtitle | Open Source, Always Encrypted |
 | Bundle ID | `com.bensanzone.amidst` |
+| SKU | `amidst-ios` if creating the record. Use the existing SKU if the record already exists. |
 | Primary language | English (U.S.) |
 | Primary category | Social Networking |
 | Secondary category | Lifestyle |
-| Content rights | No licensed third-party catalog. Apple Maps is the system map. Photos and names are user content. |
+| Content rights | Publisher confirmation. The app uses Apple Maps and displays user-supplied names and photos. There is no licensed media catalog. Use the actual form wording when confirming the answer. |
 
 Age rating, capabilities:
 
@@ -64,7 +65,7 @@ Price is free. There are no in-app purchases. Sell it in every territory unless 
 
 Privacy Policy URL: https://github.com/Emphasize5599/family-locator-ios/blob/main/Docs/PRIVACY.md?view=policy
 
-Data is collected, linked to the user, and used for app functionality. It is not used for tracking. There is no advertising SDK and no analytics SDK. The Zood service at `api.zood.xyz` receives the account and the encrypted packages, so include that service when the form asks about third parties.
+Data is collected, linked to the user, and used for app functionality. It is not used for tracking. There is no advertising SDK and no analytics SDK. Use the public privacy policy and the disclosures below to complete the form. If a question asks for the service endpoint, enter `api.zood.xyz`.
 
 | Data | Collected | Notes |
 | --- | --- | --- |
@@ -74,7 +75,7 @@ Data is collected, linked to the user, and used for app functionality. It is not
 | Fitness | Yes | Walking, running, cycling, or driving, sent inside the encrypted location package. |
 | Contacts | Yes | Only a chosen contact's name and identifier, inside the encrypted backup. The address book is not uploaded. The contact photo stays on the device. |
 | Photos | Yes | Optional profile photo, encrypted for friends. |
-| Other data | Yes | Battery, platform, accuracy, speed, and direction, inside the encrypted package. The service also sees connection metadata such as IP address. |
+| Other data | Yes | Battery, platform, accuracy, speed, and direction, inside the encrypted package. Connection metadata such as IP address is described in the privacy policy. |
 
 Not collected: payment info, health records beyond the motion category above, browsing history, search history, advertising data, or the full contacts database.
 
@@ -84,29 +85,39 @@ Not collected: payment info, health records beyond the motion category above, br
 | --- | --- |
 | Support URL | https://github.com/Emphasize5599/family-locator-ios/issues |
 | Marketing URL | Leave blank |
-| Copyright | The publisher's legal name. It is not in this repository. |
+| Copyright | Enter the confirmed year and rights holder in the form `[YEAR] [RIGHTS HOLDER]`. |
 | Sign-in required | Yes |
-| Demo account | Copy both accounts from the private credentials file. No email code, no two-factor prompt, and no purchase. |
-| Review contact | The publisher's name, phone, and email. |
-| What's New | First release. |
+| Demo username and password | Enter the primary reviewer account from the private credentials file in the Sign-in fields. Insert the companion login in the private Notes block below. |
+| Review contact | First and last name, email, and phone for the person who will respond to review questions. Use international phone format. |
+| What's New | Leave blank for the first release. |
 
-App Review Information notes:
+#### App Review Information → Notes
+
+Paste this block into the private Notes field. Replace the two companion placeholders and the testing placeholder. Apple asks for the external services that deliver core features, so the block lists the endpoint once alongside Apple Maps.
 
 ```
-The App Store name is Amidst: Where Everyone Is. The subtitle is Open Source, Always Encrypted. On the home screen the app is Amidst.
+Amidst is an open-source app for sharing your location with family and friends you choose. It is compatible with clients that use the Zood protocol, including the original Zood app and the independent Amidst Android fork. External services for core features are Apple Maps and the protocol endpoint api.zood.xyz. There are no purchases, ads, or tracking SDKs.
 
-Amidst is an independent encrypted location-sharing client compatible with Zood Location. Accounts exist so chosen friends can exchange encrypted location packages. Location packages, friend messages, shared photos, and the account backup are encrypted on the device before upload. The service can still see account identifiers and connection metadata. There are no purchases, ads, or tracking SDKs.
+Sign in with the credentials in the Sign-in fields. The map shows a fictional companion at the Golden Gate Bridge. You can view this saved test pin without giving the app access to your own location. The demo starts with your location sharing turned off.
 
-Use the supplied demo credentials. The demo has one sample companion at the Golden Gate Bridge. That pin is static test data, not a live person. The demo does not share the reviewer's location with that companion. To test a live refresh, sign the companion account into a second device, choose Always, and turn on Live Requests. Viewing the saved pin does not require the reviewer's own location permission.
+To test Live Requests, sign the companion into a second compatible device, allow background location, and enable Live Requests. On the reviewer device, open the companion’s card and tap Refresh. On iPhone, Live Requests requires iOS 17 or later. iOS 15 and 16 can send movement-triggered updates. Location sharing and Live Requests depend on the user’s permissions and the device’s background availability.
 
-Background location keeps a share updated and answers a refresh from a friend who was already granted access. Live Requests requires iOS 17 or later. On iOS 15 and 16 the app can still share movement-triggered updates and does not advertise Live Requests. Turning Live Requests off, revoking permission, or force-quitting can stop replies. iOS decides whether background time is available.
+Companion username: [PRIVATE COMPANION USERNAME]
+Companion password: [PRIVATE COMPANION PASSWORD]
+Devices and OS versions tested: [ACTUAL DEVICES AND OS VERSIONS TESTED FOR THIS BUILD]
 
-Timed Sharing is the map-pin button above the friends bar. The link contains the decryption key. Anyone with the link can view the shared locations. The timer stops new updates. Locations already delivered can remain visible. Stop the share with its toggle.
+Tap the map-pin button above the friends bar to open Timed Sharing. Anyone with the link can see the shared location. Ending the share stops new updates. Previously delivered locations can remain visible.
 
-Contact & Support and Report a Problem both open GitHub Issues. Privacy Policy, Open-Source Licenses, and Background App Refresh are in Settings. Blocked Users, Log Out, and Delete Account are in Settings → Account, under the profile tile. Delete Account permanently deletes the shared Zood account and its encrypted backup after the server confirms. A failed request is not treated as deletion.
+Privacy Policy, support, and open-source notices are in Settings. Blocked Users, Log Out, and Delete Account are under Settings → Account. Delete Account deletes the same account used by compatible clients and its encrypted backup. The app reports a failure if deletion is unsuccessful.
 ```
 
 ### Export compliance
+
+If the form asks what the encryption protects, paste this description.
+
+```
+Amidst uses libsodium for public-key encryption, secret-box encryption, and Argon2 password-based key derivation. This protects location packages, friend messages, shared photos, and account backups. Network transport uses HTTPS.
+```
 
 The build declares non-exempt encryption because the app does more than HTTPS. On the upload questions, describe libsodium encryption used to protect location packages, messages, and backups. The publisher chooses the exemption and completes any annual self-classification or other filing that choice requires.
 
@@ -135,7 +146,7 @@ Add friends by username. Choose whether to share with each person, and stop shar
 
 With your permission, Amidst can update a share in the background and answer a Live Request from a friend you already share with. You can view friends and send requests without sharing your own location.
 
-Amidst is an independent open-source client for the Zood Location network and works with Amidst on Android. It is not affiliated with Zood's trademark owner. There are no purchases and no ads.
+Amidst is independent and open source. It works with clients that use the Zood protocol, including the original Zood app and Amidst for Android. There are no purchases and no ads.
 ```
 
 Screenshots: follow the current specifications at https://developer.apple.com/help/app-store-connect/reference/app-information/screenshot-specifications. Use this build. Sample people must be fictional. The first images should show the map with friends on it.
@@ -167,7 +178,7 @@ Audited November 22, 2026, with a follow-up on November 24. Signing, App Store C
 ### November 24, 2026
 
 - The 1.1.48 candidate (build 50) still deploys to iOS 15 and builds with Xcode and SDK 27.2. Unsigned and ad-hoc IPAs are sideloading artifacts.
-- 1.1.49 (build 51) uses bundle ID `com.bensanzone.amidst` and product name Amidst. The friend-link URL name, keychain services, location log, and wake-up geofence use that prefix. It installs beside `com.bensanzone.zood` and does not migrate that app's keychain or monitored region. User-facing Zood mentions stay in Notices & Trademarks, account deletion, the privacy policy, and the store description.
+- 1.1.49 (build 51) uses bundle ID `com.bensanzone.amidst` and product name Amidst. The friend-link URL name, keychain services, location log, and wake-up geofence use that prefix. It installs beside `com.bensanzone.zood` and does not migrate that app's keychain or monitored region. User-facing references are limited to the notices, privacy and account-deletion information, and protocol compatibility. List the endpoint in private review notes where Apple asks for external services.
 - The privacy manifest includes Contacts because an optional contact name and reference are stored in the encrypted backup. An earlier 1.1.10 note said contact data never left the device. That became stale in 1.1.16.
 - A phone symbol indicates an iPhone. The Zood icon was removed. Guideline 4.1(c) forbids another developer's icon without approval. ZOOD is a registered US trademark of Tangled Wires, LLC (Reg. No. 5,886,683, Class 9). "Zood" appears only in descriptive compatibility text.
 - Account deletion calls `DELETE /1/users/me` and waits for confirmation before clearing the local account. A historical disposable-account deletion passed. Recheck it before the submission in progress.
@@ -201,12 +212,13 @@ A disposable account was created, given an encrypted backup, deleted through the
 - Privacy: https://github.com/Emphasize5599/family-locator-ios/blob/main/Docs/PRIVACY.md?view=policy
 - Support: https://github.com/Emphasize5599/family-locator-ios/issues
 - Licenses: https://github.com/Emphasize5599/family-locator-ios/blob/main/Docs/LICENSES.md
-- Service policy: https://www.zood.xyz/privacy/mobile-apps
 
 ### References
 
 - [App Review Guidelines](https://developer.apple.com/app-store/review/guidelines/)
 - [Provide information for a complete review](https://developer.apple.com/help/app-review/before-submitting-for-review/complete-review/)
+- [App Review field requirements](https://developer.apple.com/help/app-store-connect/reference/app-information/platform-version-information)
+- [App Information and Content Rights](https://developer.apple.com/help/app-store-connect/reference/app-information/app-and-compliance-information/)
 - [Required-reason APIs](https://developer.apple.com/documentation/bundleresources/describing-use-of-required-reason-api)
 - [App Privacy Details](https://developer.apple.com/app-store/app-privacy-details/)
 - [Screenshot specifications](https://developer.apple.com/help/app-store-connect/reference/app-information/screenshot-specifications)
