@@ -13,7 +13,7 @@ Do these before submitting. The form answers and the listing text below are read
 1. Re-check both demo accounts against the live service. Create one new disposable account, delete it through Settings → Account → Delete Account, and confirm it can no longer sign in. If a reviewer deletes a demo account, replace it and update the private file. Do not reset the sample friend while a review is open.
 2. On a physical iPhone, test Always, While Using, denied, and approximate location. Also test background updates, Live Requests, Low Power Mode, force-quit and relaunch, timed-share expiry, log out, and deletion. A simulator pass does not cover this.
 3. Archive with the publisher's distribution certificate and upload the build. The GitHub IPAs are sideloads, not App Store builds. `ITSAppUsesNonExemptEncryption` is already `YES`.
-4. Create the App Store Connect record for bundle ID `com.bensanzone.zood`. Paste the answers and the listing from this file. Enter the publisher's own review-contact name, phone, and email. Enter the copyright name. Choose the territories.
+4. Create the App Store Connect record for bundle ID `com.bensanzone.amidst`. Paste the answers and the listing from this file. Enter the publisher's own review-contact name, phone, and email. Enter the copyright name. Choose the territories.
 5. On the encryption questions, do not answer "HTTPS only." The app uses libsodium public-key encryption, secret-box encryption, and Argon2. The publisher decides which exemption applies and files any required paperwork.
 6. Take the screenshots from this build. Use fictional people. Do not show a price, the word "free," the Zood icon, or a live timed-share link.
 7. Confirm someone monitors https://github.com/Emphasize5599/family-locator-ios/issues and can escalate service abuse to the Zood operator. Deny and Block in the app are not enough on their own.
@@ -31,13 +31,13 @@ Apple calculates the age rating from the questionnaire. Do not type a rating in 
 | --- | --- |
 | Name | Amidst: Where Everyone Is |
 | Subtitle | Open Source, Always Encrypted |
-| Bundle ID | `com.bensanzone.zood` |
+| Bundle ID | `com.bensanzone.amidst` |
 | Primary language | English (U.S.) |
 | Primary category | Social Networking |
 | Secondary category | Lifestyle |
 | Content rights | No licensed third-party catalog. Apple Maps is the system map. Photos and names are user content. |
 
-Social Networking matches people sharing with people they know. Lifestyle is the secondary. Navigation would describe a directions app.
+Primary Social Networking and secondary Lifestyle are the categories Life360 uses. Social Networking is people sharing with people they know.
 
 Age rating, capabilities:
 
@@ -123,15 +123,15 @@ The build declares non-exempt encryption because the app does more than HTTPS. O
 | Subtitle | Open Source, Always Encrypted | 29 |
 | Promotional text | Locations are encrypted on your phone before they are sent. The source is public. Share only with the family and friends you choose. | 132 |
 
-Keywords, 94 of 100 characters. Six characters are unused on purpose. Apple indexes each word once, combines words across the name, subtitle, and this field, and treats a plural as a repeat of the singular.
+Keywords, 84 of 100 characters. Sixteen characters are still open. Apple indexes each word once, combines words across the name, subtitle, and this field, and treats a plural as a repeat of the singular.
 
 ```
-map,location,share,family,friends,private,gps,live,locator,nearby,privacy,find,realtime,finder
+map,location,share,family,friends,private,gps,live,locator,find,finder,track,tracker
 ```
 
-Those words are the searches: family locator, friend finder, share location, live location, private map, GPS. `find` is included and `my` is not, so the field does not spell Find My. Nothing in the list repeats Amidst, Where, Everyone, Is, Open, Source, Always, or Encrypted.
+Those words are the searches: family locator, friend finder, share location, live location, private map, GPS, location tracker, track friends. `find` is included and `my` is not, so the field does not spell Find My. Nothing in the list repeats Amidst, Where, Everyone, Is, Open, Source, Always, or Encrypted.
 
-Left out, because they name a feature rather than a search: together, places, home, requests, folders, links, and group. Also left out: track, safety, kids, alert, and history. The app does not offer location history, place alarms, or crash detection, so those words would describe a different product.
+Left out: nearby, privacy, and realtime. `private` and `live` stay. Also left out, because they name a feature rather than a search: together, places, home, requests, folders, links, and group. Also left out: safety, kids, alert, and history. The app does not offer location history, place alarms, or crash detection, so those words would describe a different product.
 
 Description:
 
@@ -160,6 +160,7 @@ Audited November 22, 2026, with a follow-up on November 24. Signing, App Store C
 ### November 24, 2026
 
 - The 1.1.48 candidate (build 50) still deploys to iOS 15 and builds with Xcode and SDK 27.2. Unsigned and ad-hoc IPAs are sideloading artifacts.
+- 1.1.49 (build 51) uses bundle ID `com.bensanzone.amidst` and product name Amidst. The friend-link URL name, keychain services, location log, and wake-up geofence use that prefix. It installs beside `com.bensanzone.zood` and does not migrate that app's keychain or monitored region. User-facing Zood mentions stay in Notices & Trademarks, account deletion, the privacy policy, and the store description.
 - The privacy manifest includes Contacts because an optional contact name and reference are stored in the encrypted backup. An earlier 1.1.10 note said contact data never left the device. That became stale in 1.1.16.
 - A phone symbol indicates an iPhone. The Zood icon was removed. Guideline 4.1(c) forbids another developer's icon without approval. ZOOD is a registered US trademark of Tangled Wires, LLC (Reg. No. 5,886,683, Class 9). "Zood" appears only in descriptive compatibility text.
 - Account deletion calls `DELETE /1/users/me` and waits for confirmation before clearing the local account. A historical disposable-account deletion passed. Recheck it before the submission in progress.

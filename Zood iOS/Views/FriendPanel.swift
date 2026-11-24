@@ -479,7 +479,7 @@ struct FriendPanel: View {
                     Text("\(name)’s phone reported that it can’t answer on-demand requests right now. They can open Amidst and check Live Requests and location access.")
                     Text("The map can still show their last published location.")
                 case .unsupported:
-                    Text("\(name)'s iPhone isn't listening for requests right now. Zood's servers can't wake an iPhone, so the app has to stay running in the background to hear one. That stops if **Live Requests** is off, or if the app was swiped closed.")
+                    Text("\(name)'s iPhone isn't listening for requests right now. The server can't wake an iPhone, so the app has to stay running in the background to hear one. That stops if **Live Requests** is off, or if the app was swiped closed.")
                     Text("Their location still updates on its own whenever they move. Refresh comes back once \(name) opens the app (and turns on Live Requests with location access **Always** if it's off).")
                 case .noResponse:
                     Text("Requests only reach phones that currently have the app running in the background. \(name)'s phone may be offline, in Low Power Mode, or the app may have been swiped closed.")

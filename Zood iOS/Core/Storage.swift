@@ -14,7 +14,7 @@ nonisolated struct Credentials: Codable, Sendable {
 /// Saves and loads the signed-in account's credentials in the Keychain (the system's encrypted store),
 /// so the secret key never sits in a plain file or in an iCloud/iTunes backup (`ThisDeviceOnly`).
 nonisolated enum CredentialStore {
-    private static let service = "com.bensanzone.zood.credentials"
+    private static let service = "com.bensanzone.amidst.credentials"
     private static let account = "current"
 
     /// The saved credentials, or nil when nobody is signed in (or the Keychain item can't be read).
@@ -131,7 +131,7 @@ nonisolated enum LocalDataStore {
     private static var url: URL {
         let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent("zood-data.json")
+        return dir.appendingPathComponent("amidst-data.json")
     }
 
     /// Friends, profile and cached locations from disk. A missing or unreadable file starts fresh: everything
@@ -183,7 +183,7 @@ nonisolated struct SafetyState: Codable, Sendable {
 }
 
 nonisolated enum SafetyStore {
-    private static let service = "com.bensanzone.zood.safety"
+    private static let service = "com.bensanzone.amidst.safety"
 
     /// Pending requests and blocks for this account, kept in the Keychain so they survive reinstalls and can't
     /// be edited by other apps.

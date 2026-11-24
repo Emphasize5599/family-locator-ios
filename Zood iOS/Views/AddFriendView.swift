@@ -150,7 +150,7 @@ struct AddFriendView: View {
         if inviteWithLink, let link = model.myFriendLink {
             return "Add me on Amidst, private location sharing for family and friends: \(link.absoluteString)"
         }
-        return "Let's share our locations privately with Amidst (iPhone or Android, works with Zood Location): \(FriendLink.homeURL.absoluteString)"
+        return "Let's share our locations privately with Amidst on iPhone or Android: \(FriendLink.homeURL.absoluteString)"
     }
 
     private func shareInvite(withLink: Bool) {

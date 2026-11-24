@@ -11,7 +11,7 @@ import uuid
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-BUNDLE = 'com.bensanzone.zood'
+BUNDLE = 'com.bensanzone.amidst'
 SCENES = ['onboarding', 'map', 'map-many-friends', 'map-folders', 'map-folders-open', 'map-folders-open-long', 'map-folders-open-rename', 'friend-overlap', 'friend', 'friend-short-name', 'friend-two-line-name', 'friend-long-name', 'friend-updated', 'friend-unsupported', 'friend-contact-photo', 'add-friend', 'add-friend-share', 'profile-nickname', 'requests', 'requests-empty',
           'safety-number', 'timed-share', 'friend-nickname', 'friend-nickname-scroll', 'account', 'settings', 'settings-support', 'settings-nickname', 'notices', 'avatar-crop',
           'blocked-users', 'blocked-empty', 'delete-account']
@@ -104,7 +104,7 @@ def main():
                             '-configuration', 'Debug', '-sdk', 'iphonesimulator', '-destination', f'id={device}',
                             '-derivedDataPath', str(derived), 'CODE_SIGNING_ALLOWED=NO', 'build'],
                            stdout=log, stderr=subprocess.STDOUT, check=True)
-    app = derived / 'Build/Products/Debug-iphonesimulator/Zood iOS.app'
+    app = derived / 'Build/Products/Debug-iphonesimulator/Amidst.app'
     sim('install', device, str(app))
     container = Path(sim('get_app_container', device, BUNDLE, 'data'))
     ready = container / 'Documents/tour-ready.txt'

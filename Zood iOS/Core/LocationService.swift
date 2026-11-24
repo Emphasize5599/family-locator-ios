@@ -2,7 +2,7 @@ import CoreLocation
 import os
 import UIKit
 
-private let log = Logger(subsystem: "com.bensanzone.zood", category: "location")
+private let log = Logger(subsystem: "com.bensanzone.amidst", category: "location")
 
 /// Owns CoreLocation. Two tiers:
 /// - **Baseline**: a ~150 m exit geofence around the last shared location, plus significant-change and visit
@@ -55,7 +55,7 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     }
 
     /// Exit geofence redrawn around every shared location. Apple recommends ≥ 100 m for reliable region events.
-    private static let geofenceID = "com.bensanzone.zood.last-shared"
+    private static let geofenceID = "com.bensanzone.amidst.last-shared"
     private let geofenceRadius: CLLocationDistance = 150
 
     /// CLBackgroundActivitySession (iOS 17+) is what lets live mode keep the app awake. Debug builds can pretend to be

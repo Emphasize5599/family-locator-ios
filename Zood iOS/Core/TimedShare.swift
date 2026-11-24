@@ -67,7 +67,7 @@ nonisolated struct TimedShare: Codable, Equatable, Sendable {
 /// The running share lives in the Keychain (it holds a secret key), so it survives the app being relaunched.
 /// It's discarded once expired, so a share can never outlive its time even if the app was killed.
 nonisolated enum TimedShareStore {
-    private static let service = "com.bensanzone.zood.timed-share"
+    private static let service = "com.bensanzone.amidst.timed-share"
     private static let account = "current"
 
     static func load() -> TimedShare? {

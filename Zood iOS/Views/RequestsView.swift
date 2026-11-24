@@ -132,7 +132,7 @@ struct BlockedUsersView: View {
                     }
                 }
             } footer: {
-                Text("Amidst saves your blocks in your end-to-end encrypted account backup and restores them when you sign in. The Zood server cannot read or enforce the list. Unblocking lets you review their request again.")
+                Text("Amidst saves your blocks in your end-to-end encrypted account backup and restores them when you sign in. The server cannot read or enforce the list. Unblocking lets you review their request again.")
             }
             if let error { Text(error).foregroundStyle(Color.zoodRed) }
         }

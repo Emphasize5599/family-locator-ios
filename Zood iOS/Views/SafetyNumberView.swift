@@ -69,7 +69,7 @@ struct SafetyNumberView: View {
         }
             .sheet(isPresented: $showingShare) {
                 // Same wording as Android's share_safety_number_msg.
-                ActivityView(items: ["Our Zood Location safety number:\n\(safetyNumber ?? "")"])
+                ActivityView(items: ["Our Amidst safety number:\n\(safetyNumber ?? "")"])
             }
     }
 }

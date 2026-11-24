@@ -39,7 +39,7 @@ struct OnboardingView: View {
                             .foregroundStyle(Color.zoodBlue)
                         Text("Amidst")
                             .font(.title.bold())
-                        Text("End-to-end encrypted location sharing, compatible with Zood Location.")
+                        Text("End-to-end encrypted location sharing for family and friends.")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
@@ -99,7 +99,7 @@ struct OnboardingView: View {
                     if mode == .signUp {
                         Text("Usernames are 5–32 lowercase letters or numbers. Your password can't be recovered, so keep it somewhere safe.")
                     } else {
-                        Text("Use the same username and password as the Zood app on Android.")
+                        Text("Use the same username and password as Amidst on Android.")
                     }
                 }
 

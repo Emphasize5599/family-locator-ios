@@ -143,7 +143,7 @@ nonisolated struct OscarAPI: Sendable {
     /// Mirrors `POST drop-boxes/send`: one multipart part per box, part name = hex box id, body = JSON EncryptedData.
     func dropPackages(_ packages: [Data: EncryptedData]) async throws {
         guard !packages.isEmpty else { return }
-        let boundary = "zood-\(UUID().uuidString)"
+        let boundary = "amidst-\(UUID().uuidString)"
         var body = Data()
         for (boxID, pkg) in packages {
             let json = try ZoodJSON.encoder.encode(pkg)
