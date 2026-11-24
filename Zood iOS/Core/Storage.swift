@@ -98,6 +98,7 @@ nonisolated struct Friend: Codable, Hashable, Sendable, Identifiable {
     /// Their latest name received inside encrypted messages, never used as an account identifier.
     var sharedNickname: String?
     var linkedContact: LinkedContact?
+    var establishedWithoutLocation: Bool? = false
 
     var displayName: String { nickname ?? linkedContact?.name ?? sharedNickname ?? "@\(user.username)" }
     var avatarName: String { nickname ?? linkedContact?.name ?? sharedNickname ?? user.username }
@@ -107,6 +108,10 @@ nonisolated struct Friend: Codable, Hashable, Sendable, Identifiable {
     var id: Data { user.userID }
     var weShare: Bool { sendingBoxID != nil }
     var theyShare: Bool { receivingBoxID != nil }
+    var acceptsLocationWithoutNewRequest: Bool {
+        // Earlier builds saved request-only friendships as friend records with neither box.
+        establishedWithoutLocation ?? (sendingBoxID == nil && receivingBoxID == nil)
+    }
 }
 
 nonisolated struct LocalData: Codable, Sendable {

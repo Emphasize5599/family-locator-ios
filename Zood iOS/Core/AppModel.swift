@@ -523,6 +523,14 @@ final class AppModel: ObservableObject {
         _ = await syncInbox()
         await flushBlockRemovals()
         guard credentials?.accessToken == token else { return }
+        // A previous build may already have consumed the grant and put it in Pending Requests.
+        for request in safety.visibleRequests where request.includesLocation {
+            guard credentials?.accessToken == token else { return }
+            if local.friends[request.id]?.acceptsLocationWithoutNewRequest == true {
+                do { try await approveRequest(request) }
+                catch { safetyError = error.localizedDescription }
+            }
+        }
         for friend in local.friends.values {
             guard let box = friend.receivingBoxID,
                   let pkg = try? await api.pickUpPackage(boxID: box) else { continue }
@@ -672,8 +680,9 @@ final class AppModel: ObservableObject {
             if let cutoff = pending?.freshOfferAfter, offeredAt > 0, offeredAt <= cutoff { return }
             // Older clients send no timestamp or zero. Their new box needs ordinary approval.
             let approved = pending?.requiresFreshOffer == true && pending?.approved == true && offeredAt > 0
-            // A return share must refer to the active offer we made to this sender.
-            guard approved || existing?.theyShare == true || comm.repliesToSharingOffer(on: existing?.sendingBoxID) else {
+            // A first grant can update a friendship that was explicitly created without location.
+            let established = existing?.acceptsLocationWithoutNewRequest == true
+            guard approved || established || existing?.theyShare == true || comm.repliesToSharingOffer(on: existing?.sendingBoxID) else {
                 var next = safety
                 next.pending[user.userID] = PendingRequest(user: user, boxID: box, nickname: Nickname.normalized(comm.nickname),
                                                            avatar: Self.requestAvatar(comm.avatar) ?? pending?.avatar)
@@ -682,9 +691,10 @@ final class AppModel: ObservableObject {
             }
             if let pending = safety.pending[user.userID] { try denyRequest(pending) }
             upsertFriend(user) {
+                if established { $0.establishedWithoutLocation = true }
                 $0.receivingBoxID = box
-                if approved { $0.sharedNickname = Nickname.normalized(comm.nickname) }
-                if let avatar = Self.requestAvatar(comm.avatar) { $0.avatar = avatar }
+                if let nickname = comm.nickname { $0.sharedNickname = Nickname.normalized(nickname) }
+                if let avatar = Self.requestAvatar(comm.avatar) ?? pending?.avatar { $0.avatar = avatar }
             }
             socket?.watch(box)
             scheduleBackup()
@@ -995,7 +1005,7 @@ final class AppModel: ObservableObject {
         request.avatar = Self.requestAvatar(local.myAvatar)
         try await send(request, to: user, urgent: false, transient: false)
         guard credentials?.accessToken == token, safety.blocked[user.userID] == nil else { return }
-        upsertFriend(user) { _ in }
+        upsertFriend(user) { $0.establishedWithoutLocation = true }
         scheduleBackup()
     }
 
@@ -1032,7 +1042,10 @@ final class AppModel: ObservableObject {
             try? await send(UserComm(type: .locationSharingRevocation), to: user, urgent: false, transient: false)
             throw FriendError.blocked
         }
-        upsertFriend(user) { $0.sendingBoxID = box }
+        upsertFriend(user) {
+            if $0.acceptsLocationWithoutNewRequest { $0.establishedWithoutLocation = true }
+            $0.sendingBoxID = box
+        }
         scheduleBackup()
         if let avatar = local.myAvatar {
             var update = UserComm(type: .avatarUpdate)
@@ -1138,6 +1151,7 @@ final class AppModel: ObservableObject {
         try denyRequest(request)
         local.users[request.id] = request.user
         upsertFriend(request.user) {
+            if !current.includesLocation || $0.acceptsLocationWithoutNewRequest { $0.establishedWithoutLocation = true }
             if current.includesLocation { $0.receivingBoxID = current.boxID }
             $0.sharedNickname = request.nickname
             $0.avatar = current.avatar ?? $0.avatar
@@ -1395,7 +1409,8 @@ final class AppModel: ObservableObject {
                   nickname: $0.nickname, sharedNickname: $0.sharedNickname,
                   linkedContactName: $0.linkedContact?.name,
                   linkedContactId: $0.linkedContact?.identifier,
-                  linkedContactPlatform: $0.linkedContact == nil ? nil : "ios")
+                  linkedContactPlatform: $0.linkedContact == nil ? nil : "ios",
+                  establishedWithoutLocation: $0.acceptsLocationWithoutNewRequest)
         }
         // Blocks, folders and the bar's order ride along in the same end-to-end encrypted backup, so they come
         // back after signing in again.
@@ -1417,7 +1432,9 @@ final class AppModel: ObservableObject {
         }
         for f in snapshot.friends {
             guard let user = data.users[f.userId] else { continue }
-            var friend = Friend(user: user, sendingBoxID: f.sendingBoxId, receivingBoxID: f.receivingBoxId, nickname: Nickname.normalized(f.nickname), sharedNickname: Nickname.normalized(f.sharedNickname))
+            var friend = Friend(user: user, sendingBoxID: f.sendingBoxId, receivingBoxID: f.receivingBoxId,
+                                nickname: Nickname.normalized(f.nickname), sharedNickname: Nickname.normalized(f.sharedNickname),
+                                establishedWithoutLocation: f.establishedWithoutLocation)
             if let name = f.linkedContactName, !name.isEmpty {
                 // An Android lookup URI means nothing to iOS Contacts, so keep only the name from there.
                 friend.linkedContact = LinkedContact(identifier: f.linkedContactPlatform == "ios" ? (f.linkedContactId ?? "") : "",

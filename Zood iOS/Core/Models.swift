@@ -122,6 +122,7 @@ nonisolated struct Snapshot: Codable, Sendable {
         var linkedContactName: String?
         var linkedContactId: String?
         var linkedContactPlatform: String?
+        var establishedWithoutLocation: Bool?
     }
     struct User: Codable, Sendable {
         var userId: Data
@@ -151,7 +152,7 @@ nonisolated struct Snapshot: Codable, Sendable {
     var activeDevice: ActiveDevice?
     var avatar: Data?
     var nickname: String?
-    /// Android refuses to restore snapshots newer than its DB schema (1).
+    /// The backup format stays at version 1 for stock Zood and older Amidst clients.
     var schemaVersion: Int = 1
     var timestamp: Int64 = 0
 }
