@@ -16,7 +16,7 @@ struct MainView: View {
     @State private var openFolderID: UUID?
     @AppStorage(FolderGrid.columnsKey) private var folderColumns = FolderGrid.defaultColumns
     @AppStorage(FolderGrid.rowsKey) private var folderRows = FolderGrid.defaultRows
-    @State private var renamingFolder: FriendFolder?
+    @State private var renamingFolderID: UUID?
     @State private var confirmingUngroup: FriendFolder?
     /// Where the open folder's tile sits horizontally on screen, so its card can open centered above it.
     @State private var openFolderTileMidX: CGFloat?
@@ -84,7 +84,7 @@ struct MainView: View {
                         })
                         .overlay(alignment: .bottom) {
                             if let folder = model.friendFolders.first(where: { $0.id == openFolderID }) {
-                                folderPopup(folder, screenWidth: geometry.size.width)
+                                folderPopup(folder, screenWidth: geometry.size.width, availableHeight: geometry.size.height)
                                     .fixedSize(horizontal: false, vertical: true)
                                     .padding(.bottom, barHeight + Spacing.medium)
                                     // Grows out of (and shrinks back into) the folder's tile in the bar.
@@ -118,12 +118,6 @@ struct MainView: View {
         .compatOnChange(of: model.local.friends.keys.count) { _ in
             if let id = selectedFriendID, model.local.friends[id] == nil { selectedFriendID = nil }
         }
-        .alert("Rename Folder", isPresented: Binding(get: { renamingFolder != nil }, set: { if !$0 { renamingFolder = nil } }),
-               presenting: renamingFolder) { folder in
-            TextField("Folder name", text: $folderName).submitLabel(.done)
-            Button("Save") { model.renameFolder(folder.id, to: folderName) }
-            Button("Cancel", role: .cancel) {}
-        }
         .alert(Text("Ungroup \u{201C}\(confirmingUngroup?.name ?? String(localized: "Folder"))\u{201D}?"),
                             isPresented: Binding(get: { confirmingUngroup != nil }, set: { if !$0 { confirmingUngroup = nil } }),
                             presenting: confirmingUngroup) { folder in
@@ -144,8 +138,12 @@ struct MainView: View {
             if ScreenshotTour.isEnabled, let loc = model.friends.first?.location {
                 mapCommand = MapCommand(kind: .focus(latitude: loc.latitude, longitude: loc.longitude))
             }
-            if ["friend", "friend-short-name", "friend-long-name", "friend-updated", "friend-unsupported", "friend-contact-photo"].contains(ScreenshotTour.scene ?? ""), let friend = model.friends.first { select(friend) }
+            if ["friend", "friend-short-name", "friend-long-name", "friend-updated", "friend-unsupported", "friend-contact-photo", "friend-nickname"].contains(ScreenshotTour.scene ?? ""), let friend = model.friends.first { select(friend) }
             if ScreenshotTour.scene?.hasPrefix("map-folders-open") == true { openFolderID = model.friendFolders.first?.id }
+            if ScreenshotTour.scene == "map-folders-open-rename", let folder = model.friendFolders.first {
+                beginRename(folder)
+                folderName = "Grandparents and cousins visiting this weekend"
+            }
             // Overlapping pins: open a friend from the middle of the stack; their pin should come to the front.
             if ScreenshotTour.scene == "friend-overlap", let friend = model.friends.first(where: { $0.nickname == "Devon" }) { select(friend) }
             // Screenshot/UI checks: SIMCTL_CHILD_ZOOD_OPEN_FIRST=1 opens the first friend's card at launch.
@@ -380,27 +378,26 @@ struct MainView: View {
         } label: {
             Label("Ungroup", systemImage: "folder.badge.minus")
         }
-        if #available(iOS 16, *) {
-            Button {
-                folderName = folder.name ?? ""
-                renamingFolder = folder
-            } label: {
-                Label("Rename Folder", systemImage: "pencil")
-            }
+        Button { beginRename(folder) } label: {
+            Label("Rename Folder", systemImage: "pencil")
         }
     }
 
     private func folderMenuActions(_ folder: FriendFolder) -> [PanelMenuAction] {
-        var actions = [PanelMenuAction(title: String(localized: "Ungroup"), systemImage: "folder.badge.minus", destructive: true) {
-            confirmingUngroup = folder
-        }]
-        if #available(iOS 16, *) {
-            actions.append(PanelMenuAction(title: String(localized: "Rename Folder"), systemImage: "pencil") {
-                folderName = folder.name ?? ""
-                renamingFolder = folder
-            })
-        }
-        return actions
+        [
+            PanelMenuAction(title: String(localized: "Ungroup"), systemImage: "folder.badge.minus", destructive: true) {
+                confirmingUngroup = folder
+            },
+            PanelMenuAction(title: String(localized: "Rename Folder"), systemImage: "pencil") {
+                beginRename(folder)
+            }
+        ]
+    }
+
+    private func beginRename(_ folder: FriendFolder) {
+        openFolder(folder.id)
+        renamingFolderID = folder.id
+        folderName = folder.name ?? ""
     }
 
     /// An open folder, floating above the bar like the ⋯ menu: its members in a grid (3×3 by default, set in
@@ -430,13 +427,20 @@ struct MainView: View {
         let columns = min(max(folderColumns, FolderGrid.columnRange.lowerBound), FolderGrid.columnRange.upperBound)
         let usedColumns = max(1, min(columns, members.count))
         let gridWidth = CGFloat(usedColumns) * barItemWidth + CGFloat(usedColumns - 1) * Spacing.large
-        let title = folder.name ?? String(localized: "Folder")
-        let titleWidth = (title as NSString).size(withAttributes: [.font: UIFont.preferredFont(forTextStyle: .headline)]).width
-        let headerWidth = ceil(titleWidth) + 2 + 3 * Spacing.tight + Spacing.small + 2 * 44  // the header row exactly, plus 2pt slack
+        let editing = renamingFolderID == folder.id
+        let title = editing
+            ? (folderName.isEmpty ? String(localized: "Folder name") : folderName)
+            : folder.name ?? String(localized: "Folder")
+        let font = UIFont.preferredFont(forTextStyle: .headline)
+        let titleWidth = title.components(separatedBy: .newlines)
+            .map { ($0 as NSString).size(withAttributes: [.font: font]).width }.max() ?? 0
+        let headerWidth = editing
+            ? ceil(titleWidth) + 2 * 36 + 2 * Spacing.tight + 20
+            : ceil(titleWidth) + 2 + 3 * Spacing.tight + Spacing.small + 2 * 44
         return min(max(gridWidth, headerWidth, 140) + 2 * Spacing.large, screenWidth - 2 * Spacing.medium)
     }
 
-    private func folderPopup(_ folder: FriendFolder, screenWidth: CGFloat) -> some View {
+    private func folderPopup(_ folder: FriendFolder, screenWidth: CGFloat, availableHeight: CGFloat) -> some View {
         let members = folder.members.compactMap { model.local.friends[$0] }
         let columns = min(max(folderColumns, FolderGrid.columnRange.lowerBound), FolderGrid.columnRange.upperBound)
         let rows = min(max(folderRows, FolderGrid.rowRange.lowerBound), FolderGrid.rowRange.upperBound)
@@ -447,24 +451,32 @@ struct MainView: View {
         let gridInset = Spacing.tight
         let gridHeight = CGFloat(visibleRows) * cellHeight + CGFloat(visibleRows - 1) * Spacing.large + 2 * gridInset
         let gridWidth = CGFloat(usedColumns) * barItemWidth + CGFloat(usedColumns - 1) * Spacing.large
-        // By default the grid sets the width (a two-person folder is narrower than a three-person one). A longer
-        // name widens the card to fit it on one line, up to the screen margins; only then does it wrap.
+        let editing = renamingFolderID == folder.id
         let title = folder.name ?? String(localized: "Folder")
-        let titleWidth = (title as NSString).size(withAttributes: [.font: UIFont.preferredFont(forTextStyle: .headline)]).width
-        let headerWidth = ceil(titleWidth) + 2 + 3 * Spacing.tight + Spacing.small + 2 * 44  // the header row exactly, plus 2pt slack
-        let margin = Spacing.medium
-        let width = min(max(gridWidth, headerWidth, 140) + 2 * Spacing.large, screenWidth - 2 * margin)
+        let width = folderCardWidth(folder, screenWidth: screenWidth)
         let centerX = folderCenterX(width: width, screenWidth: screenWidth)
         return VStack(alignment: .leading, spacing: Spacing.small) {
-            HStack(spacing: Spacing.tight) {
-                Text(title)
-                    .font(.headline)
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: Spacing.small)
-                // The same UIKit ⋯ as the friend card, so it's the same size and tint.
-                PanelMenuButton(accessibilityLabel: String(localized: "Folder options"), actions: folderMenuActions(folder))
-                    .frame(width: 44, height: 44)
-                CloseButton { closeFolder() }.frame(width: 44, height: 44)
+            if editing {
+                InlineNameEditor(label: "Folder name", text: $folderName, font: .headline) {
+                    model.renameFolder(folder.id, to: folderName)
+                    renamingFolderID = nil
+                } onCancel: {
+                    renamingFolderID = nil
+                }
+            } else {
+                HStack(spacing: Spacing.tight) {
+                    Button { beginRename(folder) } label: {
+                        Text(title)
+                            .font(.headline)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Rename Folder")
+                    Spacer(minLength: Spacing.small)
+                    PanelMenuButton(accessibilityLabel: String(localized: "Folder options"), actions: folderMenuActions(folder))
+                        .frame(width: 44, height: 44)
+                    CloseButton { closeFolder() }.frame(width: 44, height: 44)
+                }
             }
             ScrollView(.vertical, showsIndicators: members.count > columns * rows) {
                 LazyVGrid(columns: Array(repeating: GridItem(.fixed(barItemWidth), spacing: Spacing.large), count: usedColumns),
@@ -477,7 +489,7 @@ struct MainView: View {
                 .frame(width: gridWidth)  // a grid offered more room centers its columns; keep it to its own width
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(height: gridHeight)
+            .frame(height: editing ? min(gridHeight, max(60, availableHeight * 0.38)) : gridHeight)
         }
         .padding(Spacing.large)
         .frame(width: width)
@@ -531,10 +543,12 @@ struct MainView: View {
 
     /// Opens a folder on top of everything else; an open friend card stays open underneath.
     private func openFolder(_ id: UUID) {
+        if openFolderID != id { renamingFolderID = nil }
         openFolderID = id
     }
 
     private func closeFolder() {
+        renamingFolderID = nil
         openFolderID = nil
     }
 

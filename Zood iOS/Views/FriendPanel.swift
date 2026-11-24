@@ -17,7 +17,7 @@ struct FriendPanel: View {
     @State private var confirmingBlock = false
     @State private var blockError: String?
     @State private var showingSafetyNumber = false
-    @State private var editingNickname = false
+    @State private var nicknameDraft: String?
     @State private var linkingContact = false
     @State private var dragOffset: CGFloat = 0
     @State private var contentHeight: CGFloat = 320
@@ -32,8 +32,11 @@ struct FriendPanel: View {
         if let friend = model.local.friends[friendID] {
             ScrollView {
                 VStack(alignment: .leading, spacing: Spacing.medium) {
-                    header(friend)
-                        .gesture(closeGesture)
+                    if nicknameDraft != nil {
+                        header(friend)
+                    } else {
+                        header(friend).gesture(closeGesture)
+                    }
                     actions(friend)
                     // iOS 16.4+ shows these as popovers from the (?); earlier versions open them inline here.
                     if let explanation, !Self.usesPopovers {
@@ -61,8 +64,8 @@ struct FriendPanel: View {
             .task(id: friend.location) { await lookUpAddress(friend.location) }
             // Re-check a cached "can't answer requests" before showing Unsupported (it may be out of date).
             .task(id: friendID) { await model.refreshDeviceStatusIfNeeded(friend) }
-            .sheet(isPresented: $editingNickname) {
-                FriendNicknameView(friend: friend).environmentObject(model)
+            .onAppear {
+                if ScreenshotTour.scene == "friend-nickname" { beginNicknameEdit(friend) }
             }
             .sheet(isPresented: $linkingContact) {
                 ContactLinkView(friendID: friend.id).environmentObject(model)
@@ -130,13 +133,28 @@ struct FriendPanel: View {
     /// name moves to its own line under them and wraps across the card's full width instead of truncating.
     @ViewBuilder
     private func nameAndControls(_ friend: Friend) -> some View {
-        if #available(iOS 16, *) {
+        if nicknameDraft != nil {
+            VStack(alignment: .leading, spacing: Spacing.small) {
+                HStack(spacing: Spacing.tight) {
+                    avatar(friend)
+                    Spacer(minLength: 0)
+                    headerControls(friend)
+                }
+                InlineNameEditor(label: "Friend nickname", text: Binding(get: { nicknameDraft ?? "" }, set: { nicknameDraft = $0 }),
+                                 font: .title2.bold()) {
+                    if let nicknameDraft { model.setFriendNickname(nicknameDraft, for: friend.id) }
+                    nicknameDraft = nil
+                } onCancel: {
+                    nicknameDraft = nil
+                }
+            }
+        } else if #available(iOS 16, *) {
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: Spacing.small) {
                     avatar(friend)
-                    Text(friend.displayName)
-                        .font(.title2.bold())
+                    editableName(friend)
                         .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
                     Spacer(minLength: Spacing.small)
                     headerControls(friend)
                 }
@@ -154,11 +172,22 @@ struct FriendPanel: View {
                 Spacer(minLength: 0)
                 headerControls(friend)
             }
-            Text(friend.displayName)
-                .font(.title2.bold())
+            editableName(friend)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    private func editableName(_ friend: Friend) -> some View {
+        Button { beginNicknameEdit(friend) } label: {
+            Text(friend.displayName).font(.title2.bold())
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Edit friend’s nickname")
+    }
+
+    private func beginNicknameEdit(_ friend: Friend) {
+        if nicknameDraft == nil { nicknameDraft = friend.nickname ?? "" }
     }
 
     private func avatar(_ friend: Friend) -> some View {
@@ -172,7 +201,7 @@ struct FriendPanel: View {
             // Drawn by UIKit with the same symbol configuration as ⋯ and ✕, so all three match.
             PanelIconButton(systemName: "pencil.circle", tint: UIColor(Color.zoodBlueDark),
                             accessibilityLabel: String(localized: "Edit friend's nickname")) {
-                editingNickname = true
+                beginNicknameEdit(friend)
             }
             .frame(width: 44, height: 44)
             FriendMenu(linked: friend.linkedContact != nil,

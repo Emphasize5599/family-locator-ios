@@ -101,7 +101,7 @@ private struct ScreenshotTourSceneView: View {
             showingSheet = false
             sheetAppeared = false
             do { try await Task.sleep(nanoseconds: 450_000_000) } catch { return }
-            let needsSheet = !["map", "map-many-friends", "map-folders", "map-folders-open", "map-folders-open-long", "map-folders-open-medium", "friend-overlap", "friend", "friend-short-name", "friend-long-name", "friend-updated", "friend-unsupported", "friend-contact-photo", "onboarding"].contains(scene)
+            let needsSheet = !["map", "map-many-friends", "map-folders", "map-folders-open", "map-folders-open-long", "map-folders-open-medium", "map-folders-open-rename", "friend-overlap", "friend", "friend-short-name", "friend-long-name", "friend-updated", "friend-unsupported", "friend-contact-photo", "friend-nickname", "onboarding"].contains(scene)
             showingSheet = needsSheet
             if needsSheet {
                 for _ in 0..<50 {
@@ -120,11 +120,7 @@ private struct ScreenshotTourSceneView: View {
             switch scene {
             case "add-friend": AddFriendView()
             case "add-friend-share": AddFriendView(preview: ScreenshotTour.requester)
-            case "profile-nickname":
-                NicknameEditor(title: "Edit Nickname", username: ScreenshotTour.credentials.username,
-                               initial: "Family", explanation: "Updates for friends using your shared name.") { _ in }
-            case "friend-nickname": FriendNicknameView(friend: ScreenshotTour.friend)
-            case "account": CompatNavigationStack { AccountView(onLogOut: {}) }
+            case "account", "profile-nickname": CompatNavigationStack { AccountView(onLogOut: {}) }
             case "requests", "requests-empty": RequestsView()
             case "safety-number": SafetyNumberView(friend: ScreenshotTour.friend)
             case "timed-share": TimedShareView()

@@ -149,7 +149,7 @@ struct AccountView: View {
         let id = UUID()
         let image: UIImage
     }
-    @State private var editingNickname = false
+    @State private var nicknameDraft: String?
 
     var body: some View {
         Form {
@@ -164,12 +164,23 @@ struct AccountView: View {
                 }
             }
             Section {
-                Button { editingNickname = true } label: {
-                    HStack {
-                        Label("Nickname", systemImage: "person.text.rectangle")
-                        Spacer()
-                        Text(model.local.myNickname ?? String(localized: "Not Set"))
-                            .foregroundStyle(.secondary)
+                if nicknameDraft != nil {
+                    InlineNameEditor(label: "Nickname", text: Binding(get: { nicknameDraft ?? "" }, set: { nicknameDraft = $0 })) {
+                        guard let nicknameDraft else { return }
+                        self.nicknameDraft = nil
+                        Task { await model.setMyNickname(nicknameDraft) }
+                    } onCancel: {
+                        nicknameDraft = nil
+                    }
+                } else {
+                    Button { nicknameDraft = model.local.myNickname ?? "" } label: {
+                        HStack {
+                            Label("Nickname", systemImage: "person.text.rectangle")
+                            Spacer()
+                            Text(model.local.myNickname ?? String(localized: "Not Set"))
+                                .foregroundStyle(.secondary)
+                            Image(systemName: "pencil").accessibilityHidden(true)
+                        }
                     }
                 }
             } footer: {
@@ -189,12 +200,8 @@ struct AccountView: View {
                 }
             }
         }
-        .sheet(isPresented: $editingNickname) {
-            NicknameEditor(title: "Edit Nickname", username: model.credentials?.username ?? "",
-                           initial: model.local.myNickname,
-                           explanation: "Updates for friends using your shared name.") { nickname in
-                await model.setMyNickname(nickname)
-            }
+        .onAppear {
+            if ScreenshotTour.scene == "profile-nickname" { nicknameDraft = model.local.myNickname ?? "Family" }
         }
         // Pick a photo, then frame it in a circle (Move and Scale, like Contacts) before it's used.
         .sheet(isPresented: $showingPhotoPicker, onDismiss: {
