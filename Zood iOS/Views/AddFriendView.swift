@@ -11,6 +11,7 @@ struct AddFriendView: View {
     @State private var errorMessage: String?
     @State private var showingInvite = false
     @State private var candidate: ZoodUser?
+    @State private var choiceLabelHeight: CGFloat = 0
 
     init(preview: ZoodUser? = nil) {
         _candidate = State(initialValue: preview)
@@ -58,20 +59,36 @@ struct AddFriendView: View {
                 Button {
                     send(to: user, sharing: true)
                 } label: {
-                    Text("Share My Location")
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: .infinity, minHeight: 44)
+                    choiceLabel("Share My Location")
                 }
                 .tint(Color.zoodGreen)
                 Button {
                     send(to: user, sharing: false)
                 } label: {
-                    Text("Not Now")
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: .infinity, minHeight: 44)
+                    choiceLabel("Not Now")
                 }
             }
             .buttonStyle(.bordered)
+            .onPreferenceChange(ChoiceLabelHeightKey.self) { choiceLabelHeight = $0 }
+        }
+    }
+
+    private func choiceLabel(_ title: LocalizedStringKey) -> some View {
+        Text(title)
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
+            .background {
+                GeometryReader { geometry in
+                    Color.clear.preference(key: ChoiceLabelHeightKey.self, value: geometry.size.height)
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: max(44, choiceLabelHeight))
+    }
+
+    private struct ChoiceLabelHeightKey: PreferenceKey {
+        static let defaultValue: CGFloat = 0
+        static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+            value = max(value, nextValue())
         }
     }
 

@@ -59,6 +59,7 @@ struct RequestsView: View {
                                     .frame(maxWidth: .infinity, minHeight: 36)
                             }
                             .buttonStyle(.bordered)
+                            .tint(.zoodRed)
                             Button(role: .destructive) { decision = RequestDecision(request: request, block: true) } label: {
                                 Text("Block")
                                     .lineLimit(1)
@@ -66,6 +67,7 @@ struct RequestsView: View {
                                     .frame(maxWidth: .infinity, minHeight: 36)
                             }
                             .buttonStyle(.bordered)
+                            .tint(.zoodRed)
                         }
                         .controlSize(.small)
                     }
