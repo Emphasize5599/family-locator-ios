@@ -46,6 +46,9 @@ struct MainView: View {
                 })
                 .ignoresSafeArea()
 
+                controls
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+
                 VStack(spacing: Spacing.medium) {
                     if !model.isConnected {
                         banner("Connecting to server…", systemImage: "wifi.exclamationmark")
@@ -100,7 +103,6 @@ struct MainView: View {
             }
             .coordinateSpace(name: Self.screenSpace)
         }
-        .overlay(alignment: .topTrailing) { controls }
         .sheet(item: $activeSheet) { sheet in
             switch sheet {
             case .addFriend:
