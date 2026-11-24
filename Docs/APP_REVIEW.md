@@ -1,86 +1,144 @@
-# iOS App Review preparation
+# Amidst on the App Store
 
-Audited November 22, 2026. This is an engineering review, not an Apple approval or a guarantee of acceptance. Signing, App Store Connect validation and device-only behavior remain outside the completed checks.
+Not ready to submit. This file is the script for App Store Connect. It is not an Apple approval.
 
-## November 24, 2026 review
+Reviewer usernames and passwords stay in `.review-private/APP_REVIEW_CREDENTIALS.md`. That file is Git-ignored. Do not paste it here, into a release, or into a GitHub issue.
 
-- The 1.1.46 submission candidate retains iOS 15 deployment support and builds with Xcode and SDK 27.2. The App Store review IPAs and AppSync packages are sideloading artifacts. Create a distribution-signed archive and run App Store Connect validation with the publisher’s team.
-- The privacy manifest now includes Contacts for the optional contact name and reference stored in the encrypted backup. The public privacy policy covers both clients and links directly to upstream deletion. App Privacy answers must reflect data collected by the app and the applicable service providers. Review them together with the store age rating, screenshots, and support details.
-- A phone symbol now indicates an iPhone in place of the Apple logo. Retain evidence permitting Amidst’s use of the Zood service for guideline 5.2.2. The source license and iOS App Store exception cover the code under their terms. Service authorization is a separate question.
-- Account deletion is available under Settings → Account. The code waits for upstream confirmation before clearing the local account. A historical live disposable-account check is recorded below. Before submission, recheck current reviewer credentials and deletion with a separate disposable account. Keep reviewer credentials out of public notes.
-- Confirm a monitored reporting and escalation process for objectionable avatars, names, and abuse. The client supports Deny and Block and provides a support link. The publisher’s response process and any upstream enforcement need independent verification.
-- Remaining device and console checks include live/background location, permission denial and revocation on physical iPhones, app signing, export compliance, and final App Store Connect review information. No App Store approval has been obtained.
+The home-screen name is Amidst. The store name is Amidst: Where Everyone Is.
 
-## Status: not ready to submit yet
+## What's left to do
 
-The app now has an in-app deletion flow, published privacy/support/license links, a privacy manifest for first-party UserDefaults use, and verified review accounts. Resolve the items below before claiming submission readiness.
+Do these before submitting. The form answers and the listing text below are ready to paste.
 
-| Item | Evidence / next action |
+1. Re-check both demo accounts against the live service. Create one new disposable account, delete it through Settings → Account → Delete Account, and confirm it can no longer sign in. If a reviewer deletes a demo account, replace it and update the private file. Do not reset the sample friend while a review is open.
+2. On a physical iPhone, test Always, While Using, denied, and approximate location. Also test background updates, Live Requests, Low Power Mode, force-quit and relaunch, timed-share expiry, log out, and deletion. A simulator pass does not cover this.
+3. Archive with the publisher's distribution certificate and upload the build. The GitHub IPAs are sideloads, not App Store builds. `ITSAppUsesNonExemptEncryption` is already `YES`.
+4. Create the App Store Connect record for bundle ID `com.bensanzone.zood`. Paste the answers and the listing from this file. Enter the publisher's own review-contact name, phone, and email. Enter the copyright name. Choose the territories.
+5. On the encryption questions, do not answer "HTTPS only." The app uses libsodium public-key encryption, secret-box encryption, and Argon2. The publisher decides which exemption applies and files any required paperwork.
+6. Take the screenshots from this build. Use fictional people. Do not show a price, the word "free," the Zood icon, or a live timed-share link.
+7. Confirm someone monitors https://github.com/Emphasize5599/family-locator-ios/issues and can escalate service abuse to the Zood operator. Deny and Block in the app are not enough on their own.
+8. Keep evidence that Amidst may use `api.zood.xyz`, in case Apple asks under guideline 5.2.2.
+
+Do not choose the Kids Category. Do not put "free" or a price in the name, subtitle, screenshots, or previews.
+
+## Answers for the submission form
+
+Apple calculates the age rating from the questionnaire. Do not type a rating in by hand. Shared Location can display as 16+ in Brazil. This app is not a parent-and-child product, so do not ask Brazil for a lower rating on that basis.
+
+### App Information
+
+| Field | Answer |
 | --- | --- |
-| SDK required-reason API | Resolved in 1.1.6: rebuilt libsodium 1.0.22 for iOS 15 with upstream Apple RNG selection commit `f6bd9140861ab6806f4a99923888b65477fc4e33` backported. Final arm64 Release imports `arc4random_buf` and no longer imports `fstat`. No inaccurate File Timestamp reason was added. App Store Connect validation remains pending signing. |
-| User-generated content / abuse handling | Pending requests can show the sender’s photo; location grants require approval before showing location. Requests offer Approve, Deny and Block. Friends offer Remove & Block above Remove Friend; Settings → Account lists blocked users; Settings → Privacy & Support has Report a Problem. Blocks are account-scoped and included in the end-to-end encrypted backup. Amidst enforces them after restore. The server cannot read or enforce the list. Report a Problem opens the public GitHub Issues page (https://github.com/Emphasize5599/family-locator-ios/issues), which loads without signing in; filing an issue requires a GitHub account. Nothing is attached automatically. The publisher must monitor GitHub Issues, respond promptly, and arrange escalation with Zood for service-level abuse; client controls alone do not establish complete guideline 1.2 compliance. |
-| Rights and operator responsibilities | The project is AGPL-3.0 and interoperates with a third-party service. Source/license links and an independence disclaimer are included. ZOOD is a registered US trademark of Tangled Wires, LLC (Reg. No. 5,886,683, Class 9, location-sharing software), and guideline 4.1(c) forbids another developer's icon without approval, so the Zood icon was replaced with an original Family Circle icon (light, dark and tinted). "Zood" appears only in descriptive compatibility text, never in the app name, subtitle, keywords or icon. Guideline 5.2.2 still applies to using api.zood.xyz: retain evidence of permission from the service operator if Apple requests it. |
-| Submission metadata | The listing name and subtitle are chosen below. Public support is GitHub Issues (https://github.com/Emphasize5599/family-locator-ios/issues), which is also the App Store Connect Support URL; no public support email is published. Enter the publisher's real private review-contact name, phone and email, support details, age-rating answers, screenshots, the paste-ready description below, privacy-policy URL and App Privacy answers. No live App Store Connect record was available to inspect. Do not select Kids Category without the additional requirements for that category. Do not put "free" or a price in the name, subtitle, screenshots or previews. |
-| Encryption | `ITSAppUsesNonExemptEncryption = YES` (libsodium crypto_box/secretbox/Argon2 end-to-end encryption, not just HTTPS). App Store Connect asks the export-compliance questions on upload; the publisher answers them and obtains any required documentation. |
-| Physical-device validation | Test Always/While Using/denied/approximate location, background updates, Live Requests, Low Power Mode, force-quit/relaunch, timed-share expiry, logout and deletion on supported iPhones. Simulator/API checks do not establish background reliability. |
+| Name | Amidst: Where Everyone Is |
+| Subtitle | Open Source, Always Encrypted |
+| Bundle ID | `com.bensanzone.zood` |
+| Primary language | English (U.S.) |
+| Primary category | Social Networking |
+| Secondary category | Lifestyle |
+| Content rights | No licensed third-party catalog. Apple Maps is the system map. Photos and names are user content. |
 
-## Changes made
+Social Networking matches people sharing with people they know. Lifestyle is the secondary. Navigation would describe a directions app.
 
-- Settings > Account > Delete Account uses the real authenticated `DELETE /1/users/me` endpoint. Username entry and a final destructive confirmation explain permanent deletion. A failed request remains an error; local logout is not presented as deletion.
-- Logout/deletion cancel pending backup work, resolve location waiters, stop monitoring and streaming, clear cached fixes, cancel restart tasks and invalidate the background location session. Signed-out views cannot restart location activity just by becoming active.
-- Permission changes reapply the streaming configuration, including when access is revoked.
-- Onboarding and Settings link to the Amidst privacy policy and support. Settings also links to open-source notices.
-- The privacy manifest declares app-only preferences (`CA92.1`), no tracking, and conservative app-functionality disclosures for identifiers, optional email, precise location, optional photos, and device/location metadata. Review App Store Connect answers against the actual service behavior; the manifest does not populate those answers automatically.
-- API requests use an ephemeral URLSession with no persistent response cache or cookies, including authentication responses.
-- Timed-share text makes clear that expiry stops new uploads and cannot recall the last location or copies already received.
+Age rating, capabilities:
 
-## Demo access
+| Question | Answer |
+| --- | --- |
+| Parental controls | None |
+| Age assurance | None |
+| Unrestricted web access | None. Privacy, support, and license links open fixed pages. |
+| User-generated content | Yes. Usernames, optional photos, and nicknames are shared with chosen friends. |
+| Messaging and chat | None. There is no conversation thread. |
+| Advertising | None |
+| Social media | None. There is no feed and no discovery of strangers. |
+| Shared location | Yes |
+| Dating and relationships | None |
 
-Real credentials are in the local, private, Git-ignored file `.review-private/APP_REVIEW_CREDENTIALS.md`. **Never commit that file or put its credentials in a public release or issue.** Copy the reviewer username/password into App Store Connect's private review fields.
+Age rating, content: None for every frequency question. That includes violence, profanity, sexual content, horror, gambling, alcohol and drugs, medical or wellness topics, contests, and loot boxes.
 
-The account was verified by fresh challenge/response authentication using the app's production Crypto/Models/OscarAPI code. It has a restored encrypted friend backup and a decryptable receiving-only sample location at the Golden Gate Bridge. The separate companion account is also verified. Neither account requires email verification, OTP, 2FA or a purchase.
+License agreement: Apple's standard EULA. The AGPL and the App Store exception stay on the source repository. They are linked from Settings. They are not the store EULA.
 
-The sample location is test data, not a real person's location or a continuous background test service. With no companion device running, a Refresh cannot make that phone answer. To test actual requests, sign the companion account into a second iPhone with Live Requests and the appropriate permissions enabled. Do not expose real family accounts to reviewers.
+### Pricing and Availability
 
-A separately generated disposable account was created, given an encrypted backup, deleted through the same API, and then confirmed unable to authenticate. The reviewer/companion accounts were not deleted.
+Price is free. There are no in-app purchases. Sell it in every territory unless the publisher has a reason to exclude one.
 
-Before each submission, verify the credentials again. If reviewers delete the account, create a replacement and update the private review fields. Do not reset the sample fixtures while a review is in progress.
+### App Privacy
 
-`Tools/ReviewAccountTool.swift` contains the reproducible setup/verification code, with no embedded credentials. Compile it with the production `Core/Crypto.swift`, `Core/Models.swift`, and `Core/OscarAPI.swift`, linking the macOS slice of the resolved Clibsodium XCFramework. Pass a private output directory as its first argument. Running it creates real accounts and resets their sample fixtures; use the existing private state directory to avoid creating duplicate accounts.
+Privacy Policy URL: https://github.com/Emphasize5599/family-locator-ios/blob/main/Docs/PRIVACY.md?view=policy
 
-## Store listing
+Data is collected, linked to the user, and used for app functionality. It is not used for tracking. There is no advertising SDK and no analytics SDK. The Zood service at `api.zood.xyz` receives the account and the encrypted packages, so include that service when the form asks about third parties.
 
-Chosen November 24, 2026. The home-screen name stays **Amidst**. The store name is the invitation. The subtitle is the trust line, with no price word and no final period.
+| Data | Collected | Notes |
+| --- | --- | --- |
+| User ID | Yes | Username and public account identifier. |
+| Email address | Yes | Optional, at registration. |
+| Precise location | Yes | Encrypted on the device for the people the user chose. |
+| Fitness | Yes | Walking, running, cycling, or driving, sent inside the encrypted location package. |
+| Contacts | Yes | Only a chosen contact's name and identifier, inside the encrypted backup. The address book is not uploaded. The contact photo stays on the device. |
+| Photos | Yes | Optional profile photo, encrypted for friends. |
+| Other data | Yes | Battery, platform, accuracy, speed, and direction, inside the encrypted package. The service also sees connection metadata such as IP address. |
+
+Not collected: payment info, health records beyond the motion category above, browsing history, search history, advertising data, or the full contacts database.
+
+"Always Encrypted" does not mean the service sees nothing. It cannot read location packages, friend messages, shared photos, or the account backup. It can see account identifiers and connection metadata.
+
+Read https://www.zood.xyz/privacy/mobile-apps before submitting and confirm the rows above still match what that service stores.
+
+### Prepare for Submission
+
+| Field | Answer |
+| --- | --- |
+| Support URL | https://github.com/Emphasize5599/family-locator-ios/issues |
+| Marketing URL | Leave blank |
+| Copyright | The publisher's legal name. It is not in this repository. |
+| Sign-in required | Yes |
+| Demo account | Copy both accounts from the private credentials file. No email code, no two-factor prompt, and no purchase. |
+| Review contact | The publisher's name, phone, and email. |
+| What's New | First release. |
+
+App Review Information notes:
+
+```
+The App Store name is Amidst: Where Everyone Is. The subtitle is Open Source, Always Encrypted. On the home screen the app is Amidst.
+
+Amidst is an independent encrypted location-sharing client compatible with Zood Location. Accounts exist so chosen friends can exchange encrypted location packages. Location packages, friend messages, shared photos, and the account backup are encrypted on the device before upload. The service can still see account identifiers and connection metadata. There are no purchases, ads, or tracking SDKs.
+
+Use the supplied demo credentials. The demo has one sample companion at the Golden Gate Bridge. That pin is static test data, not a live person. The demo does not share the reviewer's location with that companion. To test a live refresh, sign the companion account into a second device, choose Always, and turn on Live Requests. Viewing the saved pin does not require the reviewer's own location permission.
+
+Background location keeps a share updated and answers a refresh from a friend who was already granted access. Live Requests requires iOS 17 or later. On iOS 15 and 16 the app can still share movement-triggered updates and does not advertise Live Requests. Turning Live Requests off, revoking permission, or force-quitting can stop replies. iOS decides whether background time is available.
+
+Timed Sharing is the map-pin button above the friends bar. The link contains the decryption key. Anyone with the link can view the shared locations. The timer stops new updates. Locations already delivered can remain visible. Stop the share with its toggle.
+
+Contact & Support and Report a Problem both open GitHub Issues. Privacy Policy, Open-Source Licenses, and Background App Refresh are in Settings. Blocked Users, Log Out, and Delete Account are in Settings → Account, under the profile tile. Delete Account permanently deletes the shared Zood account and its encrypted backup after the server confirms. A failed request is not treated as deletion.
+```
+
+### Export compliance
+
+The build declares non-exempt encryption because the app does more than HTTPS. On the upload questions, describe libsodium encryption used to protect location packages, messages, and backups. The publisher chooses the exemption and completes any annual self-classification or other filing that choice requires.
+
+## Suggested App Store listing
 
 | Field | Text | Characters |
 | --- | --- | --- |
-| App Store name | Amidst: Where Everyone Is | 25 |
+| Name | Amidst: Where Everyone Is | 25 |
 | Subtitle | Open Source, Always Encrypted | 29 |
-| Play title | Amidst: Where Everyone Is | 25 |
-| Play short description | Open Source, Always Encrypted location sharing for family and friends | 69 |
+| Promotional text | Locations are encrypted on your phone before they are sent. The source is public. Share only with the family and friends you choose. | 132 |
 
-**Always Encrypted** means location packages, friend messages, shared photos and the account backup are encrypted on the device before upload, and there is no plaintext sharing mode. It does not mean the service is blind to account identifiers or connection metadata. Say that in the description and in review notes. The subtitle does not say "free". Pricing already appears on the product page, and guideline 2.3.7 keeps prices out of the name, subtitle, screenshots and previews.
-
-No word is repeated between the name and the subtitle. The hidden keyword field should not repeat Amidst, Where, Everyone, Is, Open, Source, Always or Encrypted, and it should not name other apps:
+Keywords, 94 of 100 characters. Six characters are unused on purpose. Apple indexes each word once, combines words across the name, subtitle, and this field, and treats a plural as a repeat of the singular.
 
 ```
-map,location,share,family,friends,private,together,places,group,home,gps,live,requests,folders,links
+map,location,share,family,friends,private,gps,live,locator,nearby,privacy,find,realtime,finder
 ```
 
-That field is 100 characters. Apple combines words across the name, subtitle and keyword field. The description is for people, not for stuffing extra search terms.
+Those words are the searches: family locator, friend finder, share location, live location, private map, GPS. `find` is included and `my` is not, so the field does not spell Find My. Nothing in the list repeats Amidst, Where, Everyone, Is, Open, Source, Always, or Encrypted.
 
-Promotional text, up to 170 characters, is not a search field:
+Left out, because they name a feature rather than a search: together, places, home, requests, folders, links, and group. Also left out: track, safety, kids, alert, and history. The app does not offer location history, place alarms, or crash detection, so those words would describe a different product.
 
-```
-Locations are encrypted on your phone before they are sent. The source is public. Share only with the family and friends you choose.
-```
-
-Paste-ready description:
+Description:
 
 ```
 Amidst is where the people you care about are. Share your location with family and friends you choose, and see the locations they share with you.
 
-Locations, messages and account backups are encrypted on your phone before they are sent. There is no plaintext sharing mode. The source code is public.
+Locations, messages, and account backups are encrypted on your phone before they are sent. There is no plaintext sharing mode. The source code is public.
 
 Add friends by username. Choose whether to share with each person, and stop sharing at any time. Organize the map into folders. For a time-limited share, create a link and send it to someone you trust.
 
@@ -89,111 +147,93 @@ With your permission, Amidst can update a share in the background and answer a L
 Amidst is an independent open-source client for the Zood Location network and works with Amidst on Android. It is not affiliated with Zood's trademark owner. There are no purchases and no ads.
 ```
 
-## Suggested private review notes
+Screenshots: follow the current specifications at https://developer.apple.com/help/app-store-connect/reference/app-information/screenshot-specifications. Use this build. Sample people must be fictional. The first images should show the map with friends on it.
 
-The App Store listing name is Amidst: Where Everyone Is. The subtitle is Open Source, Always Encrypted. On the home screen the app is Amidst.
+The Play title and short description live with the Android listing in `Zood Android/fastlane/metadata/android/en-US/` and in that repo's `Docs/PLAY_REVIEW.md`.
 
-Amidst is an independent encrypted location-sharing client compatible with Zood Location. Its functionality relies on accounts so that selected friends can exchange encrypted location packages. Location packages, friend messages, shared photos and the account backup are encrypted on the device before upload. The service can still see account identifiers and connection metadata. There are no purchases, ads, or tracking SDKs.
+## For AI agents
 
-Use the supplied demo credentials. The demo has one clearly identified sample companion located at a public landmark (Golden Gate Bridge); this is static test data. The demo does not share the reviewer's location with the sample friend by default. To test live sharing/Refresh, use the separately supplied companion credentials on a second device. Choose Always location access and enable Live Requests on that device. Viewing a friend's saved location does not require granting the reviewer's own location permission.
+Humans can submit from the sections above. This section is the engineering record. Do not treat it as store copy.
 
-Background location is used for location sharing and receiving a fresh fix when an authorized friend requests one. Live Requests requires iOS 17+; on iOS 15/16 the app can share movement-triggered updates but does not advertise live request support. Disabling Live Requests, revoking permission or force-quitting can prevent responses. Background availability is controlled by iOS and is not guaranteed.
+Audited November 22, 2026, with a follow-up on November 24. Signing, App Store Connect validation, and physical-device background behavior are not claimed as done.
 
-Timed Sharing is reached using the map-pin button above the friends bar. Its link contains the decryption key; anyone with the link can view shared locations. The timer stops new updates; previously delivered locations may remain visible. Stop the share using its toggle. Do not put a live timed-sharing link in public review materials.
+### November 24, 2026
 
-Contact & Support and Report a Problem (both GitHub Issues), Privacy Policy, Open-Source Licenses and Background App Refresh status are in Settings; Blocked Users, Log Out and Delete Account are in Settings → Account (tap the profile tile). Delete Account permanently deletes the shared Zood account and encrypted backup; it is not a deactivate-only flow. The username and final confirmation are intentional safeguards.
+- The 1.1.48 candidate (build 50) still deploys to iOS 15 and builds with Xcode and SDK 27.2. Unsigned and ad-hoc IPAs are sideloading artifacts.
+- The privacy manifest includes Contacts because an optional contact name and reference are stored in the encrypted backup. An earlier 1.1.10 note said contact data never left the device. That became stale in 1.1.16.
+- A phone symbol indicates an iPhone. The Zood icon was removed. Guideline 4.1(c) forbids another developer's icon without approval. ZOOD is a registered US trademark of Tangled Wires, LLC (Reg. No. 5,886,683, Class 9). "Zood" appears only in descriptive compatibility text.
+- Account deletion calls `DELETE /1/users/me` and waits for confirmation before clearing the local account. A historical disposable-account deletion passed. Recheck it before the submission in progress.
+- Report a Problem opens the public GitHub Issues page. Filing an issue requires a GitHub account. Nothing is attached. Blocks are enforced by the client after restore. The server cannot read or enforce the block list.
 
-## Public URLs
+### Resolved engineering
+
+- Settings → Account → Delete Account uses the authenticated delete endpoint. Username entry and a final confirmation explain that deletion is permanent. Logout is not presented as deletion.
+- Logout and deletion cancel pending backup work, stop monitoring and streaming, clear cached fixes, and invalidate the background location session. A signed-out screen does not restart location by becoming active.
+- Permission changes reapply streaming, including when access is revoked.
+- Onboarding and Settings link to the privacy policy and support. Settings also links to open-source notices.
+- The privacy manifest declares UserDefaults (`CA92.1`), system boot time (`35F9.1`), no tracking, and the collected-data rows in the form section above. The manifest does not fill out App Store Connect by itself.
+- API requests use an ephemeral URLSession with no persistent cache or cookies.
+- Timed-share text says expiry stops new uploads and cannot recall a location already delivered.
+- libsodium 1.0.22 was rebuilt for iOS 15 with upstream Apple RNG selection commit `f6bd9140861ab6806f4a99923888b65477fc4e33`. The arm64 Release imports `arc4random_buf` and does not import `fstat`. No File Timestamp reason was added.
+
+### Demo accounts
+
+Credentials stay in `.review-private/APP_REVIEW_CREDENTIALS.md`.
+
+Both accounts were verified with the production Crypto, Models, and OscarAPI code. The reviewer account restores an encrypted backup and can decrypt a receiving-only sample at the Golden Gate Bridge. The companion account was verified separately. Neither needs email verification, a one-time code, two-factor authentication, or a purchase.
+
+The sample location is not a continuous background service. With no companion device running, Refresh cannot make that phone answer.
+
+A disposable account was created, given an encrypted backup, deleted through the same API, and then confirmed unable to authenticate. The reviewer and companion accounts were not deleted.
+
+`Tools/ReviewAccountTool.swift` reproduces setup. It contains no credentials. Compile it with `Core/Crypto.swift`, `Core/Models.swift`, and `Core/OscarAPI.swift`, link the macOS slice of Clibsodium, and pass a private output directory. Running it creates real accounts. Reuse the existing private state directory.
+
+### Public URLs
 
 - Privacy: https://github.com/Emphasize5599/family-locator-ios/blob/main/Docs/PRIVACY.md?view=policy
-- Support (App Store Connect Support URL): https://github.com/Emphasize5599/family-locator-ios/issues
+- Support: https://github.com/Emphasize5599/family-locator-ios/issues
 - Licenses: https://github.com/Emphasize5599/family-locator-ios/blob/main/Docs/LICENSES.md
 - Service policy: https://www.zood.xyz/privacy/mobile-apps
 
-## References
+### References
 
-- [Apple App Review Guidelines](https://developer.apple.com/app-store/review/guidelines/): completeness, background-service use, user-generated content, privacy, account deletion and third-party rights.
-- [Provide information for a complete review](https://developer.apple.com/help/app-review/before-submitting-for-review/complete-review/).
-- [Required-reason APIs](https://developer.apple.com/documentation/bundleresources/describing-use-of-required-reason-api) and [API categories and reasons](https://developer.apple.com/documentation/bundleresources/app-privacy-configuration/nsprivacyaccessedapitypes/nsprivacyaccessedapitype).
-- [App Privacy Details](https://developer.apple.com/app-store/app-privacy-details/).
+- [App Review Guidelines](https://developer.apple.com/app-store/review/guidelines/)
+- [Provide information for a complete review](https://developer.apple.com/help/app-review/before-submitting-for-review/complete-review/)
+- [Required-reason APIs](https://developer.apple.com/documentation/bundleresources/describing-use-of-required-reason-api)
+- [App Privacy Details](https://developer.apple.com/app-store/app-privacy-details/)
+- [Screenshot specifications](https://developer.apple.com/help/app-store-connect/reference/app-information/screenshot-specifications)
 
-## Validation completed for 1.1.5 (build 7)
+### Validation for 1.1.5 (build 7)
 
 - Xcode BuildProject passed with zero errors.
-- Unsigned arm64 iOS Release build passed.
-- Production API/crypto verification passed after the ephemeral-session change: reviewer and companion authentication, encrypted backup restoration and sample-location decryption. Disposable-account deletion had already passed against the live service.
-- Privacy manifest parsed successfully; final bundle inspection is part of packaging.
-- Device-interaction verification was attempted in a dedicated simulator session. The build succeeded, but install/launch stalled and captures remained on SpringBoard (`NotRun`). A launch retry did not recover it. The session was closed. No claim is made that login, Settings, deletion confirmation or logout was verified through the UI.
-- Signing, Organizer validation and TestFlight processing were not possible with the current account setup.
+- Unsigned arm64 Release build passed.
+- Production API and crypto checks passed after the ephemeral-session change: reviewer and companion authentication, backup restore, and sample-location decryption.
+- The privacy manifest parsed. Final bundle inspection belongs to packaging.
+- A device-interaction session built, then install and launch stalled on SpringBoard (`NotRun`). The session was closed. Login, Settings, deletion, and logout were not verified through that UI.
+- Signing, Organizer validation, and TestFlight were not possible with the account setup at the time.
 
-## Additional submission checks from the supplied review article
+### Validation for 1.1.6 (build 8)
 
-The article is a useful checklist, not Apple policy or evidence that AI-written apps have a special rejection rate. Its claims about mandatory 5.5-inch screenshots, unconditional payment-link bans, and reviewers being unable to create accounts are too broad. Use Apple's current platform/territory rules and App Store Connect requirements.
+- Unsigned arm64 Release passed, linking the checked-in Clibsodium package. No `_fstat`. `_arc4random_buf` is present. Minimum iOS is 15.0.
+- Keychain checks passed for pending requests, block and unblock, isolation between two temporary accounts, and the existing friends format. Temporary items were removed.
+- Simulator UI passed demo login, the saved sample with location denied, the empty Requests state, the friend More menu, Safety Number, support links, and empty Blocked Users. It caught a reversed bottom menu. The action order was corrected. Reviewer friendship state was not modified.
+- The shared scheme is checked in. BuildProject passes with the local dependency.
+- Unsigned and ad-hoc IPAs are not TestFlight uploads.
 
-- Supply accurate App Privacy answers; a bundled privacy manifest does not fill out the nutrition label. Do not over-declare invented collection either.
-- Use real screenshots of this build; sample contacts must be clearly fictional. A fresh simulator is a test technique, not a requirement that screenshots contain no configured data. Follow current [screenshot specifications](https://developer.apple.com/help/app-store-connect/reference/app-information/screenshot-specifications), not the article's old size list.
-- Complete the current age-rating questionnaire based on actual capabilities, including user-generated usernames/photos. Support/privacy links do not turn the app into an unrestricted browser. Do not guess an age rating or Kids Category.
-- This is a native encrypted location-sharing app with background location, Maps, per-person consent and controls, not a repackaged website. Explain that utility accurately; minimum functionality is still Apple's judgment.
-- No purchases or digital-payment flows exist, so StoreKit/payment changes are unnecessary.
-- Test supported OS versions and physical devices, safe areas, large text, tap targets, cold launch, denied permissions and offline/error states. TestFlight testing remains pending signing; it is useful validation, not a guarantee of review approval.
-- Supply the already-verified demo credentials in private review fields, explain static sample data and background location, and keep the backend/demo available throughout review. Private review-contact phone and name remain App Store Connect entries for the publisher.
+### Later UI checks
 
-## Validation for 1.1.6 (build 8)
+Safety Number, Add Friend, Pending Requests, and Timed Sharing size their sheets on iOS 16 and later. iOS 15 keeps the full-height sheet. Report a Problem and Contact & Support open GitHub Issues.
 
-- Final unsigned arm64 Release build passed through `xcodebuild`, linking the checked-in local Clibsodium package. Executable inspection confirms no `_fstat`, with `_arc4random_buf` present; minimum iOS remains 15.0. The privacy manifest parses successfully.
-- Production Keychain checks passed for pending request persistence, block/unblock updates, isolation between two temporary accounts, and decoding the existing local friends format. Temporary Keychain entries were removed afterward.
-- Simulator UI verification passed real demo login, saved sample location display with location permission denied, Requests empty state, friend More menu, Safety Number, support/contact links and Blocked Users empty state. It caught UIKit reversing the bottom-anchored menu; action order was adjusted accordingly. No reviewer friendship/block state was modified. Populated pending request actions and physical-device background behavior remain manual checks.
-- The shared Zood iOS build/run/archive scheme is checked in. After reopening the workspace, Xcode lists the scheme as active and BuildProject passes with the local dependency.
-- TestFlight/App Store signing and Organizer validation remain pending the publisher's developer-account setup. Unsigned and ad-hoc fakesigned IPAs are review/testing artifacts, not TestFlight uploads.
+The Debug-only screenshot tour uses fictional in-memory fixtures and rejects Zood API calls. See [UI_TOUR.md](UI_TOUR.md). Tour output was a 39-screen matrix. It is not the App Store screenshot set and not a substitute for the reviewer account.
 
-## Screenshot tour and compact sheets
+Nickname checks passed for precedence, clearing, legacy decoding, optional backup fields, and @handle lookup. iPhone 11 captures verified nickname saving and View Username. Later keyboard, discard, and Account edits compiled, then simulator connections failed. Only the iOS 27.2 runtime was installed. Physical-device checks on older iOS remain open. Sessions were shut down.
 
-Safety Number, Add Friend, Pending Requests and Timed Sharing measure content and adjust their sheet height on iOS 16+, remaining scrollable for large text/short screens. iOS 15 retains its full-height sheet fallback. Settings remains a full scrollable form. Report a Problem and Contact & Support (Settings > Privacy & Support) both open GitHub Issues.
+Linked contacts use `CNContactPickerViewController` and do not prompt for Contacts permission. From 1.1.16 the chosen name and identifier also ride in the encrypted backup. From 1.1.17 the contact's name becomes the private nickname and the contact thumbnail is the avatar. The photo stays on the device. Avatars crop. They do not stretch.
 
-The Debug-only screenshot tour uses fictional in-memory fixtures and rejects Zood API calls. It captures light/dark/large-text variants into an HTML gallery/viewer and ZIP. See [UI_TOUR.md](UI_TOUR.md). Tour fixtures are not a substitute for the real private reviewer account, runtime behavior checks, or accurate App Store screenshots.
+Friend folders and bar order are in the encrypted backup from 1.1.17. They do not change who can see a location. Consequential actions ask for confirmation.
 
-Final simulator checks confirmed the displayed Remove & Block / Remove Friend order and Settings-only reporting. The fitted-sheet check caught and fixed an initial zero-height measurement; subsequent Safety Number screenshots show all digits and the Share action. Xcode BuildProject and the final unsigned Release build pass after these changes. Tour output is a 39-screen matrix (13 scenes × light, dark, largest accessibility text), with per-scene readiness and retained light/dark captures when updating variants. The hosted GitHub workflow is supplied but not yet run here.
+Secondary map text uses UIKit `secondaryLabel` so it stays readable on iOS 15–17. Dynamic Type is supported through Accessibility 1.
 
-## Nicknames and account navigation (1.1.9)
+### What an old article got wrong
 
-The optional shared nickname is encrypted profile metadata. A private friend nickname never goes to that friend; it is part of the account's encrypted backup. App Privacy answers should account for optional names as well as usernames, photos and location. The username remains visible in Settings and in each friend's View Username menu; nicknames never substitute for identity or safety checks.
-
-The Account submenu contains the shared-name editor, Blocked Users, Log Out and Delete Account. Change Photo is a separate blue-text action in the profile tile. Report a Problem opens the publicly readable issues list; posting still requires GitHub authentication.
-
-### Verification limits for this change
-
-Production-model integration checks pass for nickname precedence, clearing, legacy message/backup decoding, optional encrypted-backup fields and copied @handle lookup. The existing Keychain pending/block/unblock/account-isolation checks also pass.
-
-Earlier iPhone 11 captures verified nickname saving, View Username/copy, wider name/address layout, empty-request text, and stable map scale at expanded sheet endpoints. Final keyboard padding, X-discard, accessibility scrolling and Account changes compile but remain unverified through the UI: iPhone 11, SE and Pro Max simulator connections failed, including after a CoreSimulatorService restart and a single cold boot. Only iOS 27.2 simulator runtimes are installed; the reported iOS 17.1.2 device behavior still needs a physical-device check. All sessions were closed and simulators shut down. Diagnostic captures are not presented as final screenshots.
-
-## Linked contacts, maps links and status row (1.1.10)
-
-- **Linked contacts** use Apple's `CNContactPickerViewController`, which returns only the contact the person picks. The app never requests Contacts authorization, so `NSContactsUsageDescription` is not needed and no permission prompt appears. Only the chosen contact's display name and Contacts identifier are kept, in this device's preferences under the signed-in account and (from 1.1.16) in the end-to-end encrypted account backup, which the server cannot read. They are never sent to the friend, and Delete Account removes the local copy along with the backup. Name priority is: private nickname, then linked contact, then the friend's shared nickname, then `@username`.
-- **Address as a Maps link** replaces "Open in Maps" in the friend ⋯ menu; that slot is now Link Contact. The address stays in the regular text color, underlined, with a small map glyph on the first line only.
-- **One status row** below the address shows Requesting…, the brief green Updated check, No response / Unsupported, and then "Updated …" (a relative time today, otherwise a date and time). Refresh is an icon-only button with the accessibility label "Refresh location".
-- The friend bar now clips scrolling content to its rounded shape, so the Add/Requests buttons and avatars no longer draw over its corners.
-- App Privacy answers are unchanged: contact data stays on device and is not "collected" in App Store Connect's sense.
-
-## Readability on iOS 15–17 and text size (1.1.12)
-
-- Secondary text and icons on the map's floating cards use UIKit's `secondaryLabel` color. SwiftUI's `.secondary` becomes vibrant on a blur material before iOS 26 and was nearly invisible in Dark Mode on an iOS 17 iPhone (battery, update time, "Share my location", platform logo).
-- The pre-iOS 26 Refresh button keeps its tint and icon when unavailable and is dimmed instead of becoming a blank gray box.
-- Map controls (Settings, My Location, timed sharing) use Zood navy in Light Mode and the app's light blue in Dark Mode.
-- Dynamic Type is followed up to Accessibility 1 (`maxTextSize` in `MyApp.swift`). Larger accessibility sizes stacked the floating map controls on top of each other; supporting every size isn't an App Review requirement, and Larger Text up to that point still applies everywhere.
-
-## Backups, friend folders and polish (1.1.16)
-
-- **Encrypted backup** now also carries blocked accounts and each friend's linked contact (name, plus a platform-specific contact reference). The backup is encrypted on the device with the account's symmetric key, so the server can't read it. Older and stock Zood clients ignore the extra JSON keys; Android 1.1.6-family restores linked-contact names and carries the blocked list through its own backups. Pending requests are still not backed up. App Privacy answers should be reviewed before submission: contact names now leave the device, but only end-to-end encrypted.
-- **Friend folders:** long-press a friend in the bar and drop them on another to make a folder (Discord-style), on a folder to join it, or on the bar to leave. Folders are saved on this iPhone only and never change who sees your location.
-- Round Refresh button; extra space under the underlined address; no edge fade on the friend bar; Settings account row shows just the name, with Change Photo inside Account; About drops the Zood blurb (now in Notices & Trademarks); Copy Link and Share Link are the same size on iOS 15–25; sheet headers sit just under the drag indicator with 20 pt side margins.
-
-## Friend bar arranging and contact photos (1.1.17)
-
-- **Arranging the bar** follows the Home Screen model: long-press to lift (with haptics), drag sideways and the others slide aside (order saved), hold over the middle of someone to make a folder, and folders open above the bar as a grid (3×3 by default like Home Screen folders, adjustable in Settings › Friend Bar). VoiceOver users get Move Left / Move Right and Remove from Folder actions.
-- **Backup:** the bar order and folders join blocked accounts, nicknames and linked contacts in the end-to-end encrypted account backup (optional `folders` / `bar_order` keys, ignored by older clients; Android 1.1.7-family carries them through).
-- **Linked contacts** now set the friend's nickname to the contact's first and last name and use the contact's thumbnail, as framed in Contacts, as the friend's picture. The photo stays on the device. Every avatar renderer fills and crops, never stretches (checked with deliberately tall and wide test images).
-
-## Confirmations and folder card (1.1.18)
-
-- Consequential actions ask for confirmation. Log Out uses the native confirmation sheet or popover. The other actions use an alert with Cancel: ungroup a folder, unlink a contact, deny or block a request, stop timed sharing, log out, delete account, remove or remove-and-block a friend, unblock.
-- The open folder card fits its grid, centers above its tile in the bar (pinned to the screen margin near either edge), no longer clips avatars, and uses the same UIKit ⋯ as the friend card. Its menu reads Ungroup, then Rename Folder.
+A supplied review article is a checklist, not Apple policy. It overstated mandatory 5.5-inch screenshots, a blanket ban on payment links, and a rule that reviewers cannot create accounts. Use the current form and the screenshot specifications linked above.
