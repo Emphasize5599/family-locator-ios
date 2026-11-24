@@ -153,7 +153,7 @@ final class AppModel: ObservableObject {
             fixture.nickname = "Dad"
         }
         if scene == "friend-two-line-name" || scene == "friend-nickname" {
-            fixture.nickname = "Alex Morgan"
+            fixture.nickname = "Alex Reed"
         }
         if scene == "friend-long-name" {
             // Also shows the activity icons: walking, heading northeast.
