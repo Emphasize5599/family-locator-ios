@@ -49,10 +49,10 @@ struct InlineNameActions: View {
     var body: some View {
         HStack(spacing: Spacing.tight) {
             Spacer(minLength: 0)
-            PanelIconButton(systemName: "checkmark.circle.fill", tint: UIColor(Color.zoodYellow),
+            PanelIconButton(systemName: "checkmark.circle.fill", tint: UIColor(Color.zoodGreen),
                             accessibilityLabel: String(localized: "Save"), action: onSave)
                 .frame(width: 44, height: 44)
-            PanelIconButton(systemName: "xmark.circle", tint: .secondaryLabel,
+            PanelIconButton(systemName: "xmark.circle", tint: UIColor(Color.zoodYellow),
                             accessibilityLabel: String(localized: "Cancel"), action: onCancel)
                 .frame(width: 44, height: 44)
         }
