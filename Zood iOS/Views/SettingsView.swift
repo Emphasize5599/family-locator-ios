@@ -1,5 +1,7 @@
 import SwiftUI
 
+/// Settings: profile, Live Requests and location permission status, privacy and support links, and the account
+/// (blocked users, log out, delete account).
 struct SettingsView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss

@@ -25,7 +25,7 @@ A private nickname you choose for a friend takes priority over their shared name
 
 To edit a nickname, tap it on the friend card or in Account. Tap an open folder’s title to rename it. The pencil and Rename Folder actions open the same inline fields. On iOS 16 and later, the friend card fits up to two lines beside the avatar and moves longer text below the header. Names wrap as you type, and the folder grows up to the screen margins. The Save and Cancel controls sit below the field while the existing header buttons stay visible. Use the green check or the keyboard’s Done key to save, or the yellow X to discard the draft. Tapping outside the editor also discards the draft. The folder title is centered alongside its buttons, and its bottom-bar label previews the draft. A friend’s editor starts with the visible name. If the friend has a bottom-bar tile, the bar brings it into view and previews the name and any initials while you type. Tap their tile again to close the card. When the map is already focused on that spot, opening the card keeps the camera steady.
 
-See [Docs/PROTOCOL.md](Docs/PROTOCOL.md) for the wire protocol.
+See [Docs/ARCHITECTURE.md](Docs/ARCHITECTURE.md) for a one-page tour of the code, and [Docs/PROTOCOL.md](Docs/PROTOCOL.md) for the wire protocol.
 
 ## Building
 Xcode 27, iOS 15.0+. Links the local `Vendor/Clibsodium` Swift package, containing upstream libsodium 1.0.22 with its official Apple RNG selection backport rebuilt for iOS 15+ and its simulators. Reproduce the binary with `Tools/build-libsodium.sh` (source archive checksum pinned in the script). See [dependency build notes](Vendor/Clibsodium/README.md).

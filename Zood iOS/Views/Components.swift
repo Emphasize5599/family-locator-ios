@@ -1,5 +1,7 @@
 import SwiftUI
 
+/// Shared building blocks used across screens: brand colors, spacing, avatars and the small buttons and menus
+/// on the map, so every screen looks and behaves the same.
 extension Color {
     // Icon hues, adjusted for contrast in text and controls on system backgrounds.
     static let zoodBlue = adaptive(light: 0x17679C, dark: 0x70BCF3)

@@ -1,5 +1,7 @@
 import Foundation
 
+/// Errors from the Zood server. Known server codes get friendly messages so people see "That username is
+/// already taken" rather than a raw error number.
 nonisolated enum OscarError: Error, LocalizedError {
     case server(code: Int, message: String?)
     case http(status: Int)

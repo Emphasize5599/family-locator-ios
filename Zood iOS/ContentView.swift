@@ -1,5 +1,7 @@
 import SwiftUI
 
+/// The root screen: onboarding while signed out, the map once signed in. It also forwards the app moving to the
+/// foreground or background to the model, which reconnects or pauses syncing to save battery.
 struct ContentView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.scenePhase) private var scenePhase

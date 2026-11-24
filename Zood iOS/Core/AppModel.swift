@@ -97,6 +97,8 @@ final class AppModel: ObservableObject {
         set { UserDefaults.standard.set(newValue, forKey: "lastLocationUpload") }
     }
 
+    /// Restores the signed-in account from the Keychain (or starts signed out) and starts syncing.
+    /// Blocked people are filtered out on load so a block can never be undone by stale data on disk.
     init() {
         UserDefaults.standard.register(defaults: [Self.liveKey: true])
         liveRequestsEnabled = UserDefaults.standard.bool(forKey: Self.liveKey)
@@ -145,6 +147,8 @@ final class AppModel: ObservableObject {
     }
 
     #if DEBUG
+    /// Debug only: fills the model with fictional people for a screenshot tour scene, so screenshots never show
+    /// real family data.
     func configureTourScene(_ scene: String) {
         guard ScreenshotTour.isEnabled else { return }
         safety = SafetyState()
@@ -240,6 +244,9 @@ final class AppModel: ObservableObject {
 
     // MARK: - Sign up / log in / log out
 
+    /// Creates a new account. Keys are generated and the password is stretched off the main thread (it takes about
+    /// a second on purpose); only public keys and password-encrypted secrets go to the server, then we sign in
+    /// exactly as a returning user would.
     func signUp(username: String, password: String, email: String?) async throws {
         let username = username.trimmingCharacters(in: .whitespaces).lowercased()
         let newUser: NewUser = try await Task.detached(priority: .userInitiated) {
@@ -261,6 +268,9 @@ final class AppModel: ObservableObject {
         try await logIn(username: username, password: password)
     }
 
+    /// Signs in with the Zood challenge protocol: the password unlocks our secret key locally, the server checks we
+    /// hold that key, and the encrypted backup brings back friends, blocks and folders. The password never leaves
+    /// the phone. Signing in also makes this the account's active device (see DeviceSession).
     func logIn(username: String, password: String) async throws {
         let username = Username.forLookup(username)
         let anon = OscarAPI()
@@ -355,6 +365,8 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// Permanently deletes the account on the server (required by App Review guideline 5.1.1(v)) and then wipes
+    /// everything this iPhone kept for it.
     func deleteAccount() async throws {
         try await api.deleteAccount()
         if let id = credentials?.userID {
@@ -365,6 +377,8 @@ final class AppModel: ObservableObject {
         logOut()
     }
 
+    /// Stops all syncing and location work and erases this account's data from the phone, so the next person to
+    /// sign in on this iPhone sees none of it.
     func logOut() {
         backupTask?.cancel()
         backupTask = nil
@@ -398,6 +412,8 @@ final class AppModel: ObservableObject {
 
     // MARK: - Session lifecycle
 
+    /// Starts everything a signed-in account needs: the live socket (watching each friend's drop box), inbox
+    /// polling, location sharing, and a first catch-up refresh.
     private func startSession() {
         guard let credentials else { return }
         let socket = OscarSocket(api: OscarAPI(accessToken: credentials.accessToken)) { [weak self] event in
@@ -417,10 +433,14 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// Live Requests keeps location (and so the app) running in the background so family can ask for a fresh
+    /// location. It only applies while signed in and when the user has it turned on.
     private func applyLiveMode() {
         location.setLive(phase == .signedIn && liveRequestsEnabled)
     }
 
+    /// The app came to the foreground: reconnect (a socket from before suspension is likely dead), catch up on
+    /// anything missed, and check we weren't signed in on another phone meanwhile.
     func sceneDidBecomeActive() {
         guard !ScreenshotTour.isEnabled else { return }
         let returningFromBackground = !isForeground
@@ -454,11 +474,13 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// One device per account: if the account signed in elsewhere, sign out here and tell the user why.
     private func signOutBecauseSupersededElsewhere() {
         logOut()
         signedOutElsewhere = true
     }
 
+    /// Stops foreground-only work (inbox polling) to save battery once the app leaves the screen.
     func sceneDidEnterBackground() {
         isForeground = false
         inboxPoll?.cancel()
@@ -467,6 +489,7 @@ final class AppModel: ObservableObject {
         // Without live mode iOS will suspend us shortly; the socket goes with it and that's expected.
     }
 
+    /// While the app is open, checks the inbox every 10 seconds as a safety net in case a socket push was missed.
     private func startInboxPolling() {
         guard isForeground, inboxPoll == nil else { return }
         inboxPoll = Task { [weak self] in
@@ -544,6 +567,8 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// Reacts to the live socket: a reconnect triggers a catch-up, a package is a friend's new location, a message
+    /// triggers an inbox sync, and an invalid token means the session ended (signed out elsewhere or deleted).
     private func handle(_ event: SocketEvent) {
         switch event {
         case .connected:
@@ -607,6 +632,7 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// Picks up the latest location a friend left in their drop box, e.g. right after they start sharing with us.
     private func fetchPackage(from user: ZoodUser, box: Data) async {
         guard let token = credentials?.accessToken,
               let package = try? await api.pickUpPackage(boxID: box),
@@ -615,6 +641,7 @@ final class AppModel: ObservableObject {
         await processPackage(package, from: user)
     }
 
+    /// Decrypts a friend's dropped package and applies it. Anything that doesn't decrypt or validate is ignored.
     private func processPackage(_ pkg: EncryptedData, from user: ZoodUser) async {
         guard let credentials,
               let plain = try? Crypto.boxOpen(pkg.cipherText, nonce: pkg.nonce, senderPublicKey: user.publicKey,
@@ -624,6 +651,8 @@ final class AppModel: ObservableObject {
         try? await handle(comm, from: user)
     }
 
+    /// Applies one decrypted message from another user. Messages from blocked people are dropped (except a
+    /// revocation, which may clear their pending request); every other type updates friends, requests or replies.
     private func handle(_ comm: UserComm, from user: ZoodUser) async throws {
         if safety.blocked[user.userID] != nil {
             if comm.type == .locationSharingRevocation, let request = safety.pending[user.userID] {
@@ -768,6 +797,8 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// Only accepts a profile photo that is a real image of a sane size (at most 128 KB and 1024 px), so a stranger's
+    /// request can't be used to push a huge or malformed file onto this phone.
     private static func requestAvatar(_ data: Data?) -> Data? {
         guard let data, data.count <= 128 * 1024,
               let source = CGImageSourceCreateWithData(data as CFData, nil),
@@ -789,12 +820,15 @@ final class AppModel: ObservableObject {
             && new.movement == old.movement
     }
 
+    /// True when a message reports a different platform or Live Requests setting than we have on record, which must
+    /// update the friend card even if the location itself didn't move.
     private static func deviceChanged(_ comm: UserComm, _ friend: Friend) -> Bool {
         guard comm.platform != nil || comm.liveRequests != nil else { return false }
         return comm.platform.map { $0 != friend.device?.platform } == true
             || comm.liveRequests.map { $0 != friend.device?.liveRequests } == true
     }
 
+    /// Remembers a friend's platform and Live Requests setting, ignoring reports older than what we already know.
     private static func recordDevice(from comm: UserComm, into friend: inout Friend, reportedAt: Date = Date()) {
         guard comm.platform != nil || comm.liveRequests != nil,
               friend.device.map({ reportedAt >= $0.reportedAt }) ?? true else { return }
@@ -821,6 +855,8 @@ final class AppModel: ObservableObject {
         try? await sendRequestResponse(.finished, to: user)
     }
 
+    /// Tells a friend how their "refresh location" request is going (starting, finished, too soon), with our Live
+    /// Requests setting so their card stays accurate.
     private func sendRequestResponse(_ action: UpdateRequestAction, to user: ZoodUser) async throws {
         var comm = UserComm(type: .locationUpdateRequestReceived)
         comm.locationUpdateRequestAction = action
@@ -831,6 +867,9 @@ final class AppModel: ObservableObject {
 
     // MARK: - Outgoing
 
+    /// Encrypts a message for one user and posts it to their inbox. Always includes our shared nickname so friends
+    /// see name changes promptly. `urgent` asks the server to deliver right away; `transient` messages aren't
+    /// stored if the recipient is offline (used for live requests, which are pointless later).
     private func send(_ comm: UserComm, to user: ZoodUser, urgent: Bool, transient: Bool) async throws {
         guard let credentials else { return }
         var comm = comm
@@ -842,6 +881,8 @@ final class AppModel: ObservableObject {
                                                                   urgent: urgent, transient: transient))
     }
 
+    /// Shares one location fix with everyone we share with (and an active timed-share link). Each friend gets their
+    /// own encrypted copy in their drop box, so the server never sees the location.
     func upload(location loc: CLLocation) async {
         guard let credentials else { return }
         var comm = UserComm(type: .locationInfo)
@@ -940,6 +981,7 @@ final class AppModel: ObservableObject {
         activate(updated)
     }
 
+    /// Starts tracking a timed share and schedules it to stop on time.
     private func activate(_ share: TimedShare) {
         timedShare = share
         location.setTimedSharing(true)
@@ -955,6 +997,8 @@ final class AppModel: ObservableObject {
 
     // MARK: - Friends
 
+    /// Checks whether a username is taken (sign-up) or exists (adding a friend). Before sign-in, search isn't
+    /// allowed, so starting a sign-in challenge is used as the existence check.
     func usernameExists(_ username: String, registration: Bool) async throws -> Bool {
         do {
             if registration {
@@ -969,6 +1013,7 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// An incoming friend request from this username, if one is waiting for approval.
     func pendingRequest(username: String) -> PendingRequest? {
         let username = Username.forLookup(username)
         return safety.visibleRequests.first { $0.user.username == username }
@@ -994,6 +1039,8 @@ final class AppModel: ObservableObject {
         return try await acceptIncomingIfPresent(user) ? nil : user
     }
 
+    /// Adds a friend after the user confirms. With `sharing` we offer our location right away; without it we send a
+    /// plain friend request, so people can connect without sharing (for example, to be visible in each other's lists first).
     func confirmAddFriend(with user: ZoodUser, sharing: Bool) async throws {
         guard user.userID != credentials?.userID else { throw FriendError.cantAddSelf }
         guard await syncInbox() else { throw FriendError.inboxUnavailable }
@@ -1012,6 +1059,8 @@ final class AppModel: ObservableObject {
         scheduleBackup()
     }
 
+    /// If they already asked to connect with us, adding them just approves that request instead of sending a
+    /// duplicate. Returns true when nothing more is needed.
     private func acceptIncomingIfPresent(_ user: ZoodUser) async throws -> Bool {
         if let request = safety.pending[user.userID], safety.blocked[user.userID] == nil {
             try await approveRequest(request)
@@ -1031,6 +1080,8 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// Starts sharing our location with someone: creates (or reuses) a private drop box and sends them its ID.
+    /// Reusing the existing box keeps friendships stable across retries, matching the Android client.
     func startSharing(with user: ZoodUser) async throws {
         guard user.userID != credentials?.userID else { throw FriendError.cantAddSelf }
         guard safety.blocked[user.userID] == nil else { throw FriendError.blocked }
@@ -1058,12 +1109,14 @@ final class AppModel: ObservableObject {
         await shareCurrentLocation()
     }
 
+    /// Stops sharing our location with a friend but keeps the friendship.
     func stopSharing(with friend: Friend) async {
         updateFriend(friend.id) { $0.sendingBoxID = nil }
         scheduleBackup()
         try? await send(UserComm(type: .locationSharingRevocation), to: friend.user, urgent: false, transient: false)
     }
 
+    /// Removes a friend on both sides: their app drops us too (the `friendRemoved` flag), then we forget them here.
     func removeFriend(_ friend: Friend) async throws {
         guard let account = credentials?.userID, local.friends[friend.id] != nil else { return }
         try await sendFriendRemoval(to: friend.user)
@@ -1071,6 +1124,7 @@ final class AppModel: ObservableObject {
         try forgetFriend(friend.id)
     }
 
+    /// Sends the two-way removal message. Older clients see an ordinary revocation and still stop receiving locations.
     private func sendFriendRemoval(to user: ZoodUser) async throws {
         var removal = UserComm(type: .locationSharingRevocation)
         removal.friendRemoved = true
@@ -1081,6 +1135,8 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// Retries removal messages for blocks made while offline, so a blocked person is removed from the other phone
+    /// as soon as we have a connection.
     private func flushBlockRemovals() async {
         guard let token = credentials?.accessToken else { return }
         for (id, sent) in safety.sentBlockRemovals ?? [:] where !sent {
@@ -1089,6 +1145,8 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// Sends the removal for one blocked person at most once, recording success in the Keychain so it survives restarts.
+    /// Concurrent callers share the same send instead of sending duplicates.
     private func deliverBlockRemoval(to user: ZoodUser) async throws {
         let id = user.userID
         guard let token = credentials?.accessToken, safety.blocked[id] != nil,
@@ -1111,6 +1169,8 @@ final class AppModel: ObservableObject {
         try await send.value
     }
 
+    /// Deletes everything we know about a friend on this phone (location, names, folder spot) so re-adding them later
+    /// starts fresh. `keepRequest` preserves a pending request when blocking, so unblocking can restore it.
     private func forgetFriend(_ id: Data, keepRequest: Bool = false) throws {
         if !keepRequest, safety.pending[id] != nil {
             var next = safety
@@ -1125,6 +1185,8 @@ final class AppModel: ObservableObject {
         scheduleBackup()
     }
 
+    /// Persists blocks and pending requests before updating the screen, so a block is never shown as done unless it
+    /// was actually saved.
     private func saveSafety(_ state: SafetyState) throws {
         if ScreenshotTour.isEnabled {
             safety = state
@@ -1135,12 +1197,15 @@ final class AppModel: ObservableObject {
         safety = state
     }
 
+    /// Declines an incoming request; the sender isn't notified.
     func denyRequest(_ request: PendingRequest) throws {
         var next = safety
         next.pending[request.id] = nil
         try saveSafety(next)
     }
 
+    /// Accepts an incoming request: they become a friend and, if they offered their location, we start receiving it.
+    /// A request kept from before a block needs a fresh offer from them, so approving only marks it approved.
     func approveRequest(_ request: PendingRequest) async throws {
         guard safety.blocked[request.id] == nil,
               var current = safety.pending[request.id], current.boxID == request.boxID else { return }
@@ -1167,6 +1232,8 @@ final class AppModel: ObservableObject {
         Task { try? await send(UserComm(type: .avatarRequest), to: request.user, urgent: false, transient: false) }
     }
 
+    /// Blocks someone: saves the block first (so nothing from them gets through even offline), removes the friendship
+    /// on this phone, and tells their phone to drop us. Their pending request is kept so unblocking can restore it.
     func blockUser(_ user: ZoodUser) async throws {
         var next = safety
         let id = user.userID
@@ -1192,6 +1259,7 @@ final class AppModel: ObservableObject {
         try? await deliverBlockRemoval(to: user)
     }
 
+    /// Unblocks someone after making sure the removal reached their phone, so they can't still be receiving our location.
     func unblockUser(_ user: ZoodUser) async throws {
         guard safety.blocked[user.userID] != nil else { return }
         if !ScreenshotTour.isEnabled {
@@ -1207,6 +1275,8 @@ final class AppModel: ObservableObject {
         scheduleBackup()
     }
 
+    /// Asks a friend's phone for a fresh location (Refresh). If nothing answers within 30 seconds the card says so,
+    /// because transient requests only reach phones that are online right now.
     func requestLocationUpdate(from friend: Friend) async {
         let sentAt = Date()
         requestStatuses[friend.id] = .sent(sentAt)
@@ -1252,6 +1322,7 @@ final class AppModel: ObservableObject {
     /// How long an explicit "Live Requests is off" report is trusted without re-checking (same as Android).
     static let recentDeviceReport: TimeInterval = 6 * 60 * 60
 
+    /// Whether the friend card should offer Refresh, explain it's unsupported, or show that we're checking.
     func requestCapability(for friend: Friend) -> RequestCapability {
         guard friend.theyShare else { return .notSharing }
         // Their phone sends its Live Requests setting with every location update and as soon as it changes.
@@ -1301,6 +1372,8 @@ final class AppModel: ObservableObject {
         if changed, !ScreenshotTour.isEnabled { ContactLinkStore.save(links, for: account) }
     }
 
+    /// Links a friend to one of the user's contacts (or unlinks). The friend takes the contact's name, and the link is
+    /// kept on this iPhone and in the encrypted backup, never sent to the friend.
     func setLinkedContact(_ contact: LinkedContact?, for id: Data) {
         guard let account = credentials?.userID, local.friends[id] != nil else { return }
         // Saved on this iPhone and, like nicknames, in the end-to-end encrypted backup. It's never sent to
@@ -1324,11 +1397,13 @@ final class AppModel: ObservableObject {
         scheduleBackup()
     }
 
+    /// A private name for a friend, visible only to this account.
     func setFriendNickname(_ value: String, for id: Data) {
         updateFriend(id) { $0.nickname = Nickname.normalized(value) }
         scheduleBackup()
     }
 
+    /// Changes the name friends see for us and sends it to every friend right away.
     func setMyNickname(_ value: String) async {
         local.myNickname = Nickname.normalized(value)
         LocalDataStore.save(local)
@@ -1342,6 +1417,7 @@ final class AppModel: ObservableObject {
         await shareCurrentLocation()
     }
 
+    /// Changes our profile photo and sends it to the friends we share with.
     func setMyAvatar(_ jpeg: Data) async {
         local.myAvatar = jpeg
         LocalDataStore.save(local)
@@ -1355,6 +1431,7 @@ final class AppModel: ObservableObject {
 
     // MARK: - Local data helpers
 
+    /// Looks up a user's public profile, cached so each new sender costs one request.
     private func user(for id: Data) async throws -> ZoodUser? {
         if let known = local.users[id] { return known }
         guard let token = credentials?.accessToken else { return nil }
@@ -1367,6 +1444,7 @@ final class AppModel: ObservableObject {
         return user
     }
 
+    /// Creates the friend record if needed, applies a change and saves.
     private func upsertFriend(_ user: ZoodUser, _ change: (inout Friend) -> Void) {
         local.users[user.userID] = user
         var friend = local.friends[user.userID] ?? Friend(user: user)
@@ -1375,6 +1453,7 @@ final class AppModel: ObservableObject {
         LocalDataStore.save(local)
     }
 
+    /// Applies a change to an existing friend and saves (no-op for unknown friends).
     private func updateFriend(_ id: Data, _ change: (inout Friend) -> Void) {
         guard var friend = local.friends[id] else { return }
         change(&friend)
@@ -1386,6 +1465,7 @@ final class AppModel: ObservableObject {
 
     // MARK: - Backup
 
+    /// Debounces backups: many changes in a row produce one upload 3 seconds after the last one.
     private func scheduleBackup() {
         guard !ScreenshotTour.isEnabled else { return }
         backupTask?.cancel()
@@ -1396,6 +1476,8 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// Uploads the end-to-end encrypted backup. Skipped (and signs out) if another device now owns the account,
+    /// so an old phone can't overwrite the newer device's data.
     private func saveBackup() async {
         guard let credentials else { return }
         // Never overwrite the backup of an account that's now active on another device; sign out instead.
@@ -1428,6 +1510,8 @@ final class AppModel: ObservableObject {
         try? await api.saveBackup(encrypted)
     }
 
+    /// Turns a downloaded backup into local data. Linked contacts from Android keep only the name, since an Android
+    /// contact ID means nothing on iPhone.
     private static func localData(from snapshot: Snapshot) -> LocalData {
         var data = LocalData()
         for u in snapshot.users {

@@ -2,6 +2,8 @@ import CoreLocation
 import MapKit
 import SwiftUI
 
+/// An in-progress edit of a friend's name. The card previews the draft live, and nothing is saved until the user
+/// confirms, so a tap elsewhere can cancel cleanly.
 struct FriendNicknameDraft {
     let original: String
     var text: String

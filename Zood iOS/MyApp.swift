@@ -3,6 +3,7 @@ import SwiftUI
 /// The largest Dynamic Type size the app follows. Sheets inherit it from the root view.
 let maxTextSize = DynamicTypeSize.accessibility1
 
+/// App entry point. Creates the single shared `AppModel` (all account state and syncing) and hands it to every screen.
 @main struct MyApp: App {
     @StateObject private var model = AppModel()
 

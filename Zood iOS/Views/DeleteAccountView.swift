@@ -1,5 +1,7 @@
 import SwiftUI
 
+/// Permanent account deletion, required by App Review (guideline 5.1.1(v)). Typing the username and a final
+/// confirmation are deliberate speed bumps, because deletion can't be undone and affects the account in every Zood app.
 struct DeleteAccountView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss

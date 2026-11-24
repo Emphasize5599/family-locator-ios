@@ -1,6 +1,8 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// The main screen: the map of friends, the friend bar along the bottom (people, folders, Requests and Add) and
+/// the friend card for whoever is selected.
 struct MainView: View {
     @EnvironmentObject private var model: AppModel
 

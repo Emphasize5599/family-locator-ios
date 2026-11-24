@@ -1,5 +1,7 @@
 import SwiftUI
 
+/// Incoming friend requests. Nothing from a stranger appears on the map until the user approves it here, which is
+/// the app's main protection against unwanted location sharing.
 struct RequestsView: View {
     @EnvironmentObject private var model: AppModel
     @State private var error: String?

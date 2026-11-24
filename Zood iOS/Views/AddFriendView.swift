@@ -1,5 +1,7 @@
 import SwiftUI
 
+/// Add Friend: look up someone by exact username, choose whether to share your location with them right away,
+/// or invite people who don't have the app yet. Exact-username lookup (no browsing) keeps strangers from finding people.
 struct AddFriendView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
