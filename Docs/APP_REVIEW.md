@@ -20,7 +20,7 @@ The app now has an in-app deletion flow, published privacy/support/license links
 | SDK required-reason API | Resolved in 1.1.6: rebuilt libsodium 1.0.22 for iOS 15 with upstream Apple RNG selection commit `f6bd9140861ab6806f4a99923888b65477fc4e33` backported. Final arm64 Release imports `arc4random_buf` and no longer imports `fstat`. No inaccurate File Timestamp reason was added. App Store Connect validation remains pending signing. |
 | User-generated content / abuse handling | Pending requests can show the sender’s photo; location grants require approval before showing location. Requests offer Approve, Deny and Block. Friends offer Remove & Block above Remove Friend; Settings → Account lists blocked users; Settings → Privacy & Support has Report a Problem. Blocks are account-scoped and included in the end-to-end encrypted backup. Amidst enforces them after restore. The server cannot read or enforce the list. Report a Problem opens the public GitHub Issues page (https://github.com/Emphasize5599/family-locator-ios/issues), which loads without signing in; filing an issue requires a GitHub account. Nothing is attached automatically. The publisher must monitor GitHub Issues, respond promptly, and arrange escalation with Zood for service-level abuse; client controls alone do not establish complete guideline 1.2 compliance. |
 | Rights and operator responsibilities | The project is AGPL-3.0 and interoperates with a third-party service. Source/license links and an independence disclaimer are included. ZOOD is a registered US trademark of Tangled Wires, LLC (Reg. No. 5,886,683, Class 9, location-sharing software), and guideline 4.1(c) forbids another developer's icon without approval, so the Zood icon was replaced with an original Family Circle icon (light, dark and tinted). "Zood" appears only in descriptive compatibility text, never in the app name, subtitle, keywords or icon. Guideline 5.2.2 still applies to using api.zood.xyz: retain evidence of permission from the service operator if Apple requests it. |
-| Submission metadata | Public support is GitHub Issues (https://github.com/Emphasize5599/family-locator-ios/issues), which is also the App Store Connect Support URL; no public support email is published. Enter the publisher's real private review-contact name, phone and email, support details, age-rating answers, screenshots, description, privacy-policy URL and App Privacy answers. No live App Store Connect record was available to inspect. Do not select Kids Category without the additional requirements for that category. |
+| Submission metadata | The listing name and subtitle are chosen below. Public support is GitHub Issues (https://github.com/Emphasize5599/family-locator-ios/issues), which is also the App Store Connect Support URL; no public support email is published. Enter the publisher's real private review-contact name, phone and email, support details, age-rating answers, screenshots, the paste-ready description below, privacy-policy URL and App Privacy answers. No live App Store Connect record was available to inspect. Do not select Kids Category without the additional requirements for that category. Do not put "free" or a price in the name, subtitle, screenshots or previews. |
 | Encryption | `ITSAppUsesNonExemptEncryption = YES` (libsodium crypto_box/secretbox/Argon2 end-to-end encryption, not just HTTPS). App Store Connect asks the export-compliance questions on upload; the publisher answers them and obtains any required documentation. |
 | Physical-device validation | Test Always/While Using/denied/approximate location, background updates, Live Requests, Low Power Mode, force-quit/relaunch, timed-share expiry, logout and deletion on supported iPhones. Simulator/API checks do not establish background reliability. |
 
@@ -48,9 +48,52 @@ Before each submission, verify the credentials again. If reviewers delete the ac
 
 `Tools/ReviewAccountTool.swift` contains the reproducible setup/verification code, with no embedded credentials. Compile it with the production `Core/Crypto.swift`, `Core/Models.swift`, and `Core/OscarAPI.swift`, linking the macOS slice of the resolved Clibsodium XCFramework. Pass a private output directory as its first argument. Running it creates real accounts and resets their sample fixtures; use the existing private state directory to avoid creating duplicate accounts.
 
+## Store listing
+
+Chosen November 24, 2026. The home-screen name stays **Amidst**. The store name is the invitation. The subtitle is the trust line, with no price word and no final period.
+
+| Field | Text | Characters |
+| --- | --- | --- |
+| App Store name | Amidst: Where Everyone Is | 25 |
+| Subtitle | Open Source, Always Encrypted | 29 |
+| Play title | Amidst: Where Everyone Is | 25 |
+| Play short description | Open Source, Always Encrypted location sharing for family and friends | 69 |
+
+**Always Encrypted** means location packages, friend messages, shared photos and the account backup are encrypted on the device before upload, and there is no plaintext sharing mode. It does not mean the service is blind to account identifiers or connection metadata. Say that in the description and in review notes. The subtitle does not say "free". Pricing already appears on the product page, and guideline 2.3.7 keeps prices out of the name, subtitle, screenshots and previews.
+
+No word is repeated between the name and the subtitle. The hidden keyword field should not repeat Amidst, Where, Everyone, Is, Open, Source, Always or Encrypted, and it should not name other apps:
+
+```
+map,location,share,family,friends,private,together,places,group,home,gps,live,requests,folders,links
+```
+
+That field is 100 characters. Apple combines words across the name, subtitle and keyword field. The description is for people, not for stuffing extra search terms.
+
+Promotional text, up to 170 characters, is not a search field:
+
+```
+Locations are encrypted on your phone before they are sent. The source is public. Share only with the family and friends you choose.
+```
+
+Paste-ready description:
+
+```
+Amidst is where the people you care about are. Share your location with family and friends you choose, and see the locations they share with you.
+
+Locations, messages and account backups are encrypted on your phone before they are sent. There is no plaintext sharing mode. The source code is public.
+
+Add friends by username. Choose whether to share with each person, and stop sharing at any time. Organize the map into folders. For a time-limited share, create a link and send it to someone you trust.
+
+With your permission, Amidst can update a share in the background and answer a Live Request from a friend you already share with. You can view friends and send requests without sharing your own location.
+
+Amidst is an independent open-source client for the Zood Location network and works with Amidst on Android. It is not affiliated with Zood's trademark owner. There are no purchases and no ads.
+```
+
 ## Suggested private review notes
 
-Amidst is an independent encrypted location-sharing client compatible with Zood Location. Its functionality relies on accounts so that selected friends can exchange encrypted location packages. There are no purchases, ads, or tracking SDKs.
+The App Store listing name is Amidst: Where Everyone Is. The subtitle is Open Source, Always Encrypted. On the home screen the app is Amidst.
+
+Amidst is an independent encrypted location-sharing client compatible with Zood Location. Its functionality relies on accounts so that selected friends can exchange encrypted location packages. Location packages, friend messages, shared photos and the account backup are encrypted on the device before upload. The service can still see account identifiers and connection metadata. There are no purchases, ads, or tracking SDKs.
 
 Use the supplied demo credentials. The demo has one clearly identified sample companion located at a public landmark (Golden Gate Bridge); this is static test data. The demo does not share the reviewer's location with the sample friend by default. To test live sharing/Refresh, use the separately supplied companion credentials on a second device. Choose Always location access and enable Live Requests on that device. Viewing a friend's saved location does not require granting the reviewer's own location permission.
 
