@@ -28,11 +28,15 @@ final class OscarSocket {
     private var runLoop: Task<Void, Never>?
     private(set) var isConnected = false
 
+    /// `onEvent` is called on the main actor for every connection change, package and message, so the app model
+    /// can update the UI directly.
     init(api: OscarAPI, onEvent: @escaping (SocketEvent) -> Void) {
         self.api = api
         self.onEvent = onEvent
     }
 
+    /// Keeps one live connection open, reconnecting with exponential backoff (2 s doubling to 60 s). Backoff spares
+    /// the battery and the shared Zood server when the network is down, instead of retrying in a tight loop.
     func start() {
         guard runLoop == nil else { return }
         let generation = generation
@@ -51,6 +55,8 @@ final class OscarSocket {
         }
     }
 
+    /// Closes the connection for good (sign-out, or the app no longer needs live updates). Changing `generation`
+    /// makes any in-flight reconnect from the old session give up instead of reopening it.
     func stop() {
         generation = UUID()
         runLoop?.cancel()
@@ -60,6 +66,8 @@ final class OscarSocket {
         setConnected(false)
     }
 
+    /// Asks the server to push new packages dropped in this box, so a friend's location shows up the moment they
+    /// share it instead of on the next poll. Remembered so it can be re-sent after a reconnect.
     func watch(_ boxID: Data) {
         watched.insert(boxID)
         send(command: Self.cmdWatch, boxID: boxID)
@@ -121,18 +129,22 @@ final class OscarSocket {
         return false
     }
 
+    /// Called on the first sign of a working connection. The server forgets watches when a socket closes, so
+    /// every watched box is registered again here.
     private func didConnect() {
         guard !isConnected else { return }
         for box in watched { send(command: Self.cmdWatch, boxID: box) }
         setConnected(true)
     }
 
+    /// Reports connection changes only when they actually change, so the UI doesn't flicker on every ping.
     private func setConnected(_ connected: Bool) {
         guard connected != isConnected else { return }
         isConnected = connected
         onEvent(connected ? .connected : .disconnected)
     }
 
+    /// Wire format: one command byte followed by the 16-byte box ID (matches the Zood server).
     private func send(command: UInt8, boxID: Data) {
         guard let task else { return }
         var payload = Data([command])
@@ -140,6 +152,8 @@ final class OscarSocket {
         task.send(.data(payload)) { _ in }
     }
 
+    /// Decodes one server frame: the first byte says whether it's a dropped package or a message for us.
+    /// Anything malformed is ignored, because a bad frame must never crash the app or show bogus data.
     private func handle(_ data: Data) {
         guard data.count >= 3, let kind = data.first else { return }
         let body = data.dropFirst()

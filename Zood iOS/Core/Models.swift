@@ -227,6 +227,8 @@ nonisolated struct UserComm: Codable, Sendable {
         case batteryLevel, batteryCharging, locationUpdateRequestAction, debugData, platform, liveRequests, nickname, friendRemoved
     }
 
+    /// Decodes leniently: every field is optional and a bad field is skipped instead of failing the whole message,
+    /// because older Zood clients and future versions may send fields we don't know or values we can't parse.
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         type = CommType(rawValue: (try? c.decode(String.self, forKey: .type)) ?? "") ?? .unknown
@@ -250,6 +252,7 @@ nonisolated struct UserComm: Codable, Sendable {
         liveRequests = try? c.decodeIfPresent(Bool.self, forKey: .liveRequests)
     }
 
+    /// Encodes only the fields that are set, so stock Zood clients receive exactly the JSON they expect.
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(type.rawValue, forKey: .type)
@@ -273,6 +276,8 @@ nonisolated struct UserComm: Codable, Sendable {
         try c.encodeIfPresent(friendRemoved, forKey: .friendRemoved)
     }
 
+    /// True when this grant answers our own sharing offer on `box` (the friend accepted our request), as opposed
+    /// to a new unsolicited offer that needs the user's approval.
     func repliesToSharingOffer(on box: Data?) -> Bool {
         guard type == .locationSharingGrant, let replyToBox,
               replyToBox.count == ZoodConstants.dropBoxIDLength else { return false }
@@ -296,6 +301,7 @@ nonisolated struct UserComm: Codable, Sendable {
         }
     }
 
+    /// The JSON that gets encrypted and sent to a friend.
     func jsonData() throws -> Data { try ZoodJSON.encoder.encode(self) }
 }
 

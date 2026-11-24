@@ -11,10 +11,13 @@ nonisolated struct Credentials: Codable, Sendable {
     var passwordSalt: Data
 }
 
+/// Saves and loads the signed-in account's credentials in the Keychain (the system's encrypted store),
+/// so the secret key never sits in a plain file or in an iCloud/iTunes backup (`ThisDeviceOnly`).
 nonisolated enum CredentialStore {
     private static let service = "com.bensanzone.zood.credentials"
     private static let account = "current"
 
+    /// The saved credentials, or nil when nobody is signed in (or the Keychain item can't be read).
     static func load() -> Credentials? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -29,6 +32,7 @@ nonisolated enum CredentialStore {
         return try? JSONDecoder().decode(Credentials.self, from: data)
     }
 
+    /// Replaces any saved credentials with these.
     static func save(_ credentials: Credentials) throws {
         let data = try JSONEncoder().encode(credentials)
         delete()
@@ -130,12 +134,15 @@ nonisolated enum LocalDataStore {
         return dir.appendingPathComponent("zood-data.json")
     }
 
+    /// Friends, profile and cached locations from disk. A missing or unreadable file starts fresh: everything
+    /// important can be restored from the encrypted backup.
     static func load() -> LocalData {
         guard let data = try? Data(contentsOf: url),
               let decoded = try? JSONDecoder().decode(LocalData.self, from: data) else { return LocalData() }
         return decoded
     }
 
+    /// Writes atomically (no half-written file after a crash) and encrypted while the phone is locked until first unlock.
     static func save(_ local: LocalData) {
         #if DEBUG
         guard ProcessInfo.processInfo.environment["ZOOD_SCREENSHOT_TOUR"] == nil else { return }
@@ -178,6 +185,8 @@ nonisolated struct SafetyState: Codable, Sendable {
 nonisolated enum SafetyStore {
     private static let service = "com.bensanzone.zood.safety"
 
+    /// Pending requests and blocks for this account, kept in the Keychain so they survive reinstalls and can't
+    /// be edited by other apps.
     static func load(for userID: Data) -> SafetyState {
         let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service, kSecAttrAccount as String: userID.base64EncodedString(),
@@ -189,6 +198,8 @@ nonisolated enum SafetyStore {
         return state
     }
 
+    /// Updates the saved safety state, creating the Keychain item the first time. Throws so a failed save of a
+    /// block is reported instead of silently letting that person back in.
     static func save(_ state: SafetyState, for userID: Data) throws {
         let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service, kSecAttrAccount as String: userID.base64EncodedString()]
@@ -213,6 +224,8 @@ nonisolated enum SafetyStore {
 
 /// Names are presentation only; account lookup and safety numbers always use the immutable username.
 nonisolated enum Nickname {
+    /// Cleans a display name: strips control characters (which could break layouts or hide text) and blank space,
+    /// caps it at 64 characters, and treats empty as "no nickname".
     static func normalized(_ value: String?) -> String? {
         guard let value else { return nil }
         let clean = String(value.unicodeScalars.filter { $0.properties.generalCategory != .control })
@@ -223,6 +236,7 @@ nonisolated enum Nickname {
 
 /// Displayed @handles must paste back into account lookup without changing the server's account identity.
 nonisolated enum Username {
+    /// Turns what someone typed or pasted ("@Alex ") into the exact username the server expects ("alex").
     static func forLookup(_ value: String) -> String {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return (trimmed.hasPrefix("@") ? String(trimmed.dropFirst()) : trimmed).lowercased()
@@ -240,6 +254,8 @@ nonisolated struct LinkedContact: Codable, Hashable, Sendable {
     var photo: Data?
 }
 
+/// Which friend is linked to which Contacts card, per signed-in account, so switching accounts never shows
+/// another person's contact links.
 nonisolated enum ContactLinkStore {
     private static func key(for account: Data) -> String {
         "linked-contacts." + account.base64EncodedString()

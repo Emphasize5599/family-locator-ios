@@ -7,6 +7,8 @@ nonisolated struct EncryptedData: Codable, Hashable, Sendable {
     var nonce: Data
 }
 
+/// A Curve25519 key pair. The public half is published to the Zood server so friends can encrypt to us;
+/// the secret half never leaves this iPhone except inside the password-encrypted backup.
 nonisolated struct KeyPair: Codable, Hashable, Sendable {
     var publicKey: Data
     var secretKey: Data
@@ -49,10 +51,13 @@ nonisolated enum Crypto {
 
     private static let initialized: Bool = sodium_init() >= 0
 
+    /// libsodium must be initialized once before any call; failing loudly is safer than encrypting with an uninitialized library.
     private static func ensureInitialized() throws {
         guard initialized else { throw CryptoError.sodiumInitFailed }
     }
 
+    /// Cryptographically secure random bytes (nonces, salts, drop box IDs). Never use `Int.random` for these:
+    /// a guessable box ID would let a stranger read where a friend drops their location.
     static func randomBytes(_ count: Int) -> Data {
         _ = initialized
         var data = Data(count: count)
@@ -60,6 +65,8 @@ nonisolated enum Crypto {
         return data
     }
 
+    /// Creates the account's identity keys at sign-up. Friends' safety numbers are derived from the public key,
+    /// so this runs once per account, never per device.
     static func generateKeyPair() throws -> KeyPair {
         try ensureInitialized()
         var pub = Data(count: Int(crypto_box_publickeybytes()))
@@ -75,6 +82,8 @@ nonisolated enum Crypto {
 
     // MARK: Symmetric (crypto_secretbox)
 
+    /// Encrypts with a key only we hold (the password-derived key). Used for the account backup and to wrap
+    /// our secret key, so the server stores data it cannot read.
     static func secretBox(_ message: Data, key: Data) throws -> EncryptedData {
         try ensureInitialized()
         let nonce = randomBytes(Int(crypto_secretbox_noncebytes()))
@@ -92,6 +101,8 @@ nonisolated enum Crypto {
         return EncryptedData(cipherText: cipher, nonce: nonce)
     }
 
+    /// Reverses `secretBox`. Fails (rather than returning garbage) if the data was tampered with or the
+    /// password-derived key is wrong, which is how a wrong password is detected at sign-in.
     static func secretBoxOpen(_ cipherText: Data, nonce: Data, key: Data) throws -> Data {
         try ensureInitialized()
         let macBytes = Int(crypto_secretbox_macbytes())
@@ -114,6 +125,8 @@ nonisolated enum Crypto {
 
     // MARK: Public key (crypto_box)
 
+    /// Encrypts a message for one friend: only their secret key can open it, and they can verify it came from us.
+    /// Every location, request and profile update between friends goes through here (end-to-end encryption).
     static func box(_ message: Data, receiverPublicKey: Data, senderSecretKey: Data) throws -> EncryptedData {
         try ensureInitialized()
         let nonce = randomBytes(Int(crypto_box_noncebytes()))
@@ -133,6 +146,8 @@ nonisolated enum Crypto {
         return EncryptedData(cipherText: cipher, nonce: nonce)
     }
 
+    /// Opens a message from a friend. A failure means it wasn't really from them or was altered in transit,
+    /// so callers drop it instead of showing anything.
     static func boxOpen(_ cipherText: Data, nonce: Data, senderPublicKey: Data, receiverSecretKey: Data) throws -> Data {
         try ensureInitialized()
         let macBytes = Int(crypto_box_macbytes())
@@ -188,6 +203,7 @@ private extension UnsafeMutableRawBufferPointer {
 nonisolated extension Data {
     var hexString: String { map { String(format: "%02x", $0) }.joined() }
 
+    /// Parses the lowercase hex the Zood server uses for user and box IDs in URLs; nil for malformed input.
     init?(hexString: String) {
         guard hexString.count.isMultiple(of: 2) else { return nil }
         var data = Data(capacity: hexString.count / 2)
