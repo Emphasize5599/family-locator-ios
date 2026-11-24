@@ -82,6 +82,8 @@ struct FriendMapView: UIViewRepresentable {
         private var followedFriendID: Data?
         private var cameraSelectionID: Data?
         private var lastFriendPoint: MKMapPoint?
+        // MapKit can render a wider rect than requested, depending on the screen and map insets.
+        private var settledFriendScale: Double?
         private var flight: Flight?
         private var displayLink: CADisplayLink?
         private weak var flyingMap: MKMapView?
@@ -99,6 +101,7 @@ struct FriendMapView: UIViewRepresentable {
             let path: ZoomPath?
             let startedAt: CFTimeInterval
             let trackUser: Bool
+            let liftForCard: Bool
         }
 
         /// The van Wijk–Nuij path used for a map flight. A distant target naturally widens the view mid-flight.
@@ -203,8 +206,9 @@ struct FriendMapView: UIViewRepresentable {
                 // tolerance so rounding, or another pin at the same place, doesn't restart the flight.
                 let currentCenter = flight?.end ?? start
                 let currentWidth = intendedWidth ?? width
+                let settledWidth = (settledFriendScale ?? 0) * Double(map.bounds.width)
                 let separation = hypot(horizontalDelta(from: currentCenter.x, to: end.x), end.y - currentCenter.y)
-                if flight?.trackUser != true, currentWidth <= endWidth * 1.02,
+                if flight?.trackUser != true, currentWidth <= max(endWidth, settledWidth) * 1.02,
                    separation <= endWidth * 16 / Double(map.bounds.width) { return }
             }
             stopFlight()
@@ -218,13 +222,14 @@ struct FriendMapView: UIViewRepresentable {
 
             if UIAccessibility.isReduceMotionEnabled {
                 setViewport(map, center: end, width: endWidth, aspect: aspect)
+                if liftForCard { settledFriendScale = map.visibleMapRect.size.width / Double(map.bounds.width) }
                 if trackUser { map.setUserTrackingMode(.follow, animated: false) }
                 return
             }
 
             let path = ZoomPath(startWidth: width, endWidth: endWidth, distance: distance)
             flight = Flight(start: start, end: end, startWidth: width, endWidth: endWidth, aspect: aspect,
-                            path: path, startedAt: CACurrentMediaTime(), trackUser: trackUser)
+                            path: path, startedAt: CACurrentMediaTime(), trackUser: trackUser, liftForCard: liftForCard)
             flyingMap = map
             let link = CADisplayLink(target: self, selector: #selector(animateFlight))
             displayLink = link
@@ -250,6 +255,7 @@ struct FriendMapView: UIViewRepresentable {
                                    y: flight.start.y + (flight.end.y - flight.start.y) * along)
             if fraction >= 1 {
                 setViewport(map, center: flight.end, width: flight.endWidth, aspect: flight.aspect)
+                if flight.liftForCard { settledFriendScale = map.visibleMapRect.size.width / Double(map.bounds.width) }
                 stopFlight()
                 if flight.trackUser { map.setUserTrackingMode(.follow, animated: false) }
             } else {
