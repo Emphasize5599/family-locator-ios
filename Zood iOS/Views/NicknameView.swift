@@ -46,6 +46,7 @@ private struct NameTextView: UIViewRepresentable {
     let onSave: () -> Void
 
     final class Editor: UITextView {
+        var onSave: () -> Void = {}
         private var needsInitialFocus = true
 
         override func didMoveToWindow() {
@@ -55,6 +56,14 @@ private struct NameTextView: UIViewRepresentable {
             Task { @MainActor [weak self] in
                 guard let self, self.window != nil else { return }
                 self.becomeFirstResponder()
+            }
+        }
+
+        override func insertText(_ text: String) {
+            if text == "\n", markedTextRange == nil {
+                onSave()
+            } else {
+                super.insertText(text)
             }
         }
     }
@@ -76,6 +85,7 @@ private struct NameTextView: UIViewRepresentable {
 
     func updateUIView(_ editor: Editor, context: Context) {
         context.coordinator.field = self
+        editor.onSave = onSave
         editor.accessibilityLabel = label
         let preferred = UIFont.preferredFont(forTextStyle: style, compatibleWith: editor.traitCollection)
         editor.font = style == .title2 ? .boldSystemFont(ofSize: preferred.pointSize) : preferred
