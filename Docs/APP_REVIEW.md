@@ -123,15 +123,15 @@ The build declares non-exempt encryption because the app does more than HTTPS. O
 | Subtitle | Open Source, Always Encrypted | 29 |
 | Promotional text | Locations are encrypted on your phone before they are sent. The source is public. Share only with the family and friends you choose. | 132 |
 
-Keywords, 100 of 100 characters. Apple indexes each word once, combines words across the name, subtitle, and this field, and treats a plural as a repeat of the singular.
+Keywords, 96 of 100 characters. Four characters are still open, which is room for one 3-letter word. Apple indexes each word once, combines words across the name, subtitle, and this field, and treats a plural as a repeat of the singular.
 
 ```
-map,location,share,family,friend,private,gps,live,locator,find,track,tracker,tracking,kid,child,teen
+map,location,share,family,friend,private,gps,locator,find,track,tracker,tracking,kid,child,phone
 ```
 
-Those words are the searches: family locator, find a friend, share location, live location, private map, GPS, location tracker, kid tracker, child tracking. `friend` is singular because the plural is the same search. `find` is included and `my` is not, so the field does not spell Find My. Nothing in the list repeats Amidst, Where, Everyone, Is, Open, Source, Always, or Encrypted.
+Those words are the searches: family locator, find a friend, share location, private map, GPS, phone tracker, kid tracker, child tracking. `friend` is singular because the plural is the same search. `find` is included and `my` is not, so the field does not spell Find My. Nothing in the list repeats Amidst, Where, Everyone, Is, Open, Source, Always, or Encrypted.
 
-`finder` came out so `tracking` would fit. `find` and `friend` still combine. `kids` and `children` are left out as repeats of `kid` and `child`. `teen` fills the last four letters. Left out: nearby, privacy, realtime, and pet. `private` and `live` stay. Also left out, because they name a feature rather than a search: together, places, home, requests, folders, links, and group. Also left out: safety, alert, and history. The app does not track a pet, and it does not offer location history, place alarms, or crash detection. Kid and child are search words. Do not choose the Kids Category.
+`finder` came out so `tracking` would fit. `find` and `friend` still combine. `kids` and `children` are left out as repeats of `kid` and `child`. Left out: live, teen, nearby, privacy, realtime, and pet. `private` stays. Also left out, because they name a feature rather than a search: together, places, home, requests, folders, links, and group. Also left out: safety, alert, and history. The app does not track a pet, and it does not offer location history, place alarms, or crash detection. Kid and child are search words. Do not choose the Kids Category.
 
 Description:
 
