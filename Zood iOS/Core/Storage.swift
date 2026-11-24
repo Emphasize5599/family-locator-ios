@@ -150,6 +150,9 @@ nonisolated struct PendingRequest: Codable, Identifiable, Sendable {
     var user: ZoodUser
     var boxID: Data
     var nickname: String?
+    var requiresFreshOffer: Bool?
+    var freshOfferAfter: Int64?
+    var approved: Bool?
     var id: Data { user.userID }
     /// Their shared nickname if they sent one, otherwise "@username".
     var displayName: String { nickname ?? "@\(user.username)" }
@@ -160,6 +163,10 @@ nonisolated struct SafetyState: Codable, Sendable {
     var blocked: [Data: ZoodUser] = [:]
     /// A false entry awaits delivery. Existing blocks without an entry are repaired on unblock.
     var sentBlockRemovals: [Data: Bool]?
+
+    var visibleRequests: [PendingRequest] {
+        pending.values.filter { blocked[$0.id] == nil && $0.approved != true }
+    }
 }
 
 nonisolated enum SafetyStore {

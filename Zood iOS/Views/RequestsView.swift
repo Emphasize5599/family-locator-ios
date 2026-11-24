@@ -14,7 +14,7 @@ struct RequestsView: View {
     }
 
     private var requests: [PendingRequest] {
-        model.safety.pending.values.sorted { $0.user.username < $1.user.username }
+        model.safety.visibleRequests.sorted { $0.user.username < $1.user.username }
     }
 
     var body: some View {
@@ -35,6 +35,11 @@ struct RequestsView: View {
                             // Consent is tied to an account, so show its username even when a shared name exists.
                             Text("@\(request.user.username)")
                                 .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                        if request.requiresFreshOffer == true {
+                            Text("Location will appear only if this person shares again.")
+                                .font(.footnote)
                                 .foregroundStyle(.secondary)
                         }
                         HStack(spacing: Spacing.tight) {

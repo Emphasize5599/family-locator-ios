@@ -217,7 +217,7 @@ struct MainView: View {
                     VStack(spacing: Spacing.tight) {
                         // A red dot on the bell (like Android's) says a request is waiting; the label stays short.
                         Group {
-                            if model.safety.pending.isEmpty {
+                            if model.safety.visibleRequests.isEmpty {
                                 Image(systemName: "bell").foregroundStyle(.white)
                             } else {
                                 // The badge layer comes first: a red dot on a white bell.
@@ -233,7 +233,7 @@ struct MainView: View {
                     }
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(model.safety.pending.isEmpty ? Text("Requests") : Text("Requests, \(model.safety.pending.count) waiting"))
+                .accessibilityLabel(model.safety.visibleRequests.isEmpty ? Text("Requests") : Text("Requests, \(model.safety.visibleRequests.count) waiting"))
 
                 Button {
                     activeSheet = .addFriend

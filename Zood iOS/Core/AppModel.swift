@@ -558,12 +558,18 @@ final class AppModel: ObservableObject {
         guard let credentials, credentials.accessToken == token else { return false }
         if processedMessageIDs.contains(message.id) { return true }
         guard message.senderId.count == ZoodConstants.userIDLength,
-              message.senderId != credentials.userID, safety.blocked[message.senderId] == nil else { return true }
+              message.senderId != credentials.userID else { return true }
+        let blockedSender = safety.blocked[message.senderId]
+        if blockedSender != nil, safety.pending[message.senderId] == nil { return true }
         let sender: ZoodUser
         do {
-            guard let knownUser = try await user(for: message.senderId),
-                  self.credentials?.accessToken == token else { return false }
-            sender = knownUser
+            if let blockedSender {
+                sender = blockedSender
+            } else {
+                guard let knownUser = try await user(for: message.senderId) else { return false }
+                sender = knownUser
+            }
+            guard self.credentials?.accessToken == token else { return false }
         } catch let error as OscarError where error.code == OscarError.userNotFound {
             return true
         } catch {
@@ -604,7 +610,12 @@ final class AppModel: ObservableObject {
     }
 
     private func handle(_ comm: UserComm, from user: ZoodUser) async throws {
-        guard safety.blocked[user.userID] == nil else { return }
+        if safety.blocked[user.userID] != nil {
+            if comm.type == .locationSharingRevocation, let request = safety.pending[user.userID] {
+                try denyRequest(request)
+            }
+            return
+        }
         // A friend's profile may change while the map is open. Refresh only the shared name:
         // a name chosen by this account remains private and must never be overwritten remotely.
         if let nickname = comm.nickname, let friend = local.friends[user.userID],
@@ -643,15 +654,23 @@ final class AppModel: ObservableObject {
         case .locationSharingGrant:
             guard let box = comm.dropBox else { return }
             let existing = local.friends[user.userID]
+            let pending = safety.pending[user.userID]
+            if pending?.requiresFreshOffer == true, pending?.boxID == box { return }
+            if let cutoff = pending?.freshOfferAfter, let offeredAt = comm.time, offeredAt <= cutoff { return }
+            // Older clients omit the offer timestamp. Their new box goes through the normal approval prompt.
+            let approved = pending?.requiresFreshOffer == true && pending?.approved == true && comm.time != nil
             // A return share must refer to the active offer we made to this sender.
-            guard existing?.theyShare == true || comm.repliesToSharingOffer(on: existing?.sendingBoxID) else {
+            guard approved || existing?.theyShare == true || comm.repliesToSharingOffer(on: existing?.sendingBoxID) else {
                 var next = safety
                 next.pending[user.userID] = PendingRequest(user: user, boxID: box, nickname: Nickname.normalized(comm.nickname))
                 try saveSafety(next)
                 return
             }
             if let pending = safety.pending[user.userID] { try denyRequest(pending) }
-            upsertFriend(user) { $0.receivingBoxID = box }
+            upsertFriend(user) {
+                $0.receivingBoxID = box
+                if approved { $0.sharedNickname = Nickname.normalized(comm.nickname) }
+            }
             socket?.watch(box)
             scheduleBackup()
             Task { await fetchPackage(from: user, box: box) }
@@ -894,7 +913,7 @@ final class AppModel: ObservableObject {
 
     func pendingRequest(username: String) -> PendingRequest? {
         let username = Username.forLookup(username)
-        return safety.pending.values.first { $0.user.username == username && safety.blocked[$0.id] == nil }
+        return safety.visibleRequests.first { $0.user.username == username }
     }
 
     /// A nil result means the incoming request was approved or they already share with us.
@@ -951,6 +970,7 @@ final class AppModel: ObservableObject {
         var grant = UserComm(type: .locationSharingGrant)
         grant.dropBox = box
         grant.replyToBox = local.friends[user.userID]?.receivingBoxID
+        grant.time = Int64(Date().timeIntervalSince1970 * 1_000)
         try await send(grant, to: user, urgent: false, transient: false)
         guard safety.blocked[user.userID] == nil else {
             try? await send(UserComm(type: .locationSharingRevocation), to: user, urgent: false, transient: false)
@@ -1019,8 +1039,8 @@ final class AppModel: ObservableObject {
         try await send.value
     }
 
-    private func forgetFriend(_ id: Data) throws {
-        if safety.pending[id] != nil {
+    private func forgetFriend(_ id: Data, keepRequest: Bool = false) throws {
+        if !keepRequest, safety.pending[id] != nil {
             var next = safety
             next.pending[id] = nil
             try saveSafety(next)
@@ -1051,7 +1071,14 @@ final class AppModel: ObservableObject {
 
     func approveRequest(_ request: PendingRequest) async throws {
         guard safety.blocked[request.id] == nil,
-              safety.pending[request.id]?.boxID == request.boxID else { return }
+              var current = safety.pending[request.id], current.boxID == request.boxID else { return }
+        if current.requiresFreshOffer == true {
+            current.approved = true
+            var next = safety
+            next.pending[request.id] = current
+            try saveSafety(next)
+            return
+        }
         try denyRequest(request)
         local.users[request.id] = request.user
         upsertFriend(request.user) {
@@ -1066,14 +1093,25 @@ final class AppModel: ObservableObject {
 
     func blockUser(_ user: ZoodUser) async throws {
         var next = safety
-        next.pending[user.userID] = nil
-        next.blocked[user.userID] = user
+        let id = user.userID
+        guard next.blocked[id] == nil else { return }
+        let friend = local.friends[id]
+        if let friend {
+            next.pending[id] = PendingRequest(user: user, boxID: friend.receivingBoxID ?? next.pending[id]?.boxID ?? Data(),
+                                              nickname: friend.sharedNickname ?? next.pending[id]?.nickname,
+                                              requiresFreshOffer: true,
+                                              freshOfferAfter: Int64(Date().timeIntervalSince1970 * 1_000))
+        } else {
+            next.pending[id]?.approved = nil
+        }
+        next.blocked[id] = user
         var removals = next.sentBlockRemovals ?? [:]
-        removals[user.userID] = false
+        // An unapproved incoming offer can stay intact. Only an existing friendship needs full removal.
+        removals[id] = friend == nil
         next.sentBlockRemovals = removals
         // Persist the block before awaiting network work, so arriving grants cannot re-add them.
         try saveSafety(next)
-        try forgetFriend(user.userID)
+        try forgetFriend(id, keepRequest: true)
         // Enforce the block locally even offline. Unblock retries the full removal before clearing it.
         try? await deliverBlockRemoval(to: user)
     }
