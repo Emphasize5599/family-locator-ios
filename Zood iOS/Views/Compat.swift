@@ -175,6 +175,7 @@ private struct FittedDetent: ViewModifier {
 struct ContentFittedSheet<Content: View>: View {
     let title: LocalizedStringKey
     var showsCloseButton = false
+    var backAction: (() -> Void)?
     @ViewBuilder var content: () -> Content
     @Environment(\.dismiss) private var dismiss
     /// Measured content height, without any bottom inset.
@@ -193,6 +194,13 @@ struct ContentFittedSheet<Content: View>: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: Spacing.large) {
                     HStack {
+                        if let backAction {
+                            Button(action: backAction) {
+                                Image(systemName: "chevron.backward")
+                                    .frame(width: 44, height: 44)
+                            }
+                            .accessibilityLabel("Back")
+                        }
                         Text(title).font(.headline)
                         Spacer()
                         if showsCloseButton {

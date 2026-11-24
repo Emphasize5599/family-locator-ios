@@ -22,73 +22,22 @@ struct AddFriendView: View {
         handle == model.credentials.map { Username.forLookup($0.username) }
     }
 
+    private var title: LocalizedStringKey { candidate == nil ? "Add Friend" : "Share Location?" }
+    private var backAction: (() -> Void)? { candidate == nil ? nil : { goBack() } }
+
     var body: some View {
-        CompatNavigationStack {
-            Form {
-                if let candidate {
-                    Section {
-                        Label("@\(candidate.username)", systemImage: "person.crop.circle")
-                    } footer: {
-                        Text("Send your friend request with or without sharing your location. You can change sharing later.")
-                    }
-                    Section {
-                        Button {
-                            send(to: candidate, sharing: true)
-                        } label: {
-                            Label("Share My Location", systemImage: "location.fill")
-                        }
-                        .tint(.zoodGreen)
-                        Button("Not Now") { send(to: candidate, sharing: false) }
-                    }
-                } else {
-                    Section {
-                        TextField("Friend’s username", text: $username)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .focused($enteringUsername)
-                            .submitLabel(.continue)
-                            .onSubmit { if canContinue { next() } }
-                        if isSelf {
-                            Label("You can’t add yourself", systemImage: "exclamationmark.circle")
-                                .foregroundStyle(Color.zoodRed)
-                        } else if pending != nil {
-                            Label("Incoming request", systemImage: "person.crop.circle.badge.checkmark")
-                                .foregroundStyle(Color.zoodGreen)
-                        } else if ZoodConstants.isValidUsername(handle) {
-                            UsernameLookupStatus(result: lookup?.username == handle ? lookup?.result : nil)
-                        }
-                    }
-                    Section {
-                        Button(pending == nil ? "Continue" : "Approve Request", action: next)
-                            .tint(pending == nil ? .zoodBlue : .zoodGreen)
-                            .disabled(!canContinue)
-                        Button { showingInvite = true } label: {
-                            Label("Invite Someone", systemImage: "square.and.arrow.up")
-                        }
-                    }
-                }
-                if isWorking { ProgressView() }
-                if let errorMessage {
-                    Label(errorMessage, systemImage: "exclamationmark.circle").foregroundStyle(Color.zoodRed)
-                }
+        ContentFittedSheet(title: title, showsCloseButton: true, backAction: backAction) {
+            if let candidate {
+                sharingStep(for: candidate)
+            } else {
+                lookupStep
             }
-            .disabled(isWorking)
-            .navigationTitle(candidate == nil ? "Add Friend" : "Share Location?")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    if candidate == nil {
-                        Button("Cancel") { dismiss() }.disabled(isWorking)
-                    } else {
-                        Button("Back") {
-                            candidate = nil
-                            errorMessage = nil
-                        }
-                        .disabled(isWorking)
-                    }
-                }
+            if isWorking { ProgressView() }
+            if let errorMessage {
+                Label(errorMessage, systemImage: "exclamationmark.circle").foregroundStyle(Color.zoodRed)
             }
         }
+        .disabled(isWorking)
         .interactiveDismissDisabled(isWorking)
         .task(id: handle) {
             let entered = handle
@@ -96,6 +45,63 @@ struct AddFriendView: View {
             await UsernameLookup.check(entered, registration: false, model: model) { lookup = $0 }
         }
         .sheet(isPresented: $showingInvite) { ActivityView(items: [inviteText]) }
+    }
+
+    private func sharingStep(for user: ZoodUser) -> some View {
+        VStack(alignment: .leading, spacing: Spacing.small) {
+            Label("@\(user.username)", systemImage: "person.crop.circle")
+                .font(.headline)
+            Text("Send your friend request with or without sharing your location. You can change sharing later.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            HStack(spacing: Spacing.small) {
+                Button {
+                    send(to: user, sharing: true)
+                } label: {
+                    Text("Share My Location")
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .tint(Color.zoodGreen)
+                Button {
+                    send(to: user, sharing: false)
+                } label: {
+                    Text("Not Now")
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }
+            }
+            .buttonStyle(.bordered)
+        }
+    }
+
+    @ViewBuilder private var lookupStep: some View {
+        TextField("Friend’s username", text: $username)
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
+            .textFieldStyle(.roundedBorder)
+            .focused($enteringUsername)
+            .submitLabel(.continue)
+            .onSubmit { if canContinue { next() } }
+        if isSelf {
+            Label("You can’t add yourself", systemImage: "exclamationmark.circle")
+                .foregroundStyle(Color.zoodRed)
+        } else if pending != nil {
+            Label("Incoming request", systemImage: "person.crop.circle.badge.checkmark")
+                .foregroundStyle(Color.zoodGreen)
+        } else if ZoodConstants.isValidUsername(handle) {
+            UsernameLookupStatus(result: lookup?.username == handle ? lookup?.result : nil)
+        }
+        Button(action: next) {
+            Text(pending == nil ? "Continue" : "Approve Request")
+                .frame(maxWidth: .infinity, minHeight: 44)
+        }
+        .buttonStyle(.bordered)
+        .tint(pending == nil ? Color.zoodBlue : Color.zoodGreen)
+        .disabled(!canContinue)
+        Button { showingInvite = true } label: {
+            Label("Invite Someone", systemImage: "square.and.arrow.up").frame(minHeight: 44)
+        }
     }
 
     private var canContinue: Bool {
@@ -117,6 +123,11 @@ struct AddFriendView: View {
                 dismiss()
             }
         }
+    }
+
+    private func goBack() {
+        candidate = nil
+        errorMessage = nil
     }
 
     private func send(to user: ZoodUser, sharing: Bool) {
