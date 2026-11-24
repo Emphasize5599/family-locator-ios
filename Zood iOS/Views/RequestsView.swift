@@ -20,7 +20,7 @@ struct RequestsView: View {
     var body: some View {
         ContentFittedSheet(title: "Pending Requests") {
             VStack(alignment: .leading, spacing: Spacing.large) {
-                Text("Approve people before their location and profile photo appear. Approving does not share your location back.")
+                Text("After approving, you can choose whether to share your location back. People aren’t notified if you deny their request or block them.")
                     .font(.subheadline).foregroundStyle(.secondary)
                 if requests.isEmpty {
                     Label("No pending requests", systemImage: "bell")
@@ -29,18 +29,19 @@ struct RequestsView: View {
                 }
                 ForEach(requests) { request in
                     VStack(alignment: .leading, spacing: Spacing.small) {
-                        Label(request.displayName, systemImage: "person.crop.circle")
-                            .font(.headline)
-                        if request.nickname != nil {
-                            // Consent is tied to an account, so show its username even when a shared name exists.
-                            Text("@\(request.user.username)")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                        }
-                        if request.requiresFreshOffer == true {
-                            Text("Location will appear only if this person shares again.")
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
+                        HStack(spacing: Spacing.medium) {
+                            AvatarView(username: request.user.username, imageData: request.avatar).accessibilityHidden(true)
+                            VStack(alignment: .leading, spacing: Spacing.hairline) {
+                                Text(request.displayName).font(.headline)
+                                if request.nickname != nil {
+                                    Text("@\(request.user.username)").font(.subheadline).foregroundStyle(.secondary)
+                                }
+                                if !request.includesLocation {
+                                    Text("Not sharing their location with you")
+                                        .font(.footnote)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
                         }
                         HStack(spacing: Spacing.tight) {
                             Button { perform { try await model.approveRequest(request) } } label: {
@@ -49,7 +50,8 @@ struct RequestsView: View {
                                     .minimumScaleFactor(0.72)
                                     .frame(maxWidth: .infinity, minHeight: 36)
                             }
-                            .buttonStyle(.borderedProminent)
+                            .buttonStyle(.bordered)
+                            .tint(.zoodGreen)
                             Button(role: .destructive) { decision = RequestDecision(request: request, block: false) } label: {
                                 Text("Deny")
                                     .lineLimit(1)
@@ -71,10 +73,6 @@ struct RequestsView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20))
                 }
-                if !requests.isEmpty {
-                    Text("Deny dismisses this request. Block also prevents future requests from this person on this iPhone.")
-                        .font(.footnote).foregroundStyle(.secondary)
-                }
                 if let error { Text(error).foregroundStyle(Color.zoodRed) }
             }
             .disabled(busy)
@@ -91,7 +89,7 @@ struct RequestsView: View {
             }
         } message: { decision in
             Text(decision.block
-                 ? "\(decision.request.displayName) won't be able to send you requests on this iPhone. You can unblock them in Settings › Account › Blocked Users."
+                 ? "\(decision.request.displayName) will be blocked in Amidst. Your encrypted backup saves the block. You can unblock them in Settings › Account › Blocked Users."
                  : "This dismisses \(decision.request.displayName)'s request. They can send another one later.")
         }
     }
@@ -125,11 +123,12 @@ struct BlockedUsersView: View {
                         Text("@\(user.username)").font(.headline)
                         Button { selected = user } label: { Text("Unblock").frame(minHeight: 44) }
                             .buttonStyle(.borderless)
+                            .tint(.zoodGreen)
                             .disabled(unblocking)
                     }
                 }
             } footer: {
-                Text("Blocks apply to this account on this iPhone and survive logout. Other Zood apps and devices have their own controls. Unblocking does not restore friendship or share your location. Previously received locations cannot be erased from another person's device.")
+                Text("Amidst saves your blocks in your end-to-end encrypted account backup and restores them when you sign in. The Zood server cannot read or enforce the list. Unblocking lets you review their request again.")
             }
             if let error { Text(error).foregroundStyle(Color.zoodRed) }
         }

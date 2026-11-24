@@ -1,6 +1,6 @@
 # Amidst privacy policy
 
-Effective November 22, 2026.
+Effective November 24, 2026.
 
 Amidst is an independent, open-source iPhone client for the Zood Location network, maintained through [Emphasize5599/family-locator-ios](https://github.com/Emphasize5599/family-locator-ios). It is not affiliated with Tangled Wires, LLC. The account and encrypted-message service is operated by Zood at `api.zood.xyz`; its [mobile-app privacy policy](https://www.zood.xyz/privacy/mobile-apps) also applies to that service.
 
@@ -12,21 +12,21 @@ Amidst is an independent, open-source iPhone client for the Zood Location networ
 - **Linked contacts:** if you link a friend to one of your contacts, Apple's contact picker gives the app only the contact you choose. Linking uses the contact's first and last name as the friend's nickname and the contact's photo (as you framed it in Contacts) as the friend's picture. The name and Contacts identifier are kept on this device and in your end-to-end encrypted account backup, so the link returns when you sign in again; the photo stays on this device only. It never reads the rest of your contacts and never sends the link to the friend.
 - **One device at a time:** your encrypted account backup records which device you most recently signed in on (a random device ID, the platform and the time). Other devices see this and sign themselves out locally; nothing on your account is deleted.
 - **Friend bar arrangement:** the order of people in the friend bar and any folders you make are kept on this device and in your end-to-end encrypted account backup. They only organize the bar and never change who can see your location.
-- **Friends and profile photo:** the app stores your friends, sharing settings, received locations and optional profile photo locally. It uploads an encrypted friends-list backup to your account, and sends your selected profile photo to friends you share with. Photo selection uses Apple's system picker; the app does not request access to your entire photo library.
-- **Service connections:** the Zood service receives the requests needed to authenticate, find usernames and deliver encrypted data. As with any internet service, it receives connection information such as an IP address. The independent app maintainers do not control Zood's infrastructure or its retention of service logs.
+- **Friends and profile photo:** the app stores your friends, sharing settings, received locations and optional profile photo locally. It uploads an encrypted friends-list backup to your account, and sends your selected profile photo in encrypted friend requests and to friends you share with. Photo selection uses Apple's system picker; the app does not request access to your entire photo library.
+- **Service connections:** the Zood service receives the requests needed to authenticate, check usernames during account creation and Add Friend, and deliver encrypted data. As with any internet service, it receives connection information such as an IP address. The independent app maintainers do not control Zood's infrastructure or its retention of service logs.
 - **Apple services:** the map and address lookup use Apple Maps and Core Location. Those services are subject to Apple's privacy policies.
 
 The app contains no advertising or third-party analytics SDK and does not use advertising identifiers or cross-app tracking. Local diagnostic logs describe connection/location-service events, not raw coordinates, passwords or encryption keys.
 
 ## Your choices and consent
 
-You can view friends without sharing your own location. Adding a friend starts sharing your location with that username; the Add Friend screen explains this before you confirm. Turn off a friend's sharing toggle or remove the friend to stop future sharing with them. Other people may retain locations or screenshots they previously received.
+You can view friends without sharing your own location. Add Friend gives you a separate choice to share location or send a request without it. Both choices may include the profile photo and nickname you selected. Turn off a friend's sharing toggle or remove the friend to stop future sharing with them. Other people may retain locations or screenshots they previously received.
 
 Always location access enables background location sharing. Live Requests uses background location activity to remain available for requests and may use additional battery. You can switch it off in the app's Settings, change location permission in iOS Settings, or log out. Logging out removes this app's credentials and local friend data and stops its location activity on this iPhone; it does not delete your server account.
 
 Timed sharing creates a link containing a decryption key. Anyone with that link can view the shared location. Do not post the link publicly unless you intend that access. Stopping the share or letting its timer expire stops future updates; the last transmitted location and copies already received may remain accessible. The app cannot recall screenshots or data retained by recipients.
 
-Incoming sharing requests are held for approval before displaying the sender's location or photo. Approving does not share your location back. Deny dismisses a request; Block also ignores future messages from that account on this iPhone and removes any friendship. Review or unblock accounts in Settings. Blocking applies to this app on this device, not other Zood clients. Locations already delivered to other people cannot be recalled.
+Pending requests can display the sender’s chosen profile photo and name. Their location becomes visible only after you approve a request that includes a location offer. You can choose separately whether to share back. Deny dismisses the request. Block removes an existing friendship and prevents new requests from appearing until you unblock. Neither action sends a notification about the decision. Amend blocks in Settings; Amidst enforces them on devices that restore your encrypted account backup. Previously delivered locations may remain on the recipient’s device.
 
 ## Storage, retention and deletion
 

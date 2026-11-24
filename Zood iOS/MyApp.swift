@@ -10,6 +10,7 @@ let maxTextSize = DynamicTypeSize.accessibility1
         WindowGroup {
             ContentView()
                 .environmentObject(model)
+                .tint(.zoodBlue)
                 // Text grows with the person's setting up to the first accessibility size. The largest
                 // accessibility sizes pushed the map's floating cards and buttons on top of each other, and
                 // App Review doesn't require supporting every size; Larger Text up to here still applies.

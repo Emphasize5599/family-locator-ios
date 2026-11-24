@@ -144,16 +144,17 @@ nonisolated enum LocalDataStore {
     }
 }
 
-// Account-scoped safety choices stay on this device across logout. They are deliberately
-// separate from the shared Android backup, whose clients do not understand blocking.
+// Pending offers stay on this device. Blocks also travel in the encrypted account backup.
 nonisolated struct PendingRequest: Codable, Identifiable, Sendable {
     var user: ZoodUser
     var boxID: Data
     var nickname: String?
+    var avatar: Data?
     var requiresFreshOffer: Bool?
     var freshOfferAfter: Int64?
     var approved: Bool?
     var id: Data { user.userID }
+    var includesLocation: Bool { boxID.count == ZoodConstants.dropBoxIDLength && requiresFreshOffer != true }
     /// Their shared nickname if they sent one, otherwise "@username".
     var displayName: String { nickname ?? "@\(user.username)" }
 }

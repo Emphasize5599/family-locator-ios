@@ -119,6 +119,10 @@ private struct ScreenshotTourSceneView: View {
     @ViewBuilder private var sheetContent: some View {
             switch scene {
             case "add-friend": AddFriendView()
+            case "add-friend-share": AddFriendView(preview: ScreenshotTour.requester)
+            case "profile-nickname":
+                NicknameEditor(title: "Edit Nickname", username: ScreenshotTour.credentials.username,
+                               initial: "Family", explanation: "Updates for friends using your shared name.") { _ in }
             case "friend-nickname": FriendNicknameView(friend: ScreenshotTour.friend)
             case "account": CompatNavigationStack { AccountView(onLogOut: {}) }
             case "requests", "requests-empty": RequestsView()

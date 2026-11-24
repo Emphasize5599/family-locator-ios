@@ -1,6 +1,7 @@
 import Combine
 import CoreLocation
 import Foundation
+import ImageIO
 import UIKit
 
 /// Requester-side status of a "request location update" for one friend.
@@ -207,7 +208,10 @@ final class AppModel: ObservableObject {
             folders = [FriendFolder(name: name, members: [20, 21, 22].map { Data(repeating: UInt8($0), count: 16) })]
         }
         if scene != "requests-empty" {
-            safety.pending[ScreenshotTour.requester.id] = PendingRequest(user: ScreenshotTour.requester, boxID: Data(repeating: 7, count: 16), nickname: "Taylor")
+            safety.pending[ScreenshotTour.requester.id] = PendingRequest(
+                user: ScreenshotTour.requester,
+                boxID: scene == "requests" ? Data() : Data(repeating: 7, count: 16), nickname: "Taylor",
+                avatar: ScreenshotTour.framingTestPhoto(tall: true))
         }
         if scene != "blocked-empty" { safety.blocked[ScreenshotTour.blocked.id] = ScreenshotTour.blocked }
     }
@@ -651,6 +655,14 @@ final class AppModel: ObservableObject {
             if let friend = local.friends[user.userID], friend.device?.liveRequests == false {
                 Task { await refreshDeviceStatusIfNeeded(friend) }
             }
+        case .friendRequest:
+            guard local.friends[user.userID] == nil else { return }
+            var next = safety
+            if let existing = next.pending[user.userID], existing.includesLocation { return }
+            next.pending[user.userID] = PendingRequest(user: user, boxID: Data(),
+                                                       nickname: Nickname.normalized(comm.nickname),
+                                                       avatar: Self.requestAvatar(comm.avatar))
+            try saveSafety(next)
         case .locationSharingGrant:
             guard let box = comm.dropBox else { return }
             let existing = local.friends[user.userID]
@@ -663,7 +675,8 @@ final class AppModel: ObservableObject {
             // A return share must refer to the active offer we made to this sender.
             guard approved || existing?.theyShare == true || comm.repliesToSharingOffer(on: existing?.sendingBoxID) else {
                 var next = safety
-                next.pending[user.userID] = PendingRequest(user: user, boxID: box, nickname: Nickname.normalized(comm.nickname))
+                next.pending[user.userID] = PendingRequest(user: user, boxID: box, nickname: Nickname.normalized(comm.nickname),
+                                                           avatar: Self.requestAvatar(comm.avatar) ?? pending?.avatar)
                 try saveSafety(next)
                 return
             }
@@ -671,6 +684,7 @@ final class AppModel: ObservableObject {
             upsertFriend(user) {
                 $0.receivingBoxID = box
                 if approved { $0.sharedNickname = Nickname.normalized(comm.nickname) }
+                if let avatar = Self.requestAvatar(comm.avatar) { $0.avatar = avatar }
             }
             socket?.watch(box)
             scheduleBackup()
@@ -729,10 +743,26 @@ final class AppModel: ObservableObject {
             update.avatar = avatar
             try? await send(update, to: user, urgent: false, transient: false)
         case .avatarUpdate:
+            if var request = safety.pending[user.userID], let avatar = Self.requestAvatar(comm.avatar) {
+                request.avatar = avatar
+                var next = safety
+                next.pending[user.userID] = request
+                try saveSafety(next)
+            }
             updateFriend(user.userID) { $0.avatar = comm.avatar }
         default:
             break
         }
+    }
+
+    private static func requestAvatar(_ data: Data?) -> Data? {
+        guard let data, data.count <= 128 * 1024,
+              let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let width = properties[kCGImagePropertyPixelWidth] as? Int,
+              let height = properties[kCGImagePropertyPixelHeight] as? Int,
+              (1...1024).contains(width), (1...1024).contains(height) else { return nil }
+        return data
     }
 
     /// Under 5 m away, same battery/movement, and under a minute newer: nothing on screen would change.
@@ -912,6 +942,20 @@ final class AppModel: ObservableObject {
 
     // MARK: - Friends
 
+    func usernameExists(_ username: String, registration: Bool) async throws -> Bool {
+        do {
+            if registration {
+                // Search requires authentication. Starting a challenge only checks the account exists.
+                _ = try await OscarAPI().authChallenge(username: username)
+            } else {
+                _ = try await api.searchUser(username: username)
+            }
+            return true
+        } catch let error as OscarError where error.code == OscarError.userNotFound {
+            return false
+        }
+    }
+
     func pendingRequest(username: String) -> PendingRequest? {
         let username = Username.forLookup(username)
         return safety.visibleRequests.first { $0.user.username == username }
@@ -937,11 +981,22 @@ final class AppModel: ObservableObject {
         return try await acceptIncomingIfPresent(user) ? nil : user
     }
 
-    func confirmAddFriendSharing(with user: ZoodUser) async throws {
+    func confirmAddFriend(with user: ZoodUser, sharing: Bool) async throws {
         guard user.userID != credentials?.userID else { throw FriendError.cantAddSelf }
         guard await syncInbox() else { throw FriendError.inboxUnavailable }
         if try await acceptIncomingIfPresent(user) { return }
-        try await startSharing(with: user)
+        if sharing {
+            try await startSharing(with: user)
+            return
+        }
+        guard safety.blocked[user.userID] == nil else { throw FriendError.blocked }
+        guard let token = credentials?.accessToken, local.friends[user.userID] == nil else { return }
+        var request = UserComm(type: .friendRequest)
+        request.avatar = Self.requestAvatar(local.myAvatar)
+        try await send(request, to: user, urgent: false, transient: false)
+        guard credentials?.accessToken == token, safety.blocked[user.userID] == nil else { return }
+        upsertFriend(user) { _ in }
+        scheduleBackup()
     }
 
     private func acceptIncomingIfPresent(_ user: ZoodUser) async throws -> Bool {
@@ -1083,12 +1138,15 @@ final class AppModel: ObservableObject {
         try denyRequest(request)
         local.users[request.id] = request.user
         upsertFriend(request.user) {
-            $0.receivingBoxID = request.boxID
+            if current.includesLocation { $0.receivingBoxID = current.boxID }
             $0.sharedNickname = request.nickname
+            $0.avatar = current.avatar ?? $0.avatar
         }
-        socket?.watch(request.boxID)
         scheduleBackup()
-        Task { await fetchPackage(from: request.user, box: request.boxID) }
+        if current.includesLocation {
+            socket?.watch(current.boxID)
+            Task { await fetchPackage(from: current.user, box: current.boxID) }
+        }
         Task { try? await send(UserComm(type: .avatarRequest), to: request.user, urgent: false, transient: false) }
     }
 

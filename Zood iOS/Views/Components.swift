@@ -1,21 +1,29 @@
 import SwiftUI
 
 extension Color {
-    /// Zood brand colors, taken from george's `colors.xml`.
-    static let zoodBlue = Color(red: 0x5c / 255, green: 0xd1 / 255, blue: 0xff / 255)
-    static let zoodBlueDark = Color(red: 0x09 / 255, green: 0xa8 / 255, blue: 0xe6 / 255)
-    static let zoodNavy = Color(red: 0x3c / 255, green: 0x44 / 255, blue: 0x66 / 255)
-    static let zoodRed = Color(red: 0xe4 / 255, green: 0x1c / 255, blue: 0x16 / 255)
-    static let zoodGreen = Color(red: 0x3c / 255, green: 0xdd / 255, blue: 0x56 / 255)
-    static let zoodOrange = Color(red: 0xf6 / 255, green: 0x92 / 255, blue: 0x1e / 255)
+    // Icon hues, adjusted for contrast in text and controls on system backgrounds.
+    static let zoodBlue = adaptive(light: 0x17679C, dark: 0x70BCF3)
+    static let zoodBlueDark = zoodBlue
+    static let zoodNavy = Color(uiColor: UIColor(rgb: 0x2B4969))
+    static let zoodGreen = adaptive(light: 0x27682B, dark: 0xA0D477)
+    static let zoodYellow = adaptive(light: 0x795604, dark: 0xFFE091)
+    static let zoodRed = adaptive(light: 0xB42D30, dark: 0xFF8080)
+    static let zoodOrange = Color(uiColor: UIColor(rgb: 0xA85924))
+    static let floatingAccent = zoodBlue
 
-    /// Icons and titles on controls floating over the map: Zood navy in Light Mode, and the app's light blue
-    /// (the Add / Refresh color) in Dark Mode, where navy all but disappears against the dark material.
-    static let floatingAccent = Color(uiColor: UIColor { traits in
-        traits.userInterfaceStyle == .dark
-            ? UIColor(red: 0x5c / 255, green: 0xd1 / 255, blue: 0xff / 255, alpha: 1)
-            : UIColor(red: 0x3c / 255, green: 0x44 / 255, blue: 0x66 / 255, alpha: 1)
-    })
+    private static func adaptive(light: UInt32, dark: UInt32) -> Color {
+        Color(uiColor: UIColor { traits in
+            UIColor(rgb: traits.userInterfaceStyle == .dark ? dark : light)
+        })
+    }
+}
+
+private extension UIColor {
+    convenience init(rgb: UInt32) {
+        self.init(red: CGFloat((rgb >> 16) & 0xff) / 255,
+                  green: CGFloat((rgb >> 8) & 0xff) / 255,
+                  blue: CGFloat(rgb & 0xff) / 255, alpha: 1)
+    }
 }
 
 /// Round avatar: the friend's photo if they've sent one, otherwise their initial on a stable color.
@@ -24,7 +32,8 @@ struct AvatarView: View {
     let imageData: Data?
     var size: CGFloat = 44
 
-    private static let palette: [Color] = [.zoodBlue, .zoodNavy, .zoodOrange, .zoodGreen, .zoodRed, .zoodBlueDark]
+    private static let palette = [0x245B8B, 0x2B4969, 0xA85924, 0x326A37, 0xAD3D42, 0x237471]
+        .map { Color(uiColor: UIColor(rgb: UInt32($0))) }
 
     var body: some View {
         Group {
@@ -52,7 +61,7 @@ struct AvatarView: View {
     /// Stable per-person color, shared with the map pins.
     static func color(for username: String) -> Color {
         let hash = username.unicodeScalars.reduce(0) { ($0 &* 31) &+ Int($1.value) }
-        return palette[abs(hash) % palette.count]
+        return palette[Int(hash.magnitude % UInt(palette.count))]
     }
 }
 

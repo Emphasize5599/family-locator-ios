@@ -22,7 +22,7 @@ Body: `username, email?, public_key, password_salt, password_hash_algorithm, pas
 5. `GET users/me/backup` → EncryptedData (secretbox with symmetric key) of Snapshot JSON; error 20 = no backup.
 
 ## Snapshot (backup) — `PUT users/me/backup`
-`{friends:[{user_id, sending_box_id, receiving_box_id, nickname?, shared_nickname?}], nickname?, users:[{user_id, public_key, username}], avatar?, schema_version: 1, timestamp(ms)}`. Never write `schema_version > 1` or Android refuses to restore (OutdatedClient).
+`{friends:[{user_id, sending_box_id, receiving_box_id, nickname?, shared_nickname?}], nickname?, users:[{user_id, public_key, username}], avatar?, blocked?, schema_version: 1, timestamp(ms)}`. Never write `schema_version > 1` or Android refuses to restore (OutdatedClient).
 
 ## Messages (user → user, crypto_box)
 - Send: `POST users/{hexUserId}/messages` `{cipher_text, nonce, urgent, transient}`
@@ -31,7 +31,11 @@ Body: `username, email?, public_key, password_salt, password_hash_algorithm, pas
 
 ## UserComm JSON (plaintext inside messages and packages)
 `type` ∈ avatar_request, avatar_update(avatar), location_sharing_grant(drop_box 16B), location_sharing_revocation, location_info(latitude, longitude, time ms, accuracy?, speed?, bearing?, movement?, battery_level?, battery_charging?), location_update_request, location_update_request_received(location_update_request_action: starting|too_soon|finished), device_info (self only!), browse_devices/scream/scream_began (self only).
-Android drops unknown `type`s, ignores unknown fields.
+Android drops unknown `type`s, ignores unknown fields. Registration availability uses the unauthenticated authentication-challenge endpoint without completing the challenge. Account lookup in Add Friend uses the authenticated username search. Both checks are debounced and submission remains authoritative.
+
+`friend_request` is a durable, encrypted request-only message with optional `nickname` and `avatar`. It carries no drop box, return box, or location. Recipients can approve the friend record with both boxes empty, or deny or block without a notification to the sender. A later location offer uses the existing grant and consent flow. Only updated Amidst clients recognize this message. Pending requests can display profile photos sent with the request or delivered as a subsequent encrypted avatar update.
+
+Blocked IDs live in the end-to-end encrypted `blocked` backup field. The server stores the ciphertext and the clients enforce the block list.
 
 ### Fork extension (this project)
 `location_info` (and `location_update_request_received`) carry extra fields:

@@ -30,8 +30,10 @@ struct DeleteAccountView: View {
                 }
             }
             Section {
-                Button("Delete Account", role: .destructive) {
+                Button(role: .destructive) {
                     showingConfirmation = true
+                } label: {
+                    Label("Delete Account", systemImage: "trash")
                 }
                 .disabled(isDeleting || model.credentials?.username != Username.forLookup(confirmation))
                 if isDeleting {

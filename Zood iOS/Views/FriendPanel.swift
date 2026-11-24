@@ -82,7 +82,7 @@ struct FriendPanel: View {
                     }
                 }
             } message: {
-                Text("Stops sharing and blocks their requests on this iPhone. Previously received locations may remain on their device. You can unblock them in Settings.")
+                Text("Stops sharing and blocks their requests in Amidst. The block is saved in your encrypted backup. You can unblock them in Settings.")
             }
             .alert("Remove \(friend.displayName)?", isPresented: $confirmingRemove) {
                 Button("Cancel", role: .cancel) {}
@@ -326,7 +326,7 @@ struct FriendPanel: View {
                     .multilineTextAlignment(.trailing)
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
-            .tint(.zoodBlue)
+            .tint(.zoodGreen)
         }
     }
 

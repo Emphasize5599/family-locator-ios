@@ -56,7 +56,7 @@ struct AvatarCropView: View {
                         .padding(.top, Spacing.large)
                     Spacer()
                     HStack {
-                        Button("Cancel", action: onCancel)
+                        Button("Cancel", action: onCancel).tint(.zoodYellow)
                         Spacer()
                         Button("Choose") {
                             if let jpeg = crop(scale: liveScale, offset: liveOffset, baseScale: baseScale, diameter: diameter) {

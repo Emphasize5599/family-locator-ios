@@ -8,7 +8,7 @@ struct CompatNavigationStack<Content: View>: View {
     @ViewBuilder var content: () -> Content
 
     var body: some View {
-        if #available(iOS 16, *) {
+        if #available(iOS 16, *), !LegacyStyle.isForced {
             NavigationStack(root: content)
         } else {
             NavigationView(content: content)
@@ -248,6 +248,7 @@ private struct LegacyProminentButtonStyle: ButtonStyle {
     var circle = false
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.controlSize) private var controlSize
+    @Environment(\.colorScheme) private var colorScheme
 
     func makeBody(configuration: Configuration) -> some View {
         let large = controlSize == .large
@@ -263,7 +264,7 @@ private struct LegacyProminentButtonStyle: ButtonStyle {
                     .background(tint, in: RoundedRectangle(cornerRadius: large ? 14 : 12, style: .continuous))
             }
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(colorScheme == .dark ? Color.black : Color.white)
         .opacity(isEnabled ? (configuration.isPressed ? 0.75 : 1) : 0.4)
     }
 }

@@ -18,6 +18,7 @@ struct OnboardingView: View {
     @State private var email = ""
     @State private var isWorking = false
     @State private var errorMessage: String?
+    @State private var usernameLookup: UsernameLookup?
 
     var body: some View {
         content
@@ -58,6 +59,10 @@ struct OnboardingView: View {
                         .textContentType(.username)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
+                    if mode == .signUp && ZoodConstants.isValidUsername(normalizedUsername) {
+                        UsernameLookupStatus(result: usernameLookup?.username == normalizedUsername ? usernameLookup?.result : nil,
+                                             registration: true)
+                    }
                     HStack {
                         Group {
                             if showPassword {
@@ -119,6 +124,7 @@ struct OnboardingView: View {
                             Spacer()
                         }
                     }
+                    .tint(mode == .signUp ? .zoodGreen : .zoodBlue)
                     .disabled(!canSubmit)
                 }
                 Section {
@@ -127,6 +133,11 @@ struct OnboardingView: View {
                     Link("Privacy Policy", destination: AppInformation.privacyPolicyURL)
                     Link("Support", destination: AppInformation.supportURL)
                 }
+            }
+            .task(id: mode == .signUp ? normalizedUsername : nil) {
+                let entered = normalizedUsername
+                guard mode == .signUp, ZoodConstants.isValidUsername(entered) else { return }
+                await UsernameLookup.check(entered, registration: true, model: model) { usernameLookup = $0 }
             }
             .disabled(isWorking)
             .compatOnChange(of: mode) { _ in errorMessage = nil }
@@ -145,7 +156,9 @@ struct OnboardingView: View {
     private var canSubmit: Bool {
         guard !isWorking, !normalizedUsername.isEmpty, !password.isEmpty else { return false }
         if mode == .signUp {
-            return ZoodConstants.isValidUsername(normalizedUsername) && password.count >= ZoodConstants.minimumPasswordLength
+            return ZoodConstants.isValidUsername(normalizedUsername)
+                && password.count >= ZoodConstants.minimumPasswordLength
+                && !(usernameLookup?.username == normalizedUsername && usernameLookup?.result == .found)
         }
         return true
     }

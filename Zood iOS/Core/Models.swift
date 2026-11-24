@@ -169,6 +169,7 @@ nonisolated enum CommType: String, Sendable {
     case browseDevices = "browse_devices"
     case debug
     case deviceInfo = "device_info"
+    case friendRequest = "friend_request"
     case locationInfo = "location_info"
     case locationSharingGrant = "location_sharing_grant"
     case locationUpdateRequest = "location_update_request"
@@ -281,6 +282,7 @@ nonisolated struct UserComm: Codable, Sendable {
     var isValid: Bool {
         switch type {
         case .avatarUpdate: return avatar != nil
+        case .friendRequest: return dropBox == nil && replyToBox == nil
         case .locationSharingGrant: return dropBox?.count == ZoodConstants.dropBoxIDLength
         case .locationInfo:
             guard let lat = latitude, let lng = longitude, let t = time else { return false }

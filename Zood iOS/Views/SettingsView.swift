@@ -149,8 +149,7 @@ struct AccountView: View {
         let id = UUID()
         let image: UIImage
     }
-    @State private var nickname = ""
-    @State private var savingNickname = false
+    @State private var editingNickname = false
 
     var body: some View {
         Form {
@@ -165,15 +164,14 @@ struct AccountView: View {
                 }
             }
             Section {
-                TextField("Nickname (optional)", text: $nickname).textContentType(.nickname).submitLabel(.done)
-                Button(savingNickname ? "Saving…" : "Save Nickname") {
-                    savingNickname = true
-                    Task {
-                        await model.setMyNickname(nickname)
-                        savingNickname = false
+                Button { editingNickname = true } label: {
+                    HStack {
+                        Label("Nickname", systemImage: "person.text.rectangle")
+                        Spacer()
+                        Text(model.local.myNickname ?? String(localized: "Not Set"))
+                            .foregroundStyle(.secondary)
                     }
                 }
-                .disabled(savingNickname || Nickname.normalized(nickname) == model.local.myNickname)
             } footer: {
                 Text("Updates for friends using your shared name. Names they've set for you stay unchanged.")
             }
@@ -181,14 +179,23 @@ struct AccountView: View {
                 NavigationLink("Blocked Users") { BlockedUsersView().environmentObject(model) }
             }
             Section {
-                Button("Log Out", role: .destructive) { confirmingLogOut = true }
-                NavigationLink("Delete Account") {
-                    DeleteAccountView().environmentObject(model)
+                Button { confirmingLogOut = true } label: {
+                    Label("Log Out", systemImage: "rectangle.portrait.and.arrow.right")
                 }
-                .foregroundStyle(Color.zoodRed)
+                NavigationLink {
+                    DeleteAccountView().environmentObject(model)
+                } label: {
+                    Label("Delete Account", systemImage: "trash").foregroundStyle(Color.zoodRed)
+                }
             }
         }
-        .onAppear { nickname = model.local.myNickname ?? "" }
+        .sheet(isPresented: $editingNickname) {
+            NicknameEditor(title: "Edit Nickname", username: model.credentials?.username ?? "",
+                           initial: model.local.myNickname,
+                           explanation: "Updates for friends using your shared name.") { nickname in
+                await model.setMyNickname(nickname)
+            }
+        }
         // Pick a photo, then frame it in a circle (Move and Scale, like Contacts) before it's used.
         .sheet(isPresented: $showingPhotoPicker, onDismiss: {
             if let pickedPhoto { framingPhoto = FramingPhoto(image: pickedPhoto) }
@@ -207,7 +214,7 @@ struct AccountView: View {
         }
         .navigationTitle(model.local.myNickname ?? model.credentials.map { "@\($0.username)" } ?? String(localized: "Account"))
         .navigationBarTitleDisplayMode(.inline)
-        .alert("Log out?", isPresented: $confirmingLogOut) {
+        .confirmationDialog("Log out?", isPresented: $confirmingLogOut, titleVisibility: .visible) {
             Button("Cancel", role: .cancel) {}
             Button("Log Out", role: .destructive) {
                 model.logOut()

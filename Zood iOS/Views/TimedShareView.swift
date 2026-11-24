@@ -13,7 +13,7 @@ struct TimedShareView: View {
     private var isRunning: Bool { model.timedShare != nil }
 
     var body: some View {
-        // Shared sheet chrome (title, Done, measured height), like Add Friend and Pending Requests.
+        // Shared sheet chrome (title, Done, measured height), like Pending Requests.
         ContentFittedSheet(title: "Timed Sharing") {
                 VStack(spacing: Spacing.xLarge) {
                     VStack(spacing: Spacing.small) {
@@ -27,7 +27,7 @@ struct TimedShareView: View {
                         Label("Share my location", systemImage: "location.fill")
                             .font(.headline)
                     }
-                    .tint(.zoodBlue)
+                    .tint(.zoodGreen)
                     .padding(Spacing.large)
                     .background(Color(uiColor: .secondarySystemGroupedBackground),
                                 in: RoundedRectangle(cornerRadius: 14, style: .continuous))

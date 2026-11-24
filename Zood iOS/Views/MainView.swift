@@ -223,7 +223,7 @@ struct MainView: View {
                                 // The badge layer comes first: a red dot on a white bell.
                                 Image(systemName: "bell.badge.fill")
                                     .symbolRenderingMode(.palette)
-                                    .foregroundStyle(Color.red, Color.white)
+                                    .foregroundStyle(Color.zoodRed, Color.white)
                             }
                         }
                         .font(.title2.weight(.semibold))
