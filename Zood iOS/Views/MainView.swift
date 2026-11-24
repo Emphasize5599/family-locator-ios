@@ -269,6 +269,9 @@ struct MainView: View {
         // A ScrollView clips to a plain rectangle, so the Add button and avatars slid over the bar's
         // rounded corners while scrolling. Clipping to the bar's own shape keeps them inside it.
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .compatOnChange(of: renamingFolderID) { id in
+            if let id { proxy.scrollTo(id) }
+        }
         .compatOnChange(of: nicknameDraft != nil) { editing in
             guard editing, let id = selectedFriendID,
                   model.barItems.contains(where: { $0.id == .friend(id) }) else { return }
@@ -338,7 +341,8 @@ struct MainView: View {
     private func folderItem(_ folder: FriendFolder) -> some View {
         let id = BarItemID.folder(folder.id)
         let members = folder.members.compactMap { model.local.friends[$0] }
-        let title = folder.name ?? String(localized: "Folder")
+        let title = (renamingFolderID == folder.id ? Nickname.normalized(folderName) : folder.name)
+            ?? String(localized: "Folder")
         let isFolderTarget = folderTarget == id
         return Button {
             if openFolderID == folder.id { closeFolder() } else { openFolder(folder.id) }
@@ -363,7 +367,9 @@ struct MainView: View {
                     .onAppear { if openFolderID == folder.id { openFolderTileMidX = midX } }
                     .compatOnChange(of: openFolderID) { open in if open == folder.id { openFolderTileMidX = midX } }
                     .compatOnChange(of: midX) { x in
-                        if openFolderID == folder.id, let opened = openFolderTileMidX, abs(x - opened) > 2 { closeFolder() }
+                        guard openFolderID == folder.id else { return }
+                        if renamingFolderID == folder.id { openFolderTileMidX = x }
+                        else if let opened = openFolderTileMidX, abs(x - opened) > 2 { closeFolder() }
                     }
             })
         }
@@ -416,6 +422,11 @@ struct MainView: View {
         openFolder(folder.id)
         renamingFolderID = folder.id
         folderName = folder.name ?? ""
+    }
+
+    private func saveFolderName(_ folder: FriendFolder) {
+        model.renameFolder(folder.id, to: folderName)
+        renamingFolderID = nil
     }
 
     /// An open folder, floating above the bar like the ⋯ menu: its members in a grid (3×3 by default, set in
@@ -472,9 +483,10 @@ struct MainView: View {
         let width = folderCardWidth(folder, screenWidth: screenWidth)
         let centerX = folderCenterX(width: width, screenWidth: screenWidth)
         return VStack(alignment: .leading, spacing: Spacing.small) {
-            HStack(alignment: .top, spacing: Spacing.tight) {
+            HStack(alignment: .center, spacing: Spacing.tight) {
                 if editing {
-                    InlineNameField(label: "Folder name", text: $folderName, font: .headline)
+                    InlineNameField(label: String(localized: "Folder name"), text: $folderName,
+                                    style: .headline, onSave: { saveFolderName(folder) })
                 } else {
                     Button { beginRename(folder) } label: {
                         Text(title).font(.headline).fixedSize(horizontal: false, vertical: true)
@@ -488,12 +500,7 @@ struct MainView: View {
                 CloseButton { closeFolder() }.frame(width: 44, height: 44)
             }
             if editing {
-                InlineNameActions {
-                    model.renameFolder(folder.id, to: folderName)
-                    renamingFolderID = nil
-                } onCancel: {
-                    renamingFolderID = nil
-                }
+                InlineNameActions(onSave: { saveFolderName(folder) }, onCancel: { renamingFolderID = nil })
             }
             ScrollView(.vertical, showsIndicators: members.count > columns * rows) {
                 LazyVGrid(columns: Array(repeating: GridItem(.fixed(barItemWidth), spacing: Spacing.large), count: usedColumns),

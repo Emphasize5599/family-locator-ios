@@ -166,7 +166,9 @@ struct AccountView: View {
             Section {
                 HStack {
                     if nicknameDraft != nil {
-                        InlineNameField(label: "Nickname", text: Binding(get: { nicknameDraft ?? "" }, set: { nicknameDraft = $0 }))
+                        InlineNameField(label: String(localized: "Nickname"),
+                                        text: Binding(get: { nicknameDraft ?? "" }, set: { nicknameDraft = $0 }),
+                                        onSave: saveNickname)
                     } else {
                         Button { beginNicknameEdit() } label: {
                             HStack {
@@ -185,13 +187,7 @@ struct AccountView: View {
                     .accessibilityLabel("Edit Nickname")
                 }
                 if nicknameDraft != nil {
-                    InlineNameActions {
-                        guard let nicknameDraft else { return }
-                        self.nicknameDraft = nil
-                        Task { await model.setMyNickname(nicknameDraft) }
-                    } onCancel: {
-                        nicknameDraft = nil
-                    }
+                    InlineNameActions(onSave: saveNickname, onCancel: { nicknameDraft = nil })
                 }
             } footer: {
                 Text("Updates for friends using your shared name. Names they've set for you stay unchanged.")
@@ -240,6 +236,12 @@ struct AccountView: View {
         } message: {
             Text("Your friends are backed up to your account and will come back when you sign in again.")
         }
+    }
+
+    private func saveNickname() {
+        guard let nicknameDraft else { return }
+        self.nicknameDraft = nil
+        Task { await model.setMyNickname(nicknameDraft) }
     }
 
     private func beginNicknameEdit() {

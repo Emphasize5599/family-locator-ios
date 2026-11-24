@@ -173,23 +173,16 @@ struct FriendPanel: View {
                 nameContent(friend)
             }
             if nicknameDraft != nil {
-                InlineNameActions {
-                    if let nicknameDraft, nicknameDraft.text != nicknameDraft.original {
-                        model.setFriendNickname(nicknameDraft.text, for: friend.id)
-                    }
-                    nicknameDraft = nil
-                } onCancel: {
-                    nicknameDraft = nil
-                }
+                InlineNameActions(onSave: { saveNickname(friend) }, onCancel: { nicknameDraft = nil })
             }
         }
     }
 
     @ViewBuilder private func nameContent(_ friend: Friend) -> some View {
         if nicknameDraft != nil {
-            InlineNameField(label: "Friend nickname",
+            InlineNameField(label: String(localized: "Friend nickname"),
                             text: Binding(get: { nicknameDraft?.text ?? "" }, set: { nicknameDraft?.text = $0 }),
-                            font: .title2.bold())
+                            style: .title2, onSave: { saveNickname(friend) })
         } else {
             editableName(friend).fixedSize(horizontal: false, vertical: true)
         }
@@ -201,6 +194,13 @@ struct FriendPanel: View {
         }
         .buttonStyle(.plain)
         .accessibilityHint("Edit friend’s nickname")
+    }
+
+    private func saveNickname(_ friend: Friend) {
+        if let nicknameDraft, nicknameDraft.text != nicknameDraft.original {
+            model.setFriendNickname(nicknameDraft.text, for: friend.id)
+        }
+        nicknameDraft = nil
     }
 
     private func beginNicknameEdit(_ friend: Friend) {
