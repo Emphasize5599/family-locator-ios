@@ -656,9 +656,10 @@ final class AppModel: ObservableObject {
             let existing = local.friends[user.userID]
             let pending = safety.pending[user.userID]
             if pending?.requiresFreshOffer == true, pending?.boxID == box { return }
-            if let cutoff = pending?.freshOfferAfter, let offeredAt = comm.time, offeredAt <= cutoff { return }
-            // Older clients omit the offer timestamp. Their new box goes through the normal approval prompt.
-            let approved = pending?.requiresFreshOffer == true && pending?.approved == true && comm.time != nil
+            let offeredAt = comm.time ?? 0
+            if let cutoff = pending?.freshOfferAfter, offeredAt > 0, offeredAt <= cutoff { return }
+            // Older clients send no timestamp or zero. Their new box needs ordinary approval.
+            let approved = pending?.requiresFreshOffer == true && pending?.approved == true && offeredAt > 0
             // A return share must refer to the active offer we made to this sender.
             guard approved || existing?.theyShare == true || comm.repliesToSharingOffer(on: existing?.sendingBoxID) else {
                 var next = safety
