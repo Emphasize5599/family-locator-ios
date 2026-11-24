@@ -21,7 +21,7 @@ with an "Unsupported ⓘ" explanation.
 
 A private nickname you choose for a friend takes priority over their shared name. Their immutable `@username` remains available in View Username. Names and private overrides are included in the encrypted account backup; older Zood clients may omit these optional fields when rewriting a backup.
 
-**Add Friend** checks the username as you type. On the next screen, **Share My Location** sends a location offer with the request and **Not Now** sends a request without location. Request-only invitations require the current Amidst client on both ends. Pending requests show the optional photo and whether the sender currently shares. Approving never shares your location back.
+**Add Friend** checks the username as you type. On the next screen, **Share My Location** sends a location offer with the request and **Not Now** sends a request without location. Request-only invitations require the current Amidst client on both ends. Pending requests show the optional photo and whether the sender currently shares. Approving leaves your location sharing off. If either person chooses to share later, their location updates the existing friend card.
 
 See [Docs/PROTOCOL.md](Docs/PROTOCOL.md) for the wire protocol.
 

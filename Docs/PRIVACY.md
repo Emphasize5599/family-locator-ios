@@ -26,7 +26,7 @@ Always location access enables background location sharing. Live Requests uses b
 
 Timed sharing creates a link containing a decryption key. Anyone with that link can view the shared location. Do not post the link publicly unless you intend that access. Stopping the share or letting its timer expire stops future updates; the last transmitted location and copies already received may remain accessible. The app cannot recall screenshots or data retained by recipients.
 
-Pending requests can display the sender’s chosen profile photo and name. Their location becomes visible only after you approve a request that includes a location offer. You can choose separately whether to share back. Deny dismisses the request. Block removes an existing friendship and prevents new requests from appearing until you unblock. Neither action sends a notification about the decision. Amend blocks in Settings; Amidst enforces them on devices that restore your encrypted account backup. Previously delivered locations may remain on the recipient’s device.
+Pending requests can display the sender’s chosen profile photo and name. Their location becomes visible after you add or approve them and they choose to share. If they share later, it updates the existing friendship. You can choose separately whether to share back. Deny dismisses the request. Block removes an existing friendship and prevents new requests from appearing until you unblock. Neither action sends a notification about the decision. Amend blocks in Settings; Amidst enforces them on devices that restore your encrypted account backup. Previously delivered locations may remain on the recipient’s device.
 
 ## Storage, retention and deletion
 
