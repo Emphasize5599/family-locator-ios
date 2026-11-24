@@ -6,7 +6,7 @@ The full corresponding source, changes and build instructions are available in [
 
 ## Trademarks and artwork
 
-Apple, the Apple logo, iPhone and Apple Maps are trademarks of Apple Inc., registered in the U.S. and other countries and regions. The app shows Apple's `apple.logo` SF Symbol, unmodified, only to indicate that a friend uses an Apple device.
+Apple, iPhone and Apple Maps are trademarks of Apple Inc., registered in the U.S. and other countries and regions.
 
 Android is a trademark of Google LLC. The Android logo is shown only to indicate that a friend uses an Android device. Where the Android robot appears, it is reproduced or modified from work created and shared by Google and used according to terms described in the [Creative Commons 3.0 Attribution License](https://creativecommons.org/licenses/by/3.0/). Until the official artwork is added to the asset catalog as `AndroidLogo`, the app shows an original robot-style placeholder.
 

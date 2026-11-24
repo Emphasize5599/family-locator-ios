@@ -239,8 +239,7 @@ struct PlatformBadge: View {
 
     @ViewBuilder private var logo: some View {
         if platform == .ios {
-            // Apple's own SF Symbol for referring to Apple products, used unmodified.
-            Image(systemName: "apple.logo")
+            Image(systemName: "iphone")
                 .resizable()
                 .scaledToFit()
         } else if UIImage(named: "AndroidLogo") != nil {

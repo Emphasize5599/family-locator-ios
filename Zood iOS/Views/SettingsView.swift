@@ -259,7 +259,7 @@ struct NoticesView: View {
                 notice("Amidst is free software under the GNU Affero General Public License, version 3. It's an independent app built on the open Zood Location protocol and servers. Zood is a trademark of Tangled Wires, LLC; Amidst isn't affiliated with or endorsed by Tangled Wires.")
             }
             Section("Apple") {
-                notice("Apple, the Apple logo, iPhone and Apple Maps are trademarks of Apple Inc., registered in the U.S. and other countries and regions. The Apple logo appears only to show that a friend uses an Apple device. Map data and imagery are provided by Apple Maps; see the Legal link on the map.")
+                notice("Apple, iPhone and Apple Maps are trademarks of Apple Inc., registered in the U.S. and other countries and regions. Map data and imagery are provided by Apple Maps; see the Legal link on the map.")
             }
             Section("Google") {
                 notice("Android is a trademark of Google LLC. The Android logo appears only to show that a friend uses an Android device. Where the Android robot appears, it is reproduced or modified from work created and shared by Google and used according to terms described in the Creative Commons 3.0 Attribution License.")

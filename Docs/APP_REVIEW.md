@@ -2,6 +2,15 @@
 
 Audited November 22, 2026. This is an engineering review, not an Apple approval or a guarantee of acceptance. Signing, App Store Connect validation and device-only behavior remain outside the completed checks.
 
+## November 24, 2026 review
+
+- The 1.1.46 submission candidate retains iOS 15 deployment support and builds with Xcode and SDK 27.2. The App Store review IPAs and AppSync packages are sideloading artifacts. Create a distribution-signed archive and run App Store Connect validation with the publisher’s team.
+- The privacy manifest now includes Contacts for the optional contact name and reference stored in the encrypted backup. The public privacy policy covers both clients and links directly to upstream deletion. App Privacy answers must reflect data collected by the app and the applicable service providers. Review them together with the store age rating, screenshots, and support details.
+- A phone symbol now indicates an iPhone in place of the Apple logo. Retain evidence permitting Amidst’s use of the Zood service for guideline 5.2.2. The source license and iOS App Store exception cover the code under their terms. Service authorization is a separate question.
+- Account deletion is available under Settings → Account. The code waits for upstream confirmation before clearing the local account. A historical live disposable-account check is recorded below. Before submission, recheck current reviewer credentials and deletion with a separate disposable account. Keep reviewer credentials out of public notes.
+- Confirm a monitored reporting and escalation process for objectionable avatars, names, and abuse. The client supports Deny and Block and provides a support link. The publisher’s response process and any upstream enforcement need independent verification.
+- Remaining device and console checks include live/background location, permission denial and revocation on physical iPhones, app signing, export compliance, and final App Store Connect review information. No App Store approval has been obtained.
+
 ## Status: not ready to submit yet
 
 The app now has an in-app deletion flow, published privacy/support/license links, a privacy manifest for first-party UserDefaults use, and verified review accounts. Resolve the items below before claiming submission readiness.
@@ -53,7 +62,7 @@ Contact & Support and Report a Problem (both GitHub Issues), Privacy Policy, Ope
 
 ## Public URLs
 
-- Privacy: https://github.com/Emphasize5599/family-locator-ios/blob/main/Docs/PRIVACY.md
+- Privacy: https://github.com/Emphasize5599/family-locator-ios/blob/main/Docs/PRIVACY.md?view=policy
 - Support (App Store Connect Support URL): https://github.com/Emphasize5599/family-locator-ios/issues
 - Licenses: https://github.com/Emphasize5599/family-locator-ios/blob/main/Docs/LICENSES.md
 - Service policy: https://www.zood.xyz/privacy/mobile-apps
