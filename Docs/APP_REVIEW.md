@@ -18,12 +18,13 @@ Do these before submitting. The form answers and the listing text below are read
 6. Take the screenshots from this build. Use fictional people. Do not show a price, the word "free," the Zood icon, or a live timed-share link.
 7. Confirm someone monitors https://github.com/Emphasize5599/family-locator-ios/issues and can escalate service abuse to the Zood operator. Deny and Block in the app are not enough on their own.
 8. Keep evidence that Amidst may use `api.zood.xyz`, in case Apple asks under guideline 5.2.2.
+9. Read https://www.zood.xyz/privacy/mobile-apps and confirm the privacy answers still match what that service stores.
 
-Do not choose the Kids Category. Do not put "free" or a price in the name, subtitle, screenshots, or previews.
+Do not choose the Kids Category. Do not ask Brazil for a lower Shared Location rating. Do not put "free" or a price in the name, subtitle, screenshots, or previews.
 
 ## Answers for the submission form
 
-Apple calculates the age rating from the questionnaire. Do not type a rating in by hand. Shared Location can display as 16+ in Brazil. This app is not a parent-and-child product, so do not ask Brazil for a lower rating on that basis.
+Apple calculates the age rating from the questionnaire. Do not type a rating in by hand.
 
 ### App Information
 
@@ -36,8 +37,6 @@ Apple calculates the age rating from the questionnaire. Do not type a rating in 
 | Primary category | Social Networking |
 | Secondary category | Lifestyle |
 | Content rights | No licensed third-party catalog. Apple Maps is the system map. Photos and names are user content. |
-
-Primary Social Networking and secondary Lifestyle are the categories Life360 uses. Social Networking is people sharing with people they know.
 
 Age rating, capabilities:
 
@@ -79,10 +78,6 @@ Data is collected, linked to the user, and used for app functionality. It is not
 
 Not collected: payment info, health records beyond the motion category above, browsing history, search history, advertising data, or the full contacts database.
 
-"Always Encrypted" does not mean the service sees nothing. It cannot read location packages, friend messages, shared photos, or the account backup. It can see account identifiers and connection metadata.
-
-Read https://www.zood.xyz/privacy/mobile-apps before submitting and confirm the rows above still match what that service stores.
-
 ### Prepare for Submission
 
 | Field | Answer |
@@ -123,15 +118,11 @@ The build declares non-exempt encryption because the app does more than HTTPS. O
 | Subtitle | Open Source, Always Encrypted | 29 |
 | Promotional text | Locations are encrypted on your phone before they are sent. The source is public. Share only with the family and friends you choose. | 132 |
 
-Keywords, 96 of 100 characters. Four characters are still open, which is room for one 3-letter word. Apple indexes each word once, combines words across the name, subtitle, and this field, and treats a plural as a repeat of the singular.
+Keywords:
 
 ```
 map,location,share,family,friend,private,gps,locator,find,track,tracker,tracking,kid,child,phone
 ```
-
-Those words are the searches: family locator, find a friend, share location, private map, GPS, phone tracker, kid tracker, child tracking. `friend` is singular because the plural is the same search. `find` is included and `my` is not, so the field does not spell Find My. Nothing in the list repeats Amidst, Where, Everyone, Is, Open, Source, Always, or Encrypted.
-
-`finder` came out so `tracking` would fit. `find` and `friend` still combine. `kids` and `children` are left out as repeats of `kid` and `child`. Left out: live, teen, nearby, privacy, realtime, and pet. `private` stays. Also left out, because they name a feature rather than a search: together, places, home, requests, folders, links, and group. Also left out: safety, alert, and history. The app does not track a pet, and it does not offer location history, place alarms, or crash detection. Kid and child are search words. Do not choose the Kids Category.
 
 Description:
 
@@ -149,11 +140,27 @@ Amidst is an independent open-source client for the Zood Location network and wo
 
 Screenshots: follow the current specifications at https://developer.apple.com/help/app-store-connect/reference/app-information/screenshot-specifications. Use this build. Sample people must be fictional. The first images should show the map with friends on it.
 
-The Play title and short description live with the Android listing in `Zood Android/fastlane/metadata/android/en-US/` and in that repo's `Docs/PLAY_REVIEW.md`.
-
 ## For AI agents
 
 Humans can submit from the sections above. This section is the engineering record. Do not treat it as store copy.
+
+### Listing decisions
+
+The name and subtitle are locked. Do not repeat a word between them. Guideline 2.3.7 forbids "free" and prices in the name, subtitle, screenshots, and previews. The description may say there are no purchases and no ads.
+
+Primary Social Networking and secondary Lifestyle are the categories Life360 uses. Social Networking is people sharing with people they know. Navigation would describe a directions app.
+
+The keyword string in the listing section is 96 of 100 characters. Four characters are open, which is one 3-letter word. `mom` or `dad` would fill it. Either one leaves the other parent out, so neither was added.
+
+Apple indexes each word once across the name, subtitle, and keywords, and treats a plural as a repeat of the singular. `friend` is singular for that reason. `kids` and `children` are repeats of `kid` and `child`. `find` is included and `my` is not, so the field does not spell Find My. Nothing in the list repeats Amidst, Where, Everyone, Is, Open, Source, Always, or Encrypted.
+
+`finder` came out so `tracking` would fit. `find` and `friend` still combine. The searches this list is aimed at are family locator, find a friend, share location, private map, GPS, phone tracker, kid tracker, and child tracking. Left out: live, teen, nearby, privacy, realtime, and pet. `private` stays. Also left out, because they name a feature rather than a search: together, places, home, requests, folders, links, and group. Also left out: safety, alert, and history. The app does not track a pet, and it does not offer location history, place alarms, or crash detection.
+
+Kid and child are search words. They are not a reason to choose the Kids Category. Shared Location can display as 16+ in Brazil. This is not a parent-and-child product, so do not ask Brazil for a lower rating on that basis. Apple calculates the age rating from the questionnaire.
+
+"Always Encrypted" means location packages, friend messages, shared photos, and the account backup are encrypted on the device before upload. There is no plaintext sharing mode. The service can still see account identifiers and connection metadata. Do not describe that as the server being unable to see anything. On the encryption questions, do not answer "HTTPS only."
+
+The Play title and short description are in the Android repo at `fastlane/metadata/android/en-US/` and in `Docs/PLAY_REVIEW.md`.
 
 Audited November 22, 2026, with a follow-up on November 24. Signing, App Store Connect validation, and physical-device background behavior are not claimed as done.
 
