@@ -23,7 +23,7 @@ A private nickname you choose for a friend takes priority over their shared name
 
 **Add Friend** checks the username as you type. On the next screen, **Share My Location** sends a location offer with the request and **Not Now** sends a request without location. Request-only invitations require the current Amidst client on both ends. Pending requests show the optional photo and whether the sender currently shares. Approving leaves your location sharing off. If either person chooses to share later, their location updates the existing friend card.
 
-To edit a nickname, tap it on the friend card or in Account. Tap an open folder’s title to rename it. The pencil and Rename Folder actions open the same inline fields. Names wrap as you type, and the folder grows up to the screen margins. Save keeps the draft; Cancel discards it.
+To edit a nickname, tap it on the friend card or in Account. Tap an open folder’s title to rename it. The pencil and Rename Folder actions open the same inline fields. Names wrap as you type, and the folder grows up to the screen margins. The Save and Cancel controls sit below the field while the existing header buttons stay visible. Save keeps the draft; Cancel discards it.
 
 See [Docs/PROTOCOL.md](Docs/PROTOCOL.md) for the wire protocol.
 

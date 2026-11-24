@@ -436,9 +436,7 @@ struct MainView: View {
         let font = UIFont.preferredFont(forTextStyle: .headline)
         let titleWidth = title.components(separatedBy: .newlines)
             .map { ($0 as NSString).size(withAttributes: [.font: font]).width }.max() ?? 0
-        let headerWidth = editing
-            ? ceil(titleWidth) + 2 * 36 + 2 * Spacing.tight + 20
-            : ceil(titleWidth) + 2 + 3 * Spacing.tight + Spacing.small + 2 * 44
+        let headerWidth = ceil(titleWidth) + 2 + 3 * Spacing.tight + Spacing.small + 2 * 44
         return min(max(gridWidth, headerWidth, 140) + 2 * Spacing.large, screenWidth - 2 * Spacing.medium)
     }
 
@@ -458,26 +456,27 @@ struct MainView: View {
         let width = folderCardWidth(folder, screenWidth: screenWidth)
         let centerX = folderCenterX(width: width, screenWidth: screenWidth)
         return VStack(alignment: .leading, spacing: Spacing.small) {
+            HStack(alignment: .top, spacing: Spacing.tight) {
+                if editing {
+                    InlineNameField(label: "Folder name", text: $folderName, font: .headline)
+                } else {
+                    Button { beginRename(folder) } label: {
+                        Text(title).font(.headline).fixedSize(horizontal: false, vertical: true)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Rename Folder")
+                }
+                Spacer(minLength: Spacing.small)
+                PanelMenuButton(accessibilityLabel: String(localized: "Folder options"), actions: folderMenuActions(folder))
+                    .frame(width: 44, height: 44)
+                CloseButton { closeFolder() }.frame(width: 44, height: 44)
+            }
             if editing {
-                InlineNameEditor(label: "Folder name", text: $folderName, font: .headline) {
+                InlineNameActions {
                     model.renameFolder(folder.id, to: folderName)
                     renamingFolderID = nil
                 } onCancel: {
                     renamingFolderID = nil
-                }
-            } else {
-                HStack(spacing: Spacing.tight) {
-                    Button { beginRename(folder) } label: {
-                        Text(title)
-                            .font(.headline)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityHint("Rename Folder")
-                    Spacer(minLength: Spacing.small)
-                    PanelMenuButton(accessibilityLabel: String(localized: "Folder options"), actions: folderMenuActions(folder))
-                        .frame(width: 44, height: 44)
-                    CloseButton { closeFolder() }.frame(width: 44, height: 44)
                 }
             }
             ScrollView(.vertical, showsIndicators: members.count > columns * rows) {

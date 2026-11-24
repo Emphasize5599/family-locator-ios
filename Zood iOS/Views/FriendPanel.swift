@@ -129,52 +129,43 @@ struct FriendPanel: View {
         }
     }
 
-    /// The name sits beside the avatar while it fits on one line between the avatar and the icons; a longer
-    /// name moves to its own line under them and wraps across the card's full width instead of truncating.
-    @ViewBuilder
+    /// Move a long name below the header controls without replacing the focused text field.
     private func nameAndControls(_ friend: Friend) -> some View {
-        if nicknameDraft != nil {
-            VStack(alignment: .leading, spacing: Spacing.small) {
-                HStack(spacing: Spacing.tight) {
+        VStack(alignment: .leading, spacing: Spacing.tight) {
+            if #available(iOS 16, *) {
+                FriendHeaderLayout {
+                    avatar(friend)
+                    nameContent(friend)
+                    headerControls(friend)
+                    Text(nicknameDraft ?? friend.displayName).font(.title2.bold())
+                        .fixedSize().hidden().accessibilityHidden(true)
+                }
+            } else {
+                HStack {
                     avatar(friend)
                     Spacer(minLength: 0)
                     headerControls(friend)
                 }
-                InlineNameEditor(label: "Friend nickname", text: Binding(get: { nicknameDraft ?? "" }, set: { nicknameDraft = $0 }),
-                                 font: .title2.bold()) {
+                nameContent(friend)
+            }
+            if nicknameDraft != nil {
+                InlineNameActions {
                     if let nicknameDraft { model.setFriendNickname(nicknameDraft, for: friend.id) }
                     nicknameDraft = nil
                 } onCancel: {
                     nicknameDraft = nil
                 }
             }
-        } else if #available(iOS 16, *) {
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: Spacing.small) {
-                    avatar(friend)
-                    editableName(friend)
-                        .lineLimit(1)
-                        .fixedSize(horizontal: true, vertical: false)
-                    Spacer(minLength: Spacing.small)
-                    headerControls(friend)
-                }
-                nameBelowAvatar(friend)
-            }
-        } else {
-            nameBelowAvatar(friend)
         }
     }
 
-    private func nameBelowAvatar(_ friend: Friend) -> some View {
-        VStack(alignment: .leading, spacing: Spacing.small) {
-            HStack(spacing: Spacing.tight) {
-                avatar(friend)
-                Spacer(minLength: 0)
-                headerControls(friend)
-            }
-            editableName(friend)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .fixedSize(horizontal: false, vertical: true)
+    @ViewBuilder private func nameContent(_ friend: Friend) -> some View {
+        if nicknameDraft != nil {
+            InlineNameField(label: "Friend nickname",
+                            text: Binding(get: { nicknameDraft ?? "" }, set: { nicknameDraft = $0 }),
+                            font: .title2.bold())
+        } else {
+            editableName(friend).fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -620,5 +611,40 @@ private extension Array where Element: Hashable {
     func removingDuplicates() -> [Element] {
         var seen = Set<Element>()
         return filter { seen.insert($0).inserted }
+    }
+}
+
+/// Lays out the avatar, name and controls without moving the name into a different view hierarchy.
+@available(iOS 16, *)
+private struct FriendHeaderLayout: Layout {
+    private let gap = Spacing.small
+
+    private func sizes(width: CGFloat, subviews: Subviews) -> (avatar: CGSize, name: CGSize, controls: CGSize, below: Bool) {
+        let avatar = subviews[0].sizeThatFits(.unspecified)
+        let controls = subviews[2].sizeThatFits(.unspecified)
+        let inlineWidth = max(0, width - avatar.width - controls.width - 2 * gap)
+        let below = inlineWidth < 44 || subviews[3].sizeThatFits(.unspecified).width > inlineWidth
+        let name = subviews[1].sizeThatFits(ProposedViewSize(width: below ? width : inlineWidth, height: nil))
+        return (avatar, name, controls, below)
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width ?? subviews[0].sizeThatFits(.unspecified).width
+            + subviews[2].sizeThatFits(.unspecified).width + subviews[3].sizeThatFits(.unspecified).width + 2 * gap
+        let (avatar, name, controls, below) = sizes(width: width, subviews: subviews)
+        let headerHeight = max(avatar.height, controls.height)
+        return CGSize(width: width, height: below ? headerHeight + gap + name.height : max(headerHeight, name.height))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let (avatar, name, controls, below) = sizes(width: bounds.width, subviews: subviews)
+        let headerHeight = below ? max(avatar.height, controls.height) : bounds.height
+        let centerY = bounds.minY + headerHeight / 2
+        subviews[0].place(at: CGPoint(x: bounds.minX, y: centerY), anchor: .leading, proposal: ProposedViewSize(avatar))
+        subviews[2].place(at: CGPoint(x: bounds.maxX, y: centerY), anchor: .trailing, proposal: ProposedViewSize(controls))
+        let nameWidth = below ? bounds.width : max(0, bounds.width - avatar.width - controls.width - 2 * gap)
+        let namePosition = below ? CGPoint(x: bounds.minX, y: bounds.minY + headerHeight + gap + name.height / 2)
+            : CGPoint(x: bounds.minX + avatar.width + gap, y: centerY)
+        subviews[1].place(at: namePosition, anchor: .leading, proposal: ProposedViewSize(width: nameWidth, height: name.height))
     }
 }

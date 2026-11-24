@@ -164,23 +164,33 @@ struct AccountView: View {
                 }
             }
             Section {
+                HStack {
+                    if nicknameDraft != nil {
+                        InlineNameField(label: "Nickname", text: Binding(get: { nicknameDraft ?? "" }, set: { nicknameDraft = $0 }))
+                    } else {
+                        Button { beginNicknameEdit() } label: {
+                            HStack {
+                                Label("Nickname", systemImage: "person.text.rectangle")
+                                Spacer()
+                                Text(model.local.myNickname ?? String(localized: "Not Set"))
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .buttonStyle(.borderless)
+                    }
+                    Button(action: beginNicknameEdit) {
+                        Image(systemName: "pencil").frame(width: 44, height: 44)
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel("Edit Nickname")
+                }
                 if nicknameDraft != nil {
-                    InlineNameEditor(label: "Nickname", text: Binding(get: { nicknameDraft ?? "" }, set: { nicknameDraft = $0 })) {
+                    InlineNameActions {
                         guard let nicknameDraft else { return }
                         self.nicknameDraft = nil
                         Task { await model.setMyNickname(nicknameDraft) }
                     } onCancel: {
                         nicknameDraft = nil
-                    }
-                } else {
-                    Button { nicknameDraft = model.local.myNickname ?? "" } label: {
-                        HStack {
-                            Label("Nickname", systemImage: "person.text.rectangle")
-                            Spacer()
-                            Text(model.local.myNickname ?? String(localized: "Not Set"))
-                                .foregroundStyle(.secondary)
-                            Image(systemName: "pencil").accessibilityHidden(true)
-                        }
                     }
                 }
             } footer: {
@@ -230,6 +240,10 @@ struct AccountView: View {
         } message: {
             Text("Your friends are backed up to your account and will come back when you sign in again.")
         }
+    }
+
+    private func beginNicknameEdit() {
+        if nicknameDraft == nil { nicknameDraft = model.local.myNickname ?? "" }
     }
 
 }

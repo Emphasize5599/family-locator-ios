@@ -1,49 +1,34 @@
 import SwiftUI
 
-/// Edits a draft where its name normally appears. The caller decides when to commit it.
-struct InlineNameEditor: View {
+/// A wrapping draft field. Its parent keeps the surrounding controls in their usual positions.
+struct InlineNameField: View {
     let label: LocalizedStringKey
     @Binding var text: String
     var font: Font = .body
-    let onSave: () -> Void
-    let onCancel: () -> Void
 
     @FocusState private var focused: Bool
 
     var body: some View {
-        HStack(alignment: .top, spacing: Spacing.tight) {
-            field
-                .font(font)
-                .focused($focused)
-                .accessibilityLabel(label)
-                .layoutPriority(1)
-            Button(action: onSave) {
-                Image(systemName: "checkmark").frame(width: 36, height: 44)
+        field
+            .font(font)
+            .focused($focused)
+            .accessibilityLabel(label)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .task {
+                await Task.yield()
+                focused = true
             }
-            .accessibilityLabel("Save")
-            .tint(.zoodYellow)
-            Button(action: onCancel) {
-                Image(systemName: "xmark").frame(width: 36, height: 44)
-            }
-            .accessibilityLabel("Cancel")
-            .tint(.zoodYellow)
-        }
-        .buttonStyle(.borderless)
-        .task {
-            // Let the field join its card or Form before asking for the keyboard.
-            await Task.yield()
-            focused = true
-        }
     }
 
     @ViewBuilder private var field: some View {
         if #available(iOS 16, *) {
             TextField(label, text: $text, axis: .vertical)
-                .textFieldStyle(.roundedBorder)
+                .textFieldStyle(.plain)
                 .lineLimit(1...4)
-                .frame(minHeight: 44)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.vertical, Spacing.tight)
+                .background(Color(uiColor: .secondarySystemBackground).opacity(0.8), in: RoundedRectangle(cornerRadius: 6))
         } else {
-            // TextEditor gives iOS 15 a wrapping input. Its sizing text follows the same layout.
             Text(text.isEmpty ? " " : text)
                 .lineLimit(4)
                 .padding(8)
@@ -53,6 +38,23 @@ struct InlineNameEditor: View {
                     TextEditor(text: $text)
                         .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(.quaternary))
                 }
+        }
+    }
+}
+
+struct InlineNameActions: View {
+    let onSave: () -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        HStack(spacing: Spacing.tight) {
+            Spacer(minLength: 0)
+            PanelIconButton(systemName: "checkmark.circle.fill", tint: UIColor(Color.zoodYellow),
+                            accessibilityLabel: String(localized: "Save"), action: onSave)
+                .frame(width: 44, height: 44)
+            PanelIconButton(systemName: "xmark.circle", tint: .secondaryLabel,
+                            accessibilityLabel: String(localized: "Cancel"), action: onCancel)
+                .frame(width: 44, height: 44)
         }
     }
 }
