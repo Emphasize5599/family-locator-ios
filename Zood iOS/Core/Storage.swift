@@ -158,6 +158,8 @@ nonisolated struct PendingRequest: Codable, Identifiable, Sendable {
 nonisolated struct SafetyState: Codable, Sendable {
     var pending: [Data: PendingRequest] = [:]
     var blocked: [Data: ZoodUser] = [:]
+    /// A false entry awaits delivery. Existing blocks without an entry are repaired on unblock.
+    var sentBlockRemovals: [Data: Bool]?
 }
 
 nonisolated enum SafetyStore {

@@ -104,6 +104,7 @@ struct BlockedUsersView: View {
     @EnvironmentObject private var model: AppModel
     @State private var selected: ZoodUser?
     @State private var error: String?
+    @State private var unblocking = false
 
     private var users: [ZoodUser] {
         model.safety.blocked.values.sorted { $0.username < $1.username }
@@ -119,6 +120,7 @@ struct BlockedUsersView: View {
                         Text("@\(user.username)").font(.headline)
                         Button { selected = user } label: { Text("Unblock").frame(minHeight: 44) }
                             .buttonStyle(.borderless)
+                            .disabled(unblocking)
                     }
                 }
             } footer: {
@@ -131,8 +133,14 @@ struct BlockedUsersView: View {
             Button("Cancel", role: .cancel) {}
             Button("Unblock") {
                 guard let selected else { return }
-                do { try model.unblockUser(selected) } catch { self.error = error.localizedDescription }
                 self.selected = nil
+                error = nil
+                unblocking = true
+                Task {
+                    defer { unblocking = false }
+                    do { try await model.unblockUser(selected) }
+                    catch { self.error = error.localizedDescription }
+                }
             }
         }
     }

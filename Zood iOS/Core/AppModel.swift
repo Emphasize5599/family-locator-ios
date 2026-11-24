@@ -69,6 +69,7 @@ final class AppModel: ObservableObject {
     private var inboxSync: Task<Bool, Never>?
     private var inboxSyncID: UUID?
     private var inboxChanged = false
+    private var blockRemovalSends: [Data: Task<Void, Error>] = [:]
     private var timedShareExpiry: Task<Void, Never>?
 
     let location = LocationService()
@@ -367,6 +368,8 @@ final class AppModel: ObservableObject {
         inboxSync = nil
         inboxSyncID = nil
         inboxChanged = false
+        for send in blockRemovalSends.values { send.cancel() }
+        blockRemovalSends.removeAll()
         socket?.stop()
         socket = nil
         location.stopAll()
@@ -464,6 +467,7 @@ final class AppModel: ObservableObject {
                 do { try await Task.sleep(nanoseconds: 10_000_000_000) } catch { return }
                 guard let self, self.isForeground else { return }
                 _ = await self.syncInbox()
+                await self.flushBlockRemovals()
             }
         }
     }
@@ -513,6 +517,7 @@ final class AppModel: ObservableObject {
     func refresh() async {
         guard !ScreenshotTour.isEnabled, let token = credentials?.accessToken else { return }
         _ = await syncInbox()
+        await flushBlockRemovals()
         guard credentials?.accessToken == token else { return }
         for friend in local.friends.values {
             guard let box = friend.receivingBoxID,
@@ -969,11 +974,49 @@ final class AppModel: ObservableObject {
 
     func removeFriend(_ friend: Friend) async throws {
         guard let account = credentials?.userID, local.friends[friend.id] != nil else { return }
-        var removal = UserComm(type: .locationSharingRevocation)
-        removal.friendRemoved = true
-        try await send(removal, to: friend.user, urgent: false, transient: false)
+        try await sendFriendRemoval(to: friend.user)
         guard credentials?.userID == account else { return }
         try forgetFriend(friend.id)
+    }
+
+    private func sendFriendRemoval(to user: ZoodUser) async throws {
+        var removal = UserComm(type: .locationSharingRevocation)
+        removal.friendRemoved = true
+        do {
+            try await send(removal, to: user, urgent: false, transient: false)
+        } catch let error as OscarError where error.code == OscarError.userNotFound {
+            // A deleted account no longer has an inbox or friendship to clean up.
+        }
+    }
+
+    private func flushBlockRemovals() async {
+        guard let token = credentials?.accessToken else { return }
+        for (id, sent) in safety.sentBlockRemovals ?? [:] where !sent {
+            guard credentials?.accessToken == token else { return }
+            if let user = safety.blocked[id] { try? await deliverBlockRemoval(to: user) }
+        }
+    }
+
+    private func deliverBlockRemoval(to user: ZoodUser) async throws {
+        let id = user.userID
+        guard let token = credentials?.accessToken, safety.blocked[id] != nil,
+              safety.sentBlockRemovals?[id] != true else { return }
+        if let existing = blockRemovalSends[id] { return try await existing.value }
+        let send = Task {
+            defer {
+                if credentials?.accessToken == token { blockRemovalSends[id] = nil }
+            }
+            guard !Task.isCancelled, credentials?.accessToken == token else { return }
+            try await sendFriendRemoval(to: user)
+            guard credentials?.accessToken == token, safety.blocked[id] != nil else { return }
+            var next = safety
+            var removals = next.sentBlockRemovals ?? [:]
+            removals[id] = true
+            next.sentBlockRemovals = removals
+            try saveSafety(next)
+        }
+        blockRemovalSends[id] = send
+        try await send.value
     }
 
     private func forgetFriend(_ id: Data) throws {
@@ -1025,25 +1068,27 @@ final class AppModel: ObservableObject {
         var next = safety
         next.pending[user.userID] = nil
         next.blocked[user.userID] = user
+        var removals = next.sentBlockRemovals ?? [:]
+        removals[user.userID] = false
+        next.sentBlockRemovals = removals
         // Persist the block before awaiting network work, so arriving grants cannot re-add them.
         try saveSafety(next)
-        let wasFriend = local.friends[user.userID] != nil
-        local.friends[user.userID] = nil
-        requestStatuses[user.userID] = nil
-        LocalDataStore.save(local)
-        dropFromBar(user.userID)
-        scheduleBackup()
-        if wasFriend {
-            // A full removal, like Remove Friend: their phone drops us too, not just our location.
-            var removal = UserComm(type: .locationSharingRevocation)
-            removal.friendRemoved = true
-            try? await send(removal, to: user, urgent: false, transient: false)
-        }
+        try forgetFriend(user.userID)
+        // Enforce the block locally even offline. Unblock retries the full removal before clearing it.
+        try? await deliverBlockRemoval(to: user)
     }
 
-    func unblockUser(_ user: ZoodUser) throws {
+    func unblockUser(_ user: ZoodUser) async throws {
+        guard safety.blocked[user.userID] != nil else { return }
+        if !ScreenshotTour.isEnabled {
+            guard let token = credentials?.accessToken else { return }
+            // Also repairs blocks made by clients that sent a one-way revocation or sent nothing.
+            try await deliverBlockRemoval(to: user)
+            guard credentials?.accessToken == token else { return }
+        }
         var next = safety
         next.blocked[user.userID] = nil
+        next.sentBlockRemovals?[user.userID] = nil
         try saveSafety(next)
         scheduleBackup()
     }
