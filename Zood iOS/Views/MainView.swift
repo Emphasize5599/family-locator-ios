@@ -486,7 +486,7 @@ struct MainView: View {
             HStack(alignment: .center, spacing: Spacing.tight) {
                 if editing {
                     InlineNameField(label: String(localized: "Folder name"), text: $folderName,
-                                    style: .headline, onSave: { saveFolderName(folder) })
+                                    style: .headline, onSave: { saveFolderName(folder) }, onCancel: { renamingFolderID = nil })
                 } else {
                     Button { beginRename(folder) } label: {
                         Text(title).font(.headline).fixedSize(horizontal: false, vertical: true)

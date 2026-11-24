@@ -6,6 +6,7 @@ struct InlineNameField: View {
     @Binding var text: String
     var style: UIFont.TextStyle = .body
     let onSave: () -> Void
+    let onCancel: () -> Void
 
     private var font: Font {
         switch style {
@@ -33,7 +34,7 @@ struct InlineNameField: View {
                 }
             }
             .overlay {
-                NameTextView(label: label, text: $text, style: style, onSave: onSave)
+                NameTextView(label: label, text: $text, style: style, onSave: onSave, onCancel: onCancel)
             }
     }
 }
@@ -44,14 +45,28 @@ private struct NameTextView: UIViewRepresentable {
     @Binding var text: String
     let style: UIFont.TextStyle
     let onSave: () -> Void
+    let onCancel: () -> Void
 
     final class Editor: UITextView {
         var onSave: () -> Void = {}
+        var onCancel: () -> Void = {}
         private var needsInitialFocus = true
+        lazy var outsideTap: UITapGestureRecognizer = {
+            let tap = UITapGestureRecognizer(target: self, action: #selector(discardDraft))
+            tap.cancelsTouchesInView = false
+            return tap
+        }()
+
+        override func willMove(toWindow newWindow: UIWindow?) {
+            if let window, window !== newWindow { window.removeGestureRecognizer(outsideTap) }
+            super.willMove(toWindow: newWindow)
+        }
 
         override func didMoveToWindow() {
             super.didMoveToWindow()
-            guard needsInitialFocus, window != nil else { return }
+            guard let window else { return }
+            if outsideTap.view !== window { window.addGestureRecognizer(outsideTap) }
+            guard needsInitialFocus else { return }
             needsInitialFocus = false
             Task { @MainActor [weak self] in
                 guard let self, self.window != nil else { return }
@@ -66,6 +81,8 @@ private struct NameTextView: UIViewRepresentable {
                 super.insertText(text)
             }
         }
+
+        @objc private func discardDraft() { onCancel() }
     }
 
     func makeUIView(context: Context) -> Editor {
@@ -80,12 +97,15 @@ private struct NameTextView: UIViewRepresentable {
         editor.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         editor.setContentCompressionResistancePriority(.defaultLow, for: .vertical)
         editor.delegate = context.coordinator
+        editor.outsideTap.delegate = context.coordinator
+        context.coordinator.editor = editor
         return editor
     }
 
     func updateUIView(_ editor: Editor, context: Context) {
         context.coordinator.field = self
         editor.onSave = onSave
+        editor.onCancel = onCancel
         editor.accessibilityLabel = label
         let preferred = UIFont.preferredFont(forTextStyle: style, compatibleWith: editor.traitCollection)
         editor.font = style == .title2 ? .boldSystemFont(ofSize: preferred.pointSize) : preferred
@@ -97,10 +117,24 @@ private struct NameTextView: UIViewRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator(field: self) }
 
-    final class Coordinator: NSObject, UITextViewDelegate {
+    final class Coordinator: NSObject, UITextViewDelegate, UIGestureRecognizerDelegate {
+        weak var editor: Editor?
         var field: NameTextView
 
         init(field: NameTextView) { self.field = field }
+
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+            var hit = touch.view
+            while let view = hit {
+                if view === editor || view.accessibilityIdentifier == InlineNameActions.saveID
+                    || view.accessibilityIdentifier == InlineNameActions.discardID { return false }
+                hit = view.superview
+            }
+            return true
+        }
+
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                               shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool { true }
 
         func textViewDidChange(_ textView: UITextView) {
             field.text = textView.text
@@ -115,6 +149,8 @@ private struct NameTextView: UIViewRepresentable {
 }
 
 struct InlineNameActions: View {
+    static let saveID = "inline-name-save"
+    static let discardID = "inline-name-discard"
     let onSave: () -> Void
     let onCancel: () -> Void
 
@@ -122,10 +158,10 @@ struct InlineNameActions: View {
         HStack(spacing: Spacing.tight) {
             Spacer(minLength: 0)
             PanelIconButton(systemName: "checkmark.circle.fill", tint: UIColor(Color.zoodGreen),
-                            accessibilityLabel: String(localized: "Save"), action: onSave)
+                            accessibilityLabel: String(localized: "Save"), accessibilityIdentifier: Self.saveID, action: onSave)
                 .frame(width: 44, height: 44)
             PanelIconButton(systemName: "xmark.circle", tint: UIColor(Color.zoodYellow),
-                            accessibilityLabel: String(localized: "Cancel"), action: onCancel)
+                            accessibilityLabel: String(localized: "Cancel"), accessibilityIdentifier: Self.discardID, action: onCancel)
                 .frame(width: 44, height: 44)
         }
     }

@@ -182,7 +182,7 @@ struct FriendPanel: View {
         if nicknameDraft != nil {
             InlineNameField(label: String(localized: "Friend nickname"),
                             text: Binding(get: { nicknameDraft?.text ?? "" }, set: { nicknameDraft?.text = $0 }),
-                            style: .title2, onSave: { saveNickname(friend) })
+                            style: .title2, onSave: { saveNickname(friend) }, onCancel: { nicknameDraft = nil })
         } else {
             editableName(friend).fixedSize(horizontal: false, vertical: true)
         }

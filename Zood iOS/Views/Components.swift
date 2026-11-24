@@ -132,6 +132,7 @@ struct PanelIconButton: UIViewRepresentable {
     let systemName: String
     let tint: UIColor
     let accessibilityLabel: String
+    var accessibilityIdentifier: String? = nil
     let action: () -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -141,6 +142,7 @@ struct PanelIconButton: UIViewRepresentable {
         button.setImage(UIImage(systemName: systemName, withConfiguration: panelIconConfig), for: .normal)
         button.tintColor = tint
         button.accessibilityLabel = accessibilityLabel
+        button.accessibilityIdentifier = accessibilityIdentifier
         button.addTarget(context.coordinator, action: #selector(Coordinator.tapped), for: .touchUpInside)
         button.setContentHuggingPriority(.required, for: .horizontal)
         button.setContentHuggingPriority(.required, for: .vertical)

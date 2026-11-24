@@ -168,7 +168,7 @@ struct AccountView: View {
                     if nicknameDraft != nil {
                         InlineNameField(label: String(localized: "Nickname"),
                                         text: Binding(get: { nicknameDraft ?? "" }, set: { nicknameDraft = $0 }),
-                                        onSave: saveNickname)
+                                        onSave: saveNickname, onCancel: { nicknameDraft = nil })
                     } else {
                         Button { beginNicknameEdit() } label: {
                             HStack {
