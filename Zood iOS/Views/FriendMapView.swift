@@ -133,7 +133,8 @@ struct FriendMapView: UIViewRepresentable {
         func updateCamera(on map: MKMapView, command: MapCommand?, selectedFriend: Friend?) {
             guard map.bounds.width > 1, map.bounds.height > 1 else { return }
             if cameraSelectionID != selectedFriend?.id {
-                if command == nil || command == lastCommand { stopFlight() }
+                // Dismissing a card leaves the camera free to finish the move already in progress.
+                if selectedFriend != nil, command == nil || command == lastCommand { stopFlight() }
                 cameraSelectionID = selectedFriend?.id
                 followedFriendID = selectedFriend?.id
                 lastFriendPoint = nil
@@ -187,7 +188,6 @@ struct FriendMapView: UIViewRepresentable {
 
         private func fly(_ map: MKMapView, to point: MKMapPoint, liftForCard: Bool, trackUser: Bool) {
             let intendedWidth = flight?.endWidth
-            stopFlight()
             let rect = map.visibleMapRect
             let width = min(max(rect.size.width, 1), Self.globeWidth)
             let aspect = Double(map.bounds.height / map.bounds.width)
@@ -195,12 +195,21 @@ struct FriendMapView: UIViewRepresentable {
             // Keep a tighter manual zoom, including when a new tap interrupts the zoomed-out part of a flight.
             let endWidth = max(1, min(intendedWidth ?? width, streetWidth))
             let start = MKMapPoint(x: rect.midX, y: rect.midY)
-            var dx = (point.x - start.x).truncatingRemainder(dividingBy: Self.globeWidth)
-            if abs(dx) > Self.globeWidth / 2 { dx -= copysign(Self.globeWidth, dx) }
+            let dx = horizontalDelta(from: start.x, to: point.x)
             let end = MKMapPoint(x: start.x + dx, y: point.y + (liftForCard ? endWidth * aspect * 0.06 : 0))
+            let camera = map.camera
+            if liftForCard, camera.heading == 0, camera.pitch == 0, map.userTrackingMode == .none {
+                // Android retains the current zoom when already close. Allow a small screen-space
+                // tolerance so rounding, or another pin at the same place, doesn't restart the flight.
+                let currentCenter = flight?.end ?? start
+                let currentWidth = intendedWidth ?? width
+                let separation = hypot(horizontalDelta(from: currentCenter.x, to: end.x), end.y - currentCenter.y)
+                if flight?.trackUser != true, currentWidth <= endWidth * 1.02,
+                   separation <= endWidth * 16 / Double(map.bounds.width) { return }
+            }
+            stopFlight()
             let distance = hypot(dx, end.y - start.y)
             map.setUserTrackingMode(.none, animated: false)
-            let camera = map.camera
             if camera.heading != 0 || camera.pitch != 0 {
                 camera.heading = 0
                 camera.pitch = 0
@@ -220,6 +229,11 @@ struct FriendMapView: UIViewRepresentable {
             let link = CADisplayLink(target: self, selector: #selector(animateFlight))
             displayLink = link
             link.add(to: .main, forMode: .common)
+        }
+
+        private func horizontalDelta(from start: Double, to end: Double) -> Double {
+            let delta = (end - start).truncatingRemainder(dividingBy: Self.globeWidth)
+            return abs(delta) > Self.globeWidth / 2 ? delta - copysign(Self.globeWidth, delta) : delta
         }
 
         static let flightDuration: CFTimeInterval = 0.4

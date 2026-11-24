@@ -2,11 +2,29 @@ import CoreLocation
 import MapKit
 import SwiftUI
 
+struct FriendNicknameDraft {
+    let original: String
+    var text: String
+
+    init(_ original: String) {
+        self.original = original
+        self.text = original
+    }
+
+    func preview(for friend: Friend) -> Friend {
+        guard text != original else { return friend }
+        var preview = friend
+        preview.nickname = Nickname.normalized(text)
+        return preview
+    }
+}
+
 /// Card for one friend, shown above the friend bar like george's InfoPanel: who/where/when, a Refresh (request
 /// update) button and the "share my location" switch.
 struct FriendPanel: View {
     @EnvironmentObject private var model: AppModel
     let friendID: Data
+    @Binding var nicknameDraft: FriendNicknameDraft?
     var maxHeight: CGFloat = .infinity
     var onClose: () -> Void = {}
 
@@ -17,7 +35,6 @@ struct FriendPanel: View {
     @State private var confirmingBlock = false
     @State private var blockError: String?
     @State private var showingSafetyNumber = false
-    @State private var nicknameDraft: String?
     @State private var linkingContact = false
     @State private var dragOffset: CGFloat = 0
     @State private var contentHeight: CGFloat = 320
@@ -64,9 +81,13 @@ struct FriendPanel: View {
             .task(id: friend.location) { await lookUpAddress(friend.location) }
             // Re-check a cached "can't answer requests" before showing Unsupported (it may be out of date).
             .task(id: friendID) { await model.refreshDeviceStatusIfNeeded(friend) }
+            #if DEBUG
             .onAppear {
-                if ScreenshotTour.scene == "friend-nickname" { beginNicknameEdit(friend) }
+                if ["friend-nickname", "friend-nickname-scroll"].contains(ScreenshotTour.scene ?? "") {
+                    beginNicknameEdit(friend)
+                }
             }
+            #endif
             .sheet(isPresented: $linkingContact) {
                 ContactLinkView(friendID: friend.id).environmentObject(model)
             }
@@ -137,7 +158,7 @@ struct FriendPanel: View {
                     avatar(friend)
                     nameContent(friend)
                     headerControls(friend)
-                    Text(nicknameDraft ?? friend.displayName).font(.title2.bold())
+                    Text(nicknameDraft?.text ?? friend.displayName).font(.title2.bold())
                         .fixedSize(horizontal: false, vertical: true)
                         .hidden().accessibilityHidden(true)
                     Text("M\nM").font(.title2.bold())
@@ -153,7 +174,9 @@ struct FriendPanel: View {
             }
             if nicknameDraft != nil {
                 InlineNameActions {
-                    if let nicknameDraft { model.setFriendNickname(nicknameDraft, for: friend.id) }
+                    if let nicknameDraft, nicknameDraft.text != nicknameDraft.original {
+                        model.setFriendNickname(nicknameDraft.text, for: friend.id)
+                    }
                     nicknameDraft = nil
                 } onCancel: {
                     nicknameDraft = nil
@@ -165,7 +188,7 @@ struct FriendPanel: View {
     @ViewBuilder private func nameContent(_ friend: Friend) -> some View {
         if nicknameDraft != nil {
             InlineNameField(label: "Friend nickname",
-                            text: Binding(get: { nicknameDraft ?? "" }, set: { nicknameDraft = $0 }),
+                            text: Binding(get: { nicknameDraft?.text ?? "" }, set: { nicknameDraft?.text = $0 }),
                             font: .title2.bold())
         } else {
             editableName(friend).fixedSize(horizontal: false, vertical: true)
@@ -181,7 +204,7 @@ struct FriendPanel: View {
     }
 
     private func beginNicknameEdit(_ friend: Friend) {
-        if nicknameDraft == nil { nicknameDraft = friend.nickname ?? "" }
+        if nicknameDraft == nil { nicknameDraft = FriendNicknameDraft(friend.displayName) }
     }
 
     private func avatar(_ friend: Friend) -> some View {

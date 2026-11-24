@@ -153,7 +153,7 @@ final class AppModel: ObservableObject {
             fixture.nickname = "Dad"
         }
         if scene == "friend-two-line-name" || scene == "friend-nickname" {
-            fixture.nickname = "Alex Reed"
+            fixture.sharedNickname = "Alex Reed"
         }
         if scene == "friend-long-name" {
             // Also shows the activity icons: walking, heading northeast.
@@ -179,7 +179,7 @@ final class AppModel: ObservableObject {
         }
         folders = []
         barOrder = []
-        if ["map-many-friends", "friend-overlap"].contains(scene) || scene.hasPrefix("map-folders") {
+        if ["map-many-friends", "friend-overlap", "friend-nickname-scroll"].contains(scene) || scene.hasPrefix("map-folders") {
             // Enough friends to make the friend bar scroll, for checking its rounded-corner clipping.
             for (index, name) in ["Bailey", "Casey", "Devon", "Emerson", "Finley", "Harper"].enumerated() {
                 var extra = fixture

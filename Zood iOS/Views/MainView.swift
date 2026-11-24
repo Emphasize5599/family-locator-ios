@@ -7,6 +7,7 @@ struct MainView: View {
     @State private var mapCommand: MapCommand?
     /// The friend whose card is showing above the friend bar (an inline card, not a sheet, so the bar stays usable).
     @State private var selectedFriendID: Data?
+    @State private var nicknameDraft: FriendNicknameDraft?
     @State private var activeSheet: ActiveSheet?
     /// The friend or folder being dragged around the bar (see FriendBarFolders.swift).
     @State private var dragging: BarItemID?
@@ -59,7 +60,8 @@ struct MainView: View {
                     BackgroundRefreshView()
                         .padding(.horizontal, Spacing.medium)
                     if let id = selectedFriendID, model.local.friends[id] != nil {
-                        FriendPanel(friendID: id, maxHeight: geometry.size.height * 0.65, onClose: closeFriend)
+                        FriendPanel(friendID: id, nicknameDraft: $nicknameDraft,
+                                    maxHeight: geometry.size.height * 0.65, onClose: closeFriend)
                             .id(id)
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
@@ -118,7 +120,7 @@ struct MainView: View {
         }
         // Close a friend's card if they're removed (by us or from another device).
         .compatOnChange(of: model.local.friends.keys.count) { _ in
-            if let id = selectedFriendID, model.local.friends[id] == nil { selectedFriendID = nil }
+            if let id = selectedFriendID, model.local.friends[id] == nil { closeFriend() }
         }
         .alert(Text("Ungroup \u{201C}\(confirmingUngroup?.name ?? String(localized: "Folder"))\u{201D}?"),
                             isPresented: Binding(get: { confirmingUngroup != nil }, set: { if !$0 { confirmingUngroup = nil } }),
@@ -141,6 +143,7 @@ struct MainView: View {
                 mapCommand = MapCommand(kind: .focus(latitude: loc.latitude, longitude: loc.longitude))
             }
             if ["friend", "friend-short-name", "friend-two-line-name", "friend-long-name", "friend-updated", "friend-unsupported", "friend-contact-photo", "friend-nickname"].contains(ScreenshotTour.scene ?? ""), let friend = model.friends.first { select(friend) }
+            if ScreenshotTour.scene == "friend-nickname-scroll", let friend = model.friends.last { select(friend) }
             if ScreenshotTour.scene?.hasPrefix("map-folders-open") == true { openFolderID = model.friendFolders.first?.id }
             if ScreenshotTour.scene == "map-folders-open-rename", let folder = model.friendFolders.first {
                 beginRename(folder)
@@ -166,6 +169,13 @@ struct MainView: View {
             }
             #endif
         }
+        #if DEBUG
+        .task(id: selectedFriendID) {
+            guard ScreenshotTour.scene == "friend-nickname-scroll" else { return }
+            do { try await Task.sleep(nanoseconds: 600_000_000) } catch { return }
+            nicknameDraft?.text = "River"
+        }
+        #endif
     }
 
     private var controls: some View {
@@ -259,6 +269,11 @@ struct MainView: View {
         // A ScrollView clips to a plain rectangle, so the Add button and avatars slid over the bar's
         // rounded corners while scrolling. Clipping to the bar's own shape keeps them inside it.
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .compatOnChange(of: nicknameDraft != nil) { editing in
+            guard editing, let id = selectedFriendID,
+                  model.barItems.contains(where: { $0.id == .friend(id) }) else { return }
+            withAnimation { proxy.scrollTo(id) }
+        }
         #if DEBUG
         // Tour check: start scrolled partway, so buttons sit under the bar's rounded corners.
         .onAppear {
@@ -274,21 +289,22 @@ struct MainView: View {
 
     // MARK: Friend bar items and folders
 
-    /// A person in the bar. Tap to open their card; long-press and drag to move them or make a folder.
+    /// Tap a person to open or close their card; long-press to move them or make a folder.
     private func friendItem(_ friend: Friend) -> some View {
         let id = BarItemID.friend(friend.id)
         let isFolderTarget = folderTarget == id
+        let preview = selectedFriendID == friend.id ? nicknameDraft?.preview(for: friend) ?? friend : friend
         return Button {
-            select(friend)
+            toggleFriend(friend)
         } label: {
             VStack(spacing: Spacing.tight) {
-                AvatarView(username: friend.avatarName, imageData: friend.displayAvatar, size: 52)
+                AvatarView(username: preview.avatarName, imageData: preview.displayAvatar, size: 52)
                     .opacity(friend.theyShare ? 1 : 0.5)
                     // While someone is held over the middle, a ring and a little growth say "let go to make a folder".
                     .overlay(Circle().stroke(Color.zoodBlue, lineWidth: 3).opacity(isFolderTarget ? 1 : 0))
                     .scaleEffect(isFolderTarget ? 1.12 : 1)
                     .animation(.easeOut(duration: 0.15), value: isFolderTarget)
-                Text(friend.displayName)
+                Text(preview.displayName)
                     .font(.caption)
                     .lineLimit(1)
             }
@@ -298,7 +314,7 @@ struct MainView: View {
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(friend.displayName)
+        .accessibilityLabel(preview.displayName)
         .accessibilityAddTraits(.isButton)
         .accessibilityAction(named: Text("Move Left")) { model.nudgeBarItem(id, by: -1) }
         .accessibilityAction(named: Text("Move Right")) { model.nudgeBarItem(id, by: 1) }
@@ -503,8 +519,7 @@ struct MainView: View {
 
     private func folderMember(_ friend: Friend, in folder: FriendFolder) -> some View {
         Button {
-            closeFolder()
-            select(friend)
+            toggleFriend(friend)
         } label: {
             VStack(spacing: Spacing.tight) {
                 AvatarView(username: friend.avatarName, imageData: friend.displayAvatar, size: 52)
@@ -564,12 +579,23 @@ struct MainView: View {
     // MARK: Selection
 
     private func closeFriend() {
+        nicknameDraft = nil
         selectedFriendID = nil
+    }
+
+    private func toggleFriend(_ friend: Friend) {
+        if selectedFriendID == friend.id {
+            closeFolder()
+            closeFriend()
+        } else {
+            select(friend)
+        }
     }
 
     private func select(_ friend: Friend, fromPin: Bool = false) {
         closeFolder()
         let alreadySelected = selectedFriendID == friend.id
+        if !alreadySelected { nicknameDraft = nil }
         selectedFriendID = friend.id
         if let loc = friend.location {
             let kind: MapCommand.Kind = alreadySelected || fromPin
