@@ -138,15 +138,19 @@ map,location,share,family,friend,private,gps,locator,find,track,tracker,tracking
 Description:
 
 ```
-Find each other in a crowd. See how far away a friend is when you’re meeting up. Give someone you love an easy way to see that you made it home.
+When I stopped using our family’s location app, my parents understood. But they missed the little things it helped them know. Was I still on the road? Had I made it home? Was it a good time to call?
 
-Amidst is a private map for the people you care about. We built it around a simple belief: sharing your location should always be your choice. Add people by username and decide who can see where you are. You can accept a friend request without sharing back, or stop sharing with someone whenever you want.
+I missed that part, too. I wanted an iPhone app that let me share where I was without handing over a readable copy of my location to a service. And I needed something my family could use without anyone setting up a server at home. That’s why I built Amidst.
 
-Your location, friend messages, shared profile photos, and account backup are encrypted on your phone before they’re sent. Amidst is independent and open source, so anyone can see how it works. There are no ads or in-app purchases.
+With Amidst, your location is encrypted on your phone before it’s sent. The people you share with can see it, and the service that delivers it can’t read it. The app’s source code is public, so anyone (or any AI) can see how that works. There are no ads or in-app purchases.
 
-Group people into folders to keep your map organized. For a one-off meetup, create a link that expires and send it to someone you trust. If you turn on Live Requests, people you already share with can ask your phone for an updated location.
+• Check how the trip is going. See the locations family and friends choose to share with you on one map. If they’ve turned on Live Requests, you can ask their phone for an updated location.
 
-Amidst works with other apps that use the Zood protocol, including Amidst for Android and the original Zood app.
+• Choose who can see you. Add people by username and turn sharing on or off for each person. You can accept a friend request without sharing your own location.
+
+• Share for just this trip. Send a time-limited link to someone you trust so they can follow along in a browser.
+
+• Keep your map organized. Group people into folders so family, friends, and travel companions are easy to find.
 ```
 
 Screenshots: follow the current specifications at https://developer.apple.com/help/app-store-connect/reference/app-information/screenshot-specifications. Use this build. Sample people must be fictional. The first images should show the map with friends on it.
