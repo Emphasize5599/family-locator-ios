@@ -338,13 +338,11 @@ struct FriendPanel: View {
     private func regularStatus(_ friend: Friend, status: UpdateRequestStatus?, capability: RequestCapability) -> some View {
         if let status, showsRequestStatus(status) {
             statusLine(status, friend: friend)
-        } else if capability == .checking {
-            HStack(spacing: Spacing.tight) { ProgressView().controlSize(.mini); Text("Checking…") }
         } else if case .unsupported = capability {
             // Keep the update time; the unsupported note goes underneath it.
             VStack(alignment: .leading, spacing: Spacing.tight) {
                 if let loc = friend.location { updatedText(loc) }
-                HStack(spacing: Spacing.tight) { Text("On-demand refresh unsupported"); infoButton(for: .unsupported, friend: friend) }
+                HStack(spacing: Spacing.tight) { Text("Temporarily unavailable"); infoButton(for: .unsupported, friend: friend) }
             }
         } else if let loc = friend.location {
             updatedText(loc)
@@ -381,19 +379,12 @@ struct FriendPanel: View {
         }
     }
 
-    /// Refresh is hidden while their phone can't answer requests; it comes back once a later check finds it can.
-    @ViewBuilder
     private func refreshColumn(_ friend: Friend) -> some View {
-        let capability = model.requestCapability(for: friend)
         let status = model.requestStatuses[friend.id].flatMap { $0.isStale ? nil : $0 }
-        if case .unsupported = capability {
-            EmptyView()
-        } else {
-            refreshButton(friend, capability: capability, status: status)
-        }
+        return refreshButton(friend, status: status)
     }
 
-    private func refreshButton(_ friend: Friend, capability: RequestCapability, status: UpdateRequestStatus?) -> some View {
+    private func refreshButton(_ friend: Friend, status: UpdateRequestStatus?) -> some View {
         Button {
             withAnimation { explanation = nil }
             Task { await model.requestLocationUpdate(from: friend) }
@@ -407,8 +398,8 @@ struct FriendPanel: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Refresh location")
-        .disabled(capability != .supported || isInFlight(status))
-        .opacity(capability != .supported || isInFlight(status) ? 0.4 : 1)
+        .disabled(!friend.theyShare || isInFlight(status))
+        .opacity(!friend.theyShare || isInFlight(status) ? 0.4 : 1)
     }
 
     @ViewBuilder
@@ -426,9 +417,12 @@ struct FriendPanel: View {
         case .responded(.tooSoon, _):
             Text("They updated moments ago").font(.footnote).foregroundStyle(Color.cardSecondary)
         case .noResponse:
-            HStack(spacing: Spacing.tight) {
-                Text("No response").font(.footnote.weight(.medium)).foregroundStyle(Color.zoodOrange)
-                infoButton(for: .noResponse, friend: friend)
+            VStack(alignment: .leading, spacing: Spacing.tight) {
+                HStack(spacing: Spacing.tight) {
+                    Text("No new location").font(.footnote.weight(.medium)).foregroundStyle(Color.zoodOrange)
+                    infoButton(for: .noResponse, friend: friend)
+                }
+                if let loc = friend.location { updatedText(loc) }
             }
         }
     }

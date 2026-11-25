@@ -36,7 +36,6 @@ enum UpdateRequestStatus: Equatable {
 enum RequestCapability: Equatable {
     case supported
     /// Their last report said they couldn't answer, and we're asking their phone again before saying so.
-    case checking
     /// They don't share their location with us, so there's nothing to request.
     case notSharing
     /// Their phone told us it isn't holding a live connection (an iPhone, or the Android fork, with Live Requests off).
@@ -131,6 +130,10 @@ final class AppModel: ObservableObject {
         }
         location.onShareableLocation = { [weak self] loc in
             Task { await self?.upload(location: loc) }
+        }
+        location.onBackgroundWake = { [weak self] in
+            guard let self, liveRequestsEnabled else { return }
+            socket?.recoverIfStale()
         }
         // Views read permission state through the model, so forward LocationService changes.
         location.onStateChange = { [weak self] in
@@ -411,6 +414,7 @@ final class AppModel: ObservableObject {
     /// Stops all syncing and location work and erases this account's data from the phone, so the next person to
     /// sign in on this iPhone sees none of it.
     func logOut() {
+        RefreshDelegate.cancel()
         backupTask?.cancel()
         backupTask = nil
         stopTimedShare()
@@ -521,6 +525,7 @@ final class AppModel: ObservableObject {
         inboxPoll?.cancel()
         inboxPoll = nil
         location.setForeground(false)
+        if phase == .signedIn, !ScreenshotTour.isEnabled { RefreshDelegate.schedule() }
         // Without live mode iOS will suspend us shortly; the socket goes with it and that's expected.
     }
 
@@ -538,7 +543,7 @@ final class AppModel: ObservableObject {
     }
 
     /// Read durable messages in server ID order. WebSocket notifications trigger this immediately.
-    private func syncInbox() async -> Bool {
+    private func syncInbox(cancelWithCaller: Bool = false) async -> Bool {
         guard !ScreenshotTour.isEnabled, let token = credentials?.accessToken else { return false }
         if let inboxSync { return await inboxSync.value }
         let connection = api
@@ -575,7 +580,25 @@ final class AppModel: ObservableObject {
             return false
         }
         inboxSync = task
+        if cancelWithCaller {
+            return await withTaskCancellationHandler {
+                await task.value
+            } onCancel: {
+                task.cancel()
+            }
+        }
         return await task.value
+    }
+
+    func backgroundCatchUp() async -> Bool {
+        guard !Task.isCancelled, !ScreenshotTour.isEnabled, let token = credentials?.accessToken else { return false }
+        RefreshDelegate.schedule()
+        let inboxSucceeded = await syncInbox(cancelWithCaller: true)
+        for friend in friends {
+            guard !Task.isCancelled, credentials?.accessToken == token else { return false }
+            if let box = friend.receivingBoxID { await fetchPackage(from: friend.user, box: box) }
+        }
+        return inboxSucceeded && !Task.isCancelled && credentials?.accessToken == token
     }
 
     /// Catch up on both inbox messages and friends' last published locations.
@@ -707,9 +730,12 @@ final class AppModel: ObservableObject {
             break
         case .locationInfo:
             guard local.friends[user.userID]?.theyShare == true else { return }
+            var completedRefresh = false
             if let friend = local.friends[user.userID], let status = requestStatuses[user.userID] {
                 let time = Date(timeIntervalSince1970: Double(comm.time ?? 0) / 1000)
-                requestStatuses[user.userID] = status.receivingLocation(at: time, previousTime: friend.location?.time)
+                let nextStatus = status.receivingLocation(at: time, previousTime: friend.location?.time)
+                completedRefresh = nextStatus != status
+                requestStatuses[user.userID] = nextStatus
             }
             updateFriend(user.userID) { friend in
                 let newTime = Date(timeIntervalSince1970: Double(comm.time ?? 0) / 1000)
@@ -722,7 +748,7 @@ final class AppModel: ObservableObject {
                     if existing.time > newTime { return }
                     // Android sends a fix about every second while its map is open. Ignore ones that change nothing
                     // you could see, or every open sheet and menu redraws constantly.
-                    if Self.isNearDuplicate(incoming, of: existing), !Self.deviceChanged(comm, friend) { return }
+                    if !completedRefresh, Self.isNearDuplicate(incoming, of: existing), !Self.deviceChanged(comm, friend) { return }
                 }
                 friend.location = incoming
                 Self.recordDevice(from: comm, into: &friend, reportedAt: min(newTime, Date()))
@@ -786,9 +812,22 @@ final class AppModel: ObservableObject {
         case .locationUpdateRequestReceived:
             guard let action = comm.locationUpdateRequestAction else { return }
             updateFriend(user.userID) { Self.recordDevice(from: comm, into: &$0) }
-            // A delayed acknowledgement must not replace success after a newer location arrived.
-            if case .responded(.finished, _) = requestStatuses[user.userID] { return }
-            requestStatuses[user.userID] = .responded(action, Date())
+            let requestDate: Date
+            switch requestStatuses[user.userID] {
+            case .sent(let date), .responded(.starting, let date): requestDate = date
+            default: return
+            }
+            switch action {
+            case .starting:
+                requestStatuses[user.userID] = .responded(.starting, requestDate)
+            case .tooSoon:
+                requestStatuses[user.userID] = .responded(.tooSoon, Date())
+            case .finished:
+                // An acknowledgement alone doesn't establish that a fresh fix was uploaded.
+                if let box = local.friends[user.userID]?.receivingBoxID {
+                    await fetchPackage(from: user, box: box)
+                }
+            }
         case .deviceStatusRequest:
             // Only answer people we share with (same rule as location requests).
             guard local.friends[user.userID]?.weShare == true else { return }
@@ -878,20 +917,22 @@ final class AppModel: ObservableObject {
 
     /// Answers a friend's "request location update". Same contract as george's handleLocationUpdateRequest.
     private func answerLocationRequest(from user: ZoodUser) async {
-        guard local.friends[user.userID]?.weShare == true else { return }
-        guard location.hasAnyPermission else {
-            try? await sendRequestResponse(.finished, to: user)
-            return
-        }
+        guard let token = credentials?.accessToken, canAnswerLocationRequest(from: user.userID) else { return }
         if !isForeground, let last = lastLocationUpload, Date().timeIntervalSince(last) < 120 {
             try? await sendRequestResponse(.tooSoon, to: user)
             return
         }
         try? await sendRequestResponse(.starting, to: user)
-        if let fix = await location.freshFix() {
-            await upload(location: fix)
-        }
+        guard let fix = await location.freshFix(), fix.timestamp.timeIntervalSinceNow >= -30,
+              credentials?.accessToken == token, canAnswerLocationRequest(from: user.userID),
+              await upload(location: fix, requestedBy: user.userID),
+              credentials?.accessToken == token, canAnswerLocationRequest(from: user.userID) else { return }
         try? await sendRequestResponse(.finished, to: user)
+    }
+
+    private func canAnswerLocationRequest(from id: Data) -> Bool {
+        local.friends[id]?.weShare == true && location.hasAnyPermission
+            && (isForeground || (liveRequestsEnabled && location.hasAlwaysPermission))
     }
 
     /// Tells a friend how their "refresh location" request is going (starting, finished, too soon), with our Live
@@ -922,8 +963,9 @@ final class AppModel: ObservableObject {
 
     /// Shares one location fix with everyone we share with (and an active timed-share link). Each friend gets their
     /// own encrypted copy in their drop box, so the server never sees the location.
-    func upload(location loc: CLLocation) async {
-        guard let credentials else { return }
+    @discardableResult
+    func upload(location loc: CLLocation, requestedBy requester: Data? = nil) async -> Bool {
+        guard let credentials else { return false }
         var comm = UserComm(type: .locationInfo)
         comm.latitude = loc.coordinate.latitude
         comm.longitude = loc.coordinate.longitude
@@ -938,7 +980,9 @@ final class AppModel: ObservableObject {
         comm.liveRequests = advertisesLiveRequests
         // Empty is an explicit reset. Omitting the field means an older client and preserves the cached name.
         comm.nickname = local.myNickname ?? ""
-        guard let json = try? comm.jsonData() else { return }
+        guard self.credentials?.accessToken == credentials.accessToken,
+              let json = try? comm.jsonData() else { return false }
+        if let requester, !canAnswerLocationRequest(from: requester) { return false }
 
         var packages: [Data: EncryptedData] = [:]
         for friend in local.friends.values {
@@ -956,15 +1000,21 @@ final class AppModel: ObservableObject {
                 packages[share.boxID] = pkg
             }
         }
-        guard !packages.isEmpty else { return }
+        guard !packages.isEmpty else { return false }
+        if let requester {
+            guard let box = local.friends[requester]?.sendingBoxID, packages[box] != nil else { return false }
+        }
         do {
             try await api.dropPackages(packages)
+            guard self.credentials?.accessToken == credentials.accessToken else { return false }
             lastLocationUpload = Date()
+            return true
         } catch let error as OscarError where error.code == OscarError.invalidAccessToken {
-            logOut()
+            if self.credentials?.accessToken == credentials.accessToken { logOut() }
         } catch {
             // Network hiccup; the next location update will try again.
         }
+        return false
     }
 
     /// Re-share the latest location now (e.g. after the live setting changed) so friends see the new flag.
@@ -1328,19 +1378,21 @@ final class AppModel: ObservableObject {
     /// because transient requests only reach phones that are online right now.
     func requestLocationUpdate(from friend: Friend) async {
         let sentAt = Date()
-        requestStatuses[friend.id] = .sent(sentAt)
+        let id = friend.id
+        requestStatuses[id] = .sent(sentAt)
+        let deadline = Task { [weak self] in
+            do { try await Task.sleep(nanoseconds: 30_000_000_000) } catch { return }
+            guard let self, let status = requestStatuses[id],
+                  status == .sent(sentAt) || status == .responded(.starting, sentAt) else { return }
+            requestStatuses[id] = .noResponse(Date())
+        }
         do {
             try await send(UserComm(type: .locationUpdateRequest), to: friend.user, urgent: true, transient: true)
         } catch {
-            if requestStatuses[friend.id] == .sent(sentAt) {
-                requestStatuses[friend.id] = .noResponse(Date())
+            deadline.cancel()
+            if requestStatuses[id] == .sent(sentAt) || requestStatuses[id] == .responded(.starting, sentAt) {
+                requestStatuses[id] = .noResponse(Date())
             }
-            return
-        }
-        // Transient requests are only delivered to phones with a live connection. Give them 30 s to answer.
-        try? await Task.sleep(nanoseconds: 30_000_000_000)
-        if requestStatuses[friend.id] == .sent(sentAt) {
-            requestStatuses[friend.id] = .noResponse(Date())
         }
     }
 
@@ -1368,23 +1420,12 @@ final class AppModel: ObservableObject {
         }
     }
 
-    /// How long an explicit "Live Requests is off" report is trusted without re-checking (same as Android).
-    static let recentDeviceReport: TimeInterval = 6 * 60 * 60
-
-    /// Whether the friend card should offer Refresh, explain it's unsupported, or show that we're checking.
+    /// A direct negative reply is temporary. An old flag can trigger a probe but can't disable manual refresh.
     func requestCapability(for friend: Friend) -> RequestCapability {
         guard friend.theyShare else { return .notSharing }
-        // Their phone sends its Live Requests setting with every location update and as soon as it changes.
-        // A recent "off" is trusted right away: a phone with Live Requests off usually can't answer a check.
-        // An older "off" is re-checked first, since they may have turned it back on.
-        if let device = friend.device, device.liveRequests == false {
-            if Date().timeIntervalSince(device.reportedAt) < Self.recentDeviceReport {
-                return .unsupported(device.platform)
-            }
-            if probingDevices.contains(friend.id) { return .checking }
-            if let expiration = unavailableUntil[friend.id], expiration > Date() {
-                return .unsupported(friend.device?.platform)
-            }
+        if friend.device?.liveRequests == false,
+           let expiration = unavailableUntil[friend.id], expiration > Date() {
+            return .unsupported(friend.device?.platform)
         }
         return .supported
     }

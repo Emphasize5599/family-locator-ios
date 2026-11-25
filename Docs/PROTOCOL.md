@@ -48,7 +48,7 @@ receives them):
 - `device_status_request` (no fields), sent transient + urgent: "can you answer location requests right now?"
   Sent before showing Unsupported for a friend whose cached `live_requests` is `false`, at most once a minute.
 - `device_status` (`platform`, `live_requests`), the transient + urgent reply. Only sent to friends we share with.
-  A phone that isn't listening never receives the transient request, so no reply within ~6 s means Unsupported.
+  A phone that isn't listening never receives the transient request. On iOS a timed-out probe leaves manual Refresh available. An explicit negative reply is shown as temporary for 30 seconds.
 
 ## Location sharing
 - Grant: generate random 16-byte box id = our *sending* box, send `location_sharing_grant{drop_box}` message. Receiver stores it as its *receiving* box for us.

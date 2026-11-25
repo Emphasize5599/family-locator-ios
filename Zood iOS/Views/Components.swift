@@ -241,7 +241,7 @@ struct PlatformBadge: View {
 
     @ViewBuilder private var logo: some View {
         if platform == .ios {
-            Image(systemName: "iphone")
+            Image(systemName: "apple.logo")
                 .resizable()
                 .scaledToFit()
         } else if UIImage(named: "AndroidLogo") != nil {

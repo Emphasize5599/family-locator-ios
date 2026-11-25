@@ -32,6 +32,7 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
 
     /// Called for every location that should be shared with friends.
     var onShareableLocation: ((CLLocation) -> Void)?
+    var onBackgroundWake: (() -> Void)?
     /// Called when permission state changes (AppModel republishes it to SwiftUI).
     var onStateChange: (() -> Void)?
 
@@ -300,7 +301,10 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         // Any delivery is a chance to re-arm live mode. A long gap means the stream had died and this is a
         // significant-change wake after a suspension, so restart the stream to stay alive from here on.
         let now = Date()
-        if isLive, !isStreaming || now.timeIntervalSince(lastUpdateAt) > 120 { restartStreaming(after: 0) }
+        if isLive, !isStreaming || now.timeIntervalSince(lastUpdateAt) > 120 {
+            restartStreaming(after: 0)
+            if !isForeground { onBackgroundWake?() }
+        }
         lastUpdateAt = now
         if !isStreaming { log.notice("wake: significant change") }
         for location in locations where location.horizontalAccuracy >= 0 {
@@ -320,14 +324,20 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     }
 
     func locationManager(_ manager: CLLocationManager, didVisit visit: CLVisit) {
-        if isLive { restartStreaming(after: 0) }
+        if isLive {
+            restartStreaming(after: 0)
+            if !isForeground { onBackgroundWake?() }
+        }
         // Arriving somewhere or leaving: worth a precise update.
         handleBackgroundTrigger("visit")
     }
 
     func locationManager(_ manager: CLLocationManager, didExitRegion region: CLRegion) {
         guard region.identifier == Self.geofenceID else { return }
-        if isLive { restartStreaming(after: 0) }
+        if isLive {
+            restartStreaming(after: 0)
+            if !isForeground { onBackgroundWake?() }
+        }
         handleBackgroundTrigger("left geofence")
     }
 

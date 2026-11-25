@@ -1,4 +1,5 @@
 import Foundation
+import Network
 
 /// Events delivered by the oscar websocket.
 nonisolated enum SocketEvent: Sendable {
@@ -26,6 +27,8 @@ final class OscarSocket {
     private var generation = UUID()
     private var lastPong: TimeInterval = 0
     private var runLoop: Task<Void, Never>?
+    private var pathMonitor: NWPathMonitor?
+    private var previousPath: NWPath?
     private(set) var isConnected = false
 
     /// `onEvent` is called on the main actor for every connection change, package and message, so the app model
@@ -38,6 +41,21 @@ final class OscarSocket {
     /// Keeps one live connection open, reconnecting with exponential backoff (2 s doubling to 60 s). Backoff spares
     /// the battery and the shared Zood server when the network is down, instead of retrying in a tight loop.
     func start() {
+        if pathMonitor == nil {
+            let monitor = NWPathMonitor()
+            monitor.pathUpdateHandler = { [weak self, weak monitor] path in
+                Task { @MainActor [weak self, weak monitor] in
+                    guard let self, let monitor, self.pathMonitor === monitor else { return }
+                    let previous = self.previousPath
+                    self.previousPath = path
+                    if let previous, previous != path, path.status == .satisfied {
+                        self.reconnect()
+                    }
+                }
+            }
+            pathMonitor = monitor
+            monitor.start(queue: .main)
+        }
         guard runLoop == nil else { return }
         let generation = generation
         runLoop = Task { [weak self] in
@@ -58,6 +76,23 @@ final class OscarSocket {
     /// Closes the connection for good (sign-out, or the app no longer needs live updates). Changing `generation`
     /// makes any in-flight reconnect from the old session give up instead of reopening it.
     func stop() {
+        pathMonitor?.cancel()
+        pathMonitor = nil
+        previousPath = nil
+        closeConnection()
+    }
+
+    func recoverIfStale() {
+        guard !isConnected || ProcessInfo.processInfo.systemUptime - lastPong > 18 else { return }
+        reconnect()
+    }
+
+    private func reconnect() {
+        closeConnection()
+        start()
+    }
+
+    private func closeConnection() {
         generation = UUID()
         runLoop?.cancel()
         runLoop = nil
