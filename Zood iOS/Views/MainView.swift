@@ -660,7 +660,7 @@ struct MainView: View {
         guard let link = model.pendingFriendLink else { return }
         model.pendingFriendLink = nil
         guard link.username != model.credentials.map({ Username.forLookup($0.username) }) else { return }
-        if let friend = model.friends.first(where: { $0.user.username == link.username }) {
+        if link.inviteToken == nil, let friend = model.friends.first(where: { $0.user.username == link.username }) {
             activeSheet = nil
             select(friend)
             return

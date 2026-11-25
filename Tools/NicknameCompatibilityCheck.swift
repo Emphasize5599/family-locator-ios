@@ -167,6 +167,20 @@ struct NicknameCompatibilityCheck {
             confirmation.dropBox = inviteToken
             guard !confirmation.isValid else { fatalError("Invite confirmation carried location sharing") }
         }
+        var older = InviteLedger.issued(inviteToken, into: [])
+        older = InviteLedger.invalidate(inviteSender, in: older)
+        var restoredLinks = InviteLedger.merge(local: InviteLedger.issued(inviteToken, into: []), remote: older)
+        var otherOrder = InviteLedger.merge(local: older, remote: InviteLedger.issued(inviteToken, into: []))
+        let freshToken = Data(repeating: 12, count: 16)
+        restoredLinks = InviteLedger.issued(freshToken, into: restoredLinks)
+        guard !InviteLedger.authorize(inviteToken, sender: inviteSender, records: &restoredLinks),
+              !InviteLedger.authorize(inviteToken, sender: inviteSender, records: &otherOrder),
+              InviteLedger.authorize(inviteToken, sender: inviteOther, records: &restoredLinks),
+              InviteLedger.authorize(freshToken, sender: inviteSender, records: &restoredLinks) else {
+            fatalError("Friend removal must only exclude the removed account from existing links")
+        }
+        let restoredExclusions = try ZoodJSON.decoder.decode([InviteRecord].self, from: ZoodJSON.encoder.encode(older))
+        guard restoredExclusions == older else { fatalError("Invite exclusions failed to round-trip") }
         var inviteSnapshot = Snapshot()
         inviteSnapshot.invites = [InviteRecord(token: inviteToken, usedBy: inviteSender)]
         let inviteBackup = try ZoodJSON.encoder.encode(inviteSnapshot)

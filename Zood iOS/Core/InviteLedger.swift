@@ -4,6 +4,7 @@ import Foundation
 nonisolated struct InviteRecord: Codable, Equatable, Sendable {
     var token: Data
     var usedBy: Data?
+    var invalidatedFor: [Data]?
 }
 
 /// One-time invite tokens. The server never sees them in the clear: each client stores the tokens it issued,
@@ -21,9 +22,20 @@ nonisolated enum InviteLedger {
     static func authorize(_ token: Data, sender: Data, records: inout [InviteRecord]) -> Bool {
         guard token.count == tokenLength, sender.count == tokenLength,
               let index = records.firstIndex(where: { $0.token == token }) else { return false }
-        guard records[index].usedBy == nil else { return false }
+        guard records[index].usedBy == nil, records[index].invalidatedFor?.contains(sender) != true else { return false }
         records[index].usedBy = sender
         return true
+    }
+
+    /// Exclude one person from all links already issued. Future links begin with no exclusions.
+    static func invalidate(_ userID: Data, in records: [InviteRecord]) -> [InviteRecord] {
+        records.map { record in
+            var next = record
+            if (record.usedBy == nil || record.usedBy == userID), record.invalidatedFor?.contains(userID) != true {
+                next.invalidatedFor = (record.invalidatedFor ?? []) + [userID]
+            }
+            return next
+        }
     }
 
     /// A token is used if either side says so. Local wins when the two sides name different people.
@@ -32,10 +44,17 @@ nonisolated enum InviteLedger {
         func add(_ record: InviteRecord) {
             guard record.token.count == tokenLength else { return }
             let usedBy = record.usedBy?.count == tokenLength ? record.usedBy : nil
+            let exclusions = (record.invalidatedFor ?? []).filter { $0.count == tokenLength }
             if let index = ordered.firstIndex(where: { $0.token == record.token }) {
                 if ordered[index].usedBy == nil { ordered[index].usedBy = usedBy }
+                if !exclusions.isEmpty {
+                    var excluded = ordered[index].invalidatedFor ?? []
+                    for user in exclusions where !excluded.contains(user) { excluded.append(user) }
+                    ordered[index].invalidatedFor = excluded
+                }
             } else {
-                ordered.append(InviteRecord(token: record.token, usedBy: usedBy))
+                ordered.append(InviteRecord(token: record.token, usedBy: usedBy,
+                                            invalidatedFor: exclusions.isEmpty ? nil : exclusions))
             }
         }
         local.forEach(add)

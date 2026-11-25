@@ -1156,15 +1156,15 @@ final class AppModel: ObservableObject {
     }
 
     /// A nil result means the incoming request was approved or they already share with us.
-    func prepareAddFriend(username: String) async throws -> ZoodUser? {
+    func prepareAddFriend(username: String, isInvite: Bool = false) async throws -> ZoodUser? {
         let username = Username.forLookup(username)
         guard username != credentials.map({ Username.forLookup($0.username) }) else { throw FriendError.cantAddSelf }
-        if let request = pendingRequest(username: username) {
+        if !isInvite, let request = pendingRequest(username: username) {
             try await approveRequest(request)
             return nil
         }
         guard await syncInbox() else { throw FriendError.inboxUnavailable }
-        if let request = pendingRequest(username: username) {
+        if !isInvite, let request = pendingRequest(username: username) {
             try await approveRequest(request)
             return nil
         }
@@ -1172,6 +1172,7 @@ final class AppModel: ObservableObject {
         let user = ZoodUser(userID: result.id, username: result.username, publicKey: result.publicKey)
         guard user.userID != credentials?.userID else { throw FriendError.cantAddSelf }
         guard safety.blocked[user.userID] == nil else { throw FriendError.blocked }
+        if isInvite { return user }
         return try await acceptIncomingIfPresent(user) ? nil : user
     }
 
@@ -1237,9 +1238,11 @@ final class AppModel: ObservableObject {
             inviteRedemptions[token]?.accepted = accepted
             return
         }
-        let usedBySender = (safety.invites ?? []).contains { $0.token == token && $0.usedBy == user.userID }
+        let record = safety.invites?.first { $0.token == token }
         let accepted: Bool
-        if usedBySender {
+        if record?.invalidatedFor?.contains(user.userID) == true {
+            accepted = false
+        } else if record?.usedBy == user.userID {
             // A retry can recover a lost reply, but cannot restore a friendship that was removed.
             accepted = local.friends[user.userID] != nil
         } else {
@@ -1301,7 +1304,7 @@ final class AppModel: ObservableObject {
             case .blocked: return "Unblock this person in Settings before sharing with them."
             case .inboxUnavailable: return "Couldn’t check for incoming requests. Try again."
             case .inviteUnavailable: return "Couldn’t create an invite link. Try again."
-            case .inviteExpired: return "This invite has expired or already been used. Ask for a new link."
+            case .inviteExpired: return "This invite has expired for you. Ask the inviter for a new link."
             case .inviteUnconfirmed: return "Couldn’t confirm this invite. Ask the inviter to open an updated Amidst app, then try again."
             }
         }
@@ -1346,6 +1349,12 @@ final class AppModel: ObservableObject {
     /// Removes a friend on both sides: their app drops us too (the `friendRemoved` flag), then we forget them here.
     func removeFriend(_ friend: Friend) async throws {
         guard let account = credentials?.userID, local.friends[friend.id] != nil else { return }
+        if let invites = safety.invites {
+            var next = safety
+            next.invites = InviteLedger.invalidate(friend.id, in: invites)
+            try saveSafety(next)
+            scheduleBackup()
+        }
         try await sendFriendRemoval(to: friend.user)
         guard credentials?.userID == account else { return }
         try forgetFriend(friend.id)
@@ -1467,6 +1476,7 @@ final class AppModel: ObservableObject {
         guard next.blocked[id] == nil else { return }
         let friend = local.friends[id]
         if let friend {
+            if let invites = next.invites { next.invites = InviteLedger.invalidate(id, in: invites) }
             next.pending[id] = PendingRequest(user: user, boxID: friend.receivingBoxID ?? next.pending[id]?.boxID ?? Data(),
                                               nickname: friend.sharedNickname ?? next.pending[id]?.nickname,
                                               requiresFreshOffer: true,

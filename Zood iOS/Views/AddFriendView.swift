@@ -36,7 +36,7 @@ struct AddFriendView: View {
     }
 
     private var handle: String { Username.forLookup(username) }
-    private var pending: PendingRequest? { model.pendingRequest(username: handle) }
+    private var pending: PendingRequest? { inviteToken == nil ? model.pendingRequest(username: handle) : nil }
     private var isSelf: Bool {
         handle == model.credentials.map { Username.forLookup($0.username) }
     }
@@ -189,8 +189,9 @@ struct AddFriendView: View {
 
     private func next() {
         let entered = handle
+        let isInvite = inviteToken != nil
         perform {
-            if let user = try await model.prepareAddFriend(username: entered) {
+            if let user = try await model.prepareAddFriend(username: entered, isInvite: isInvite) {
                 enteringUsername = false
                 candidate = user
             } else {
