@@ -190,8 +190,13 @@ struct MainView: View {
     }
 
     private var controls: some View {
-        VStack(spacing: Spacing.medium) {
-            circleButton("gearshape.fill", label: "Settings") { activeSheet = .settings }
+        VStack(alignment: .trailing, spacing: Spacing.medium) {
+            HStack(spacing: Spacing.medium) {
+                circleButton("location.north.line", label: "Reset map orientation to north") {
+                    mapCommand = MapCommand(kind: .northUp)
+                }
+                circleButton("gearshape.fill", label: "Settings") { activeSheet = .settings }
+            }
             circleButton("location.fill", label: "My location") {
                 mapCommand = MapCommand(kind: .followUser)
             }

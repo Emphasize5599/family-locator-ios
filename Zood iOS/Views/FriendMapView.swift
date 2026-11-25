@@ -5,6 +5,7 @@ import SwiftUI
 struct MapCommand: Equatable {
     enum Kind: Equatable {
         case followUser
+        case northUp
         case focus(latitude: Double, longitude: Double)
         case recenter(latitude: Double, longitude: Double)
     }
@@ -38,7 +39,7 @@ struct FriendMapView: UIViewRepresentable {
         let map = MapView()
         map.delegate = context.coordinator
         map.showsUserLocation = true
-        map.showsCompass = true
+        map.showsCompass = false
         map.showsScale = true
         map.pointOfInterestFilter = .excludingAll
         map.register(FriendAnnotationView.self, forAnnotationViewWithReuseIdentifier: FriendAnnotationView.reuseID)
@@ -147,6 +148,15 @@ struct FriendMapView: UIViewRepresentable {
             if let command, command != lastCommand {
                 lastCommand = command
                 switch command.kind {
+                case .northUp:
+                    let camera = map.camera
+                    guard camera.heading != 0 else { return }
+                    stopFlight()
+                    if map.userTrackingMode == .followWithHeading {
+                        map.setUserTrackingMode(.follow, animated: false)
+                    }
+                    camera.heading = 0
+                    map.setCamera(camera, animated: !UIAccessibility.isReduceMotionEnabled)
                 case .followUser:
                     followedFriendID = nil
                     lastFriendPoint = nil
