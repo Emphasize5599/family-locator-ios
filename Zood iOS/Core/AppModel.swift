@@ -85,6 +85,19 @@ final class AppModel: ObservableObject {
     let location = LocationService()
     private var restoringContactPhotos = false
 
+    private var shareByDefaultKey: String? {
+        credentials.map { "shareWithNewFriends." + $0.userID.base64EncodedString() }
+    }
+
+    var sharesWithNewFriends: Bool {
+        get { shareByDefaultKey.map { UserDefaults.standard.bool(forKey: $0) } ?? false }
+        set {
+            guard let key = shareByDefaultKey, !ScreenshotTour.isEnabled else { return }
+            objectWillChange.send()
+            UserDefaults.standard.set(newValue, forKey: key)
+        }
+    }
+
     /// User setting: keep a live connection so family can ping this phone.
     @Published var liveRequestsEnabled: Bool {
         didSet {
@@ -421,6 +434,7 @@ final class AppModel: ObservableObject {
     func deleteAccount() async throws {
         try await api.deleteAccount()
         if let id = credentials?.userID {
+            if let key = shareByDefaultKey { UserDefaults.standard.removeObject(forKey: key) }
             SafetyStore.delete(for: id)
             ContactLinkStore.delete(for: id)
             FriendFolderStore.delete(for: id)
@@ -1140,11 +1154,11 @@ final class AppModel: ObservableObject {
     }
 
     /// Mints a fresh one-time invite link and stores it before returning, so a link is never shared unless this phone can redeem it.
-    func issueInviteLink() throws -> URL? {
+    func issueInviteLink(sharingOnRedemption: Bool) throws -> URL? {
         guard let credentials else { return nil }
         let token = Crypto.randomBytes(InviteLedger.tokenLength)
         var next = safety
-        next.invites = InviteLedger.issued(token, into: next.invites ?? [])
+        next.invites = InviteLedger.issued(token, into: next.invites ?? [], shareOnRedemption: sharingOnRedemption && sharesWithNewFriends)
         do { try saveSafety(next) } catch { throw FriendError.inviteUnavailable }
         scheduleBackup()
         return FriendLink.url(for: credentials.username, token: token)
@@ -1220,8 +1234,6 @@ final class AppModel: ObservableObject {
             if let accepted = inviteRedemptions[token]?.accepted {
                 guard accepted else { throw FriendError.inviteExpired }
                 guard safety.blocked[user.userID] == nil else { throw FriendError.blocked }
-                upsertFriend(user) { $0.establishedWithoutLocation = true }
-                scheduleBackup()
                 if sharing { try await startSharing(with: user) }
                 return
             }
@@ -1235,6 +1247,11 @@ final class AppModel: ObservableObject {
         if let accepted = comm.inviteAccepted {
             guard let attempt = inviteRedemptions[token], attempt.userID == user.userID,
                   attempt.accessToken == credentials?.accessToken else { return }
+            if accepted, safety.blocked[user.userID] == nil {
+                // The inviter’s return grant can follow this reply immediately.
+                upsertFriend(user) { $0.establishedWithoutLocation = true }
+                scheduleBackup()
+            }
             inviteRedemptions[token]?.accepted = accepted
             return
         }
@@ -1251,7 +1268,21 @@ final class AppModel: ObservableObject {
         var reply = UserComm(type: .inviteRedemption)
         reply.inviteToken = token
         reply.inviteAccepted = accepted
+        let access = credentials?.accessToken
         try await send(reply, to: user, urgent: true, transient: false)
+        if accepted, record?.usedBy == nil, access != nil, credentials?.accessToken == access {
+            await shareAfterRedeeming(token, with: user)
+        }
+    }
+
+    private func shareAfterRedeeming(_ token: Data, with user: ZoodUser) async {
+        guard sharesWithNewFriends,
+              let record = safety.invites?.first(where: { $0.token == token }),
+              record.shareOnRedemption == true, record.usedBy == user.userID,
+              record.invalidatedFor?.contains(user.userID) != true,
+              let friend = local.friends[user.userID], !friend.weShare else { return }
+        do { try await startSharing(with: user, requiresExistingFriend: true) }
+        catch { safetyError = error.localizedDescription }
     }
 
     /// Redeems a one-time invite. An unknown or already-used token is ignored and does not become a request.
@@ -1312,16 +1343,19 @@ final class AppModel: ObservableObject {
 
     /// Starts sharing our location with someone: creates (or reuses) a private drop box and sends them its ID.
     /// Reusing the existing box keeps friendships stable across retries, matching the Android client.
-    func startSharing(with user: ZoodUser) async throws {
+    func startSharing(with user: ZoodUser, requiresExistingFriend: Bool = false) async throws {
         guard user.userID != credentials?.userID else { throw FriendError.cantAddSelf }
         guard safety.blocked[user.userID] == nil else { throw FriendError.blocked }
         // Re-send the existing box if we already have one, exactly like FriendshipManager does.
+        let access = credentials?.accessToken
         let box = local.friends[user.userID]?.sendingBoxID ?? Crypto.randomBytes(ZoodConstants.dropBoxIDLength)
         var grant = UserComm(type: .locationSharingGrant)
         grant.dropBox = box
         grant.replyToBox = local.friends[user.userID]?.receivingBoxID
         grant.time = Int64(Date().timeIntervalSince1970 * 1_000)
         try await send(grant, to: user, urgent: false, transient: false)
+        guard access != nil, credentials?.accessToken == access else { return }
+        if requiresExistingFriend, local.friends[user.userID] == nil { return }
         guard safety.blocked[user.userID] == nil else {
             try? await send(UserComm(type: .locationSharingRevocation), to: user, urgent: false, transient: false)
             throw FriendError.blocked
@@ -1442,7 +1476,7 @@ final class AppModel: ObservableObject {
 
     /// Accepts an incoming request: they become a friend and, if they offered their location, we start receiving it.
     /// A request kept from before a block needs a fresh offer from them, so approving only marks it approved.
-    func approveRequest(_ request: PendingRequest) async throws {
+    func approveRequest(_ request: PendingRequest, shareBack: Bool = false) async throws {
         guard safety.blocked[request.id] == nil,
               var current = safety.pending[request.id], current.boxID == request.boxID else { return }
         if current.requiresFreshOffer == true {
@@ -1466,6 +1500,9 @@ final class AppModel: ObservableObject {
             Task { await fetchPackage(from: current.user, box: current.boxID) }
         }
         Task { try? await send(UserComm(type: .avatarRequest), to: request.user, urgent: false, transient: false) }
+        if shareBack, sharesWithNewFriends, local.friends[request.id]?.weShare == false {
+            try await startSharing(with: request.user, requiresExistingFriend: true)
+        }
     }
 
     /// Blocks someone: saves the block first (so nothing from them gets through even offline), removes the friendship

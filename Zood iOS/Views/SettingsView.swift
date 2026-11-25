@@ -34,6 +34,14 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    DefaultSharingToggle()
+                } header: {
+                    Text("Location Sharing")
+                } footer: {
+                    Text(DefaultSharingToggle.explanation)
+                }
+
+                Section {
                     Toggle(isOn: $model.liveRequestsEnabled) {
                         Label("Live Requests", systemImage: "antenna.radiowaves.left.and.right")
                     }

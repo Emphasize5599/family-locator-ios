@@ -5,6 +5,7 @@ nonisolated struct InviteRecord: Codable, Equatable, Sendable {
     var token: Data
     var usedBy: Data?
     var invalidatedFor: [Data]?
+    var shareOnRedemption: Bool?
 }
 
 /// One-time invite tokens. The server never sees them in the clear: each client stores the tokens it issued,
@@ -14,8 +15,8 @@ nonisolated enum InviteLedger {
     /// Keep recent redemptions as well as unused links when trimming the backup.
     static let cap = 40
 
-    static func issued(_ token: Data, into records: [InviteRecord]) -> [InviteRecord] {
-        trim(records + [InviteRecord(token: token)])
+    static func issued(_ token: Data, into records: [InviteRecord], shareOnRedemption: Bool = false) -> [InviteRecord] {
+        trim(records + [InviteRecord(token: token, shareOnRedemption: shareOnRedemption ? true : nil)])
     }
 
     /// Consumes an unused token for the sender. Replays and unrecognized tokens are rejected.
@@ -54,7 +55,8 @@ nonisolated enum InviteLedger {
                 }
             } else {
                 ordered.append(InviteRecord(token: record.token, usedBy: usedBy,
-                                            invalidatedFor: exclusions.isEmpty ? nil : exclusions))
+                                            invalidatedFor: exclusions.isEmpty ? nil : exclusions,
+                                            shareOnRedemption: record.shareOnRedemption))
             }
         }
         local.forEach(add)

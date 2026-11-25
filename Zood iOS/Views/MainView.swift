@@ -152,7 +152,6 @@ struct MainView: View {
         }
         .onAppear {
             if !ScreenshotTour.isEnabled {
-                model.location.requestPermission()
                 Task { await model.restoreLinkedContactPhotos() }
             }
             #if DEBUG

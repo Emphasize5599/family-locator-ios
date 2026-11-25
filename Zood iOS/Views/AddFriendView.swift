@@ -11,15 +11,10 @@ struct AddFriendView: View {
     @State private var lookup: UsernameLookup?
     @State private var isWorking = false
     @State private var errorMessage: String?
-    @State private var showingInvite = false
     @State private var candidate: ZoodUser?
     @State private var choiceLabelHeight: CGFloat = 0
 
-    /// Which invite the share sheet sends (see `inviteText`).
-    @State private var inviteWithLink = true
     @State private var choosingInvite = false
-    /// The one-time link minted for this share, when the user chose to include one.
-    @State private var issuedInviteLink: URL?
     /// Set when Add Friend was opened from a one-time invite. Nil for a username-only link.
     private let linkToken: Data?
     private let invitedUsername: String?
@@ -69,15 +64,8 @@ struct AddFriendView: View {
                   lookup?.username == entered, lookup?.result == .found else { return }
             next()
         }
-        .sheet(isPresented: $showingInvite) { ActivityView(items: [inviteText]) }
-        // Some people want to hand out a link straight to their profile; others would rather not share their
-        // username with everyone who sees the message (for example in a group chat), so it's their choice.
-        .confirmationDialog("Share an Invite", isPresented: $choosingInvite, titleVisibility: .visible) {
-            Button("Include a One-Time Link") { shareInvite(withLink: true) }
-            Button("Without My Username") { shareInvite(withLink: false) }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("A one-time link connects them right away. You won’t share your location unless you turn it on later.")
+        .sheet(isPresented: $choosingInvite) {
+            InviteModeView().environmentObject(model)
         }
     }
 
@@ -89,7 +77,7 @@ struct AddFriendView: View {
                 if inviteToken == nil {
                     Text("Send your friend request with or without sharing your location. You can change sharing later.")
                 } else {
-                    Text("A valid invite connects you when their app receives it. They choose when to share their location.")
+                    Text("A valid invite connects you when their app receives it. They may share their location based on their settings.")
                 }
             }
             .font(.footnote)
@@ -165,28 +153,6 @@ struct AddFriendView: View {
             && (pending != nil || (lookup?.username == handle && lookup?.result != .notFound))
     }
 
-    /// With a link, friends can tap it once to connect. Without it, the invite only points to Amidst.
-    private var inviteText: String {
-        if inviteWithLink, let link = issuedInviteLink {
-            return "Add me on Amidst, private location sharing for family and friends: \(link.absoluteString)"
-        }
-        return "Let's share our locations privately with Amidst on iPhone or Android: \(FriendLink.homeURL.absoluteString)"
-    }
-
-    private func shareInvite(withLink: Bool) {
-        inviteWithLink = withLink
-        if withLink {
-            perform {
-                guard let link = try model.issueInviteLink() else { return }
-                issuedInviteLink = link
-                showingInvite = true
-            }
-        } else {
-            issuedInviteLink = nil
-            showingInvite = true
-        }
-    }
-
     private func next() {
         let entered = handle
         let isInvite = inviteToken != nil
@@ -221,6 +187,66 @@ struct AddFriendView: View {
             do { try await action() }
             catch { errorMessage = error.localizedDescription }
         }
+    }
+}
+
+private struct InviteModeView: View {
+    @EnvironmentObject private var model: AppModel
+    @State private var shareText: String?
+    @State private var showingShareSheet = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        ContentFittedSheet(title: "Invite a Friend", showsCloseButton: true) {
+            let sharesLocation = model.sharesWithNewFriends
+            modeCard("One-Time Link", icon: "link", description: sharesLocation
+                ? "The person who uses this link can see your location after connecting, while Share with New Friends is on."
+                : "The person who uses this link can connect with you. You can share your location afterward.") {
+                do {
+                    guard let link = try model.issueInviteLink(sharingOnRedemption: sharesLocation) else { return }
+                    share("Add me on Amidst, private location sharing for family and friends: \(link.absoluteString)")
+                } catch { errorMessage = error.localizedDescription }
+            }
+            modeCard("Without My Username", icon: "person.crop.circle", description: "Share the Amidst download page without including your profile or connecting anyone.") {
+                share("Let's share our locations privately with Amidst on iPhone or Android: \(FriendLink.homeURL.absoluteString)")
+            }
+            if let errorMessage {
+                Label(errorMessage, systemImage: "exclamationmark.circle").foregroundStyle(Color.zoodRed)
+            }
+        }
+        .sheet(isPresented: $showingShareSheet) {
+            if let shareText { ActivityView(items: [shareText]) }
+        }
+    }
+
+    private func modeCard(_ title: LocalizedStringKey, icon: String, description: LocalizedStringKey,
+                          action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: Spacing.medium) {
+                VStack(alignment: .leading, spacing: Spacing.small) {
+                    Label(title, systemImage: icon)
+                        .font(.headline)
+                        .foregroundStyle(Color.zoodBlue)
+                    Text(description).font(.subheadline).foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+            }
+            .multilineTextAlignment(.leading)
+            .padding(Spacing.medium)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func share(_ text: String) {
+        errorMessage = nil
+        shareText = text
+        showingShareSheet = true
     }
 }
 

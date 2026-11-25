@@ -181,6 +181,14 @@ struct NicknameCompatibilityCheck {
         }
         let restoredExclusions = try ZoodJSON.decoder.decode([InviteRecord].self, from: ZoodJSON.encoder.encode(older))
         guard restoredExclusions == older else { fatalError("Invite exclusions failed to round-trip") }
+        let plainInvite = InviteLedger.issued(inviteToken, into: [])
+        let sharingInvite = InviteLedger.issued(freshToken, into: plainInvite, shareOnRedemption: true)
+        let restoredSharing = try ZoodJSON.decoder.decode([InviteRecord].self, from: ZoodJSON.encoder.encode(sharingInvite))
+        guard restoredSharing.first?.shareOnRedemption == nil,
+              restoredSharing.last?.shareOnRedemption == true,
+              InviteLedger.merge(local: [], remote: restoredSharing) == restoredSharing else {
+            fatalError("Sharing permission must be specific to links created with consent")
+        }
         var inviteSnapshot = Snapshot()
         inviteSnapshot.invites = [InviteRecord(token: inviteToken, usedBy: inviteSender)]
         let inviteBackup = try ZoodJSON.encoder.encode(inviteSnapshot)

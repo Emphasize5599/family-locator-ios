@@ -22,7 +22,7 @@ struct RequestsView: View {
     var body: some View {
         ContentFittedSheet(title: "Pending Requests") {
             VStack(alignment: .leading, spacing: Spacing.large) {
-                Text("After approving, you can choose whether to share your location back. People aren’t notified if you deny their request or block them.")
+                Text(model.sharesWithNewFriends ? "Approve & Share connects you and shares your location. People aren’t notified if you deny their request or block them." : "After approving, you can choose whether to share your location back. People aren’t notified if you deny their request or block them.")
                     .font(.subheadline).foregroundStyle(.secondary)
                 if requests.isEmpty {
                     Label("No pending requests", systemImage: "bell")
@@ -46,8 +46,9 @@ struct RequestsView: View {
                             }
                         }
                         HStack(spacing: Spacing.tight) {
-                            Button { perform { try await model.approveRequest(request) } } label: {
-                                Text("Approve")
+                            let shareOnApproval = model.sharesWithNewFriends && request.requiresFreshOffer != true
+                            Button { perform { try await model.approveRequest(request, shareBack: shareOnApproval) } } label: {
+                                Text(shareOnApproval ? "Approve & Share" : "Approve")
                                     .lineLimit(1)
                                     .minimumScaleFactor(0.72)
                                     .frame(maxWidth: .infinity, minHeight: 36)

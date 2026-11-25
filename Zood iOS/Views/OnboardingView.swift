@@ -181,3 +181,111 @@ struct OnboardingView: View {
         }
     }
 }
+
+/// A brief, skippable tour after sign-in. Location access is optional.
+struct WelcomeTourView: View {
+    @EnvironmentObject private var model: AppModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var selection = 0
+    let onFinish: () -> Void
+
+    private let slides = [
+        ("person.crop.circle.badge.plus", "Add Friends", "Find people by username or share an invite with people you trust."),
+        ("location.fill", "Share Location", "See where friends are when they choose to share. You can change your own sharing for each friend."),
+        ("lock.shield", "Private by Design", "Your shared locations are end-to-end encrypted. Only the people you share with can read them."),
+        ("location.circle", "Location Access", "Allow location access to share with friends you choose. Background access lets updates continue when Amidst isn’t open.")
+    ]
+
+    var body: some View {
+        CompatNavigationStack {
+            VStack(spacing: Spacing.large) {
+                TabView(selection: $selection) {
+                    ForEach(slides.indices, id: \.self) { index in
+                        Group {
+                            if index == slides.count - 1 {
+                                Form {
+                                    Section {
+                                        slideIntro(index)
+                                            .listRowBackground(Color.clear)
+                                    }
+                                    Section {
+                                        DefaultSharingToggle()
+                                    } footer: {
+                                        Text(DefaultSharingToggle.explanation)
+                                    }
+                                }
+                            } else {
+                                ScrollView { slideIntro(index).padding(Spacing.large) }
+                            }
+                        }
+                        .padding(.bottom, 36)
+                        .tag(index)
+                    }
+                }
+                .tabViewStyle(.page(indexDisplayMode: .always))
+                .indexViewStyle(.page(backgroundDisplayMode: .always))
+
+                VStack(spacing: Spacing.small) {
+                    if selection < slides.count - 1 {
+                        Button("Continue") {
+                            withAnimation(reduceMotion ? nil : .easeInOut) { selection += 1 }
+                        }
+                        .buttonStyle(.borderedProminent)
+                    } else {
+                        if model.location.authorization == .notDetermined {
+                            Button("Set Up Location") {
+                                model.location.requestPermission()
+                                onFinish()
+                            }
+                            .buttonStyle(.borderedProminent)
+                            Button("Not Now", action: onFinish)
+                        } else {
+                            Button("Get Started", action: onFinish)
+                                .buttonStyle(.borderedProminent)
+                        }
+                    }
+                }
+                .tint(.zoodBlue)
+                .padding(.bottom, Spacing.large)
+            }
+            .navigationTitle("Welcome to Amidst")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Skip", action: onFinish)
+                }
+            }
+        }
+    }
+
+    private func slideIntro(_ index: Int) -> some View {
+        VStack(spacing: Spacing.medium) {
+            Image(systemName: slides[index].0)
+                .font(.system(size: 48))
+                .foregroundStyle(Color.zoodBlue)
+                .accessibilityHidden(true)
+            Text(slides[index].1)
+                .font(.largeTitle.bold())
+                .accessibilityAddTraits(.isHeader)
+            Text(slides[index].2)
+                .font(.body)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .multilineTextAlignment(.center)
+        .padding(.vertical, Spacing.large)
+    }
+}
+
+struct DefaultSharingToggle: View {
+    @EnvironmentObject private var model: AppModel
+
+    static let explanation = "Share when you approve a request or someone uses a one-time link you create while this is on. Change sharing for any friend on their card."
+
+    var body: some View {
+        Toggle(isOn: Binding(get: { model.sharesWithNewFriends }, set: { model.sharesWithNewFriends = $0 })) {
+            Text("Share with New Friends")
+        }
+        .tint(.zoodGreen)
+    }
+}
