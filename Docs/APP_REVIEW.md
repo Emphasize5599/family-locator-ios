@@ -138,15 +138,15 @@ map,location,share,family,friend,private,gps,locator,find,track,tracker,tracking
 Description:
 
 ```
-Amidst is where the people you care about are. Share your location with family and friends you choose, and see the locations they share with you.
+Find each other in a crowd. See how far away a friend is when you’re meeting up. Give someone you love an easy way to see that you made it home.
 
-Locations, messages, and account backups are encrypted on your phone before they are sent. There is no plaintext sharing mode. The source code is public.
+Amidst is a private map for the people you care about. We built it around a simple belief: sharing your location should always be your choice. Add people by username and decide who can see where you are. You can accept a friend request without sharing back, or stop sharing with someone whenever you want.
 
-Add friends by username. Choose whether to share with each person, and stop sharing at any time. Organize the map into folders. For a time-limited share, create a link and send it to someone you trust.
+Your location, friend messages, shared profile photos, and account backup are encrypted on your phone before they’re sent. Amidst is independent and open source, so anyone can see how it works. There are no ads or in-app purchases.
 
-With your permission, Amidst can update a share in the background and answer a Live Request from a friend you already share with. You can view friends and send requests without sharing your own location.
+Group people into folders to keep your map organized. For a one-off meetup, create a link that expires and send it to someone you trust. If you turn on Live Requests, people you already share with can ask your phone for an updated location.
 
-Amidst is independent and open source. It works with clients that use the Zood protocol, including the original Zood app and Amidst for Android. There are no purchases and no ads.
+Amidst works with other apps that use the Zood protocol, including Amidst for Android and the original Zood app.
 ```
 
 Screenshots: follow the current specifications at https://developer.apple.com/help/app-store-connect/reference/app-information/screenshot-specifications. Use this build. Sample people must be fictional. The first images should show the map with friends on it.
