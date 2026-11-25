@@ -192,7 +192,7 @@ struct MainView: View {
     private var controls: some View {
         VStack(alignment: .trailing, spacing: Spacing.medium) {
             HStack(spacing: Spacing.medium) {
-                circleButton("location.north.line", label: "Reset map orientation to north") {
+                circleButton("safari", label: "Reset map orientation to north") {
                     mapCommand = MapCommand(kind: .northUp)
                 }
                 circleButton("gearshape.fill", label: "Settings") { activeSheet = .settings }
