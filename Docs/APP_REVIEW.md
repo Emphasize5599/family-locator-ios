@@ -252,7 +252,7 @@ The Debug-only screenshot tour uses fictional in-memory fixtures and rejects Zoo
 
 Nickname checks passed for precedence, clearing, legacy decoding, optional backup fields, and @handle lookup. iPhone 11 captures verified nickname saving and View Username. Later keyboard, discard, and Account edits compiled, then simulator connections failed. Only the iOS 27.2 runtime was installed. Physical-device checks on older iOS remain open. Sessions were shut down.
 
-Linked contacts use `CNContactPickerViewController` and do not prompt for Contacts permission. From 1.1.16 the chosen name and identifier also ride in the encrypted backup. From 1.1.17 the contact's name becomes the private nickname and the contact thumbnail is the avatar. The photo stays on the device. Avatars crop. They do not stretch.
+Linking uses the system contact picker. After the location prompts, Amidst can ask for optional Contacts access to restore missing photos for previously linked contacts. From 1.1.16 the chosen name and identifier also ride in the encrypted backup. From 1.1.17 the contact's name becomes the private nickname and the contact thumbnail is the avatar. The photo stays on the device. Avatars crop. They do not stretch.
 
 Friend folders and bar order are in the encrypted backup from 1.1.17. They do not change who can see a location. Consequential actions ask for confirmation.
 

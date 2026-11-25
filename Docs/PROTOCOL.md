@@ -22,7 +22,7 @@ Body: `username, email?, public_key, password_salt, password_hash_algorithm, pas
 5. `GET users/me/backup` → EncryptedData (secretbox with symmetric key) of Snapshot JSON; error 20 = no backup.
 
 ## Snapshot (backup) — `PUT users/me/backup`
-`{friends:[{user_id, sending_box_id, receiving_box_id, nickname?, shared_nickname?, avatar_thumbnail?}], nickname?, users:[{user_id, public_key, username}], avatar?, blocked?, schema_version: 1, timestamp(ms)}`. Never write `schema_version > 1` or Android refuses to restore (OutdatedClient). `avatar_thumbnail` is optional base64 image data for a friend’s shared profile photo. The edge is at most 128 pixels, with 12 KiB per image and 128 KiB of raw thumbnails per backup. Private linked contact photos stay on-device. Older clients ignore the field and may omit it when rewriting a backup.
+`{friends:[{user_id, sending_box_id, receiving_box_id, nickname?, shared_nickname?, avatar_thumbnail?}], nickname?, users:[{user_id, public_key, username}], avatar?, blocked?, invites?:[{token, used_by?}], schema_version: 1, timestamp(ms)}`. Never write `schema_version > 1` or Android refuses to restore (OutdatedClient). `avatar_thumbnail` is optional base64 image data for a friend’s shared profile photo. The edge is at most 128 pixels, with 12 KiB per image and 128 KiB of raw thumbnails per backup. Private linked contact photos stay on-device. Older clients ignore the field and may omit it when rewriting a backup.
 
 ## Messages (user → user, crypto_box)
 - Send: `POST users/{hexUserId}/messages` `{cipher_text, nonce, urgent, transient}`
@@ -35,13 +35,15 @@ Android drops unknown `type`s, ignores unknown fields. Registration availability
 
 `friend_request` is a durable, encrypted request-only message with optional `nickname` and `avatar`. It carries no drop box, return box, or location. Recipients can approve the friend record with both boxes empty, or deny or block without a notification to the sender. A later location grant from either participant updates that friendship in place. The receiving client records that the friendship was established without a grant and never enables its own outgoing sharing when handling the grant. The optional `established_without_location` field preserves that decision in backup format version 1. Other grants still need approval unless they match an existing share or reply to an active invitation. Only updated Amidst clients recognize this message. Pending requests can display profile photos sent with the request or delivered as a subsequent encrypted avatar update.
 
+A one-time invite sends one durable encrypted message carrying `invite_token` (16 bytes, standard base64). It uses `friend_request` when the recipient keeps sharing off or `location_sharing_grant` when the recipient explicitly chooses to share. The inviter creates the token when sharing the link (`#t=` in the web URL fragment, base64url without padding), and stores it in the optional backup list `invites`. The first eligible redemption consumes the token (`used_by` is the sender). It creates a friendship with no outgoing share on the inviter side and only fills the receiving box if the recipient chose to share. Unknown tokens and replays are ignored. Both sides need an updated Amidst client for automatic acceptance. Older clients use the ordinary request flow for message types they recognize. Redemption happens when the inviter's client processes the message. The encrypted backup carries token state between installs, and the server does not arbitrate simultaneous redemption against separate copies of the backup.
+
 Blocked IDs live in the end-to-end encrypted `blocked` backup field. The server stores the ciphertext and the clients enforce the block list.
 
 ### Fork extension (this project)
 `location_info` (and `location_update_request_received`) carry extra fields:
 - `platform`: `"ios"` | `"android"`
 - `live_requests`: Bool — device currently holds a socket and can answer `location_update_request`.
-Stock Zood ignores them. Absent fields = unknown (treat as stock Android, i.e. supported).
+Stock Zood ignores them. Absent fields leave the sender’s capabilities unknown and Refresh available.
 
 Fork-only message types (sent only to friends who have reported `platform`/`live_requests`, so stock Zood never
 receives them):

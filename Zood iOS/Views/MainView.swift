@@ -12,8 +12,9 @@ struct MainView: View {
     @State private var selectedFriendID: Data?
     @State private var nicknameDraft: FriendNicknameDraft?
     @State private var activeSheet: ActiveSheet?
-    /// A username to fill in when Add Friend opens from a friend link.
+    /// A username to fill in when Add Friend opens from a friend link, and the one-time token when the link had one.
     @State private var addFriendPrefill: String?
+    @State private var addFriendInvite: Data?
     /// The friend or folder being dragged around the bar (see FriendBarFolders.swift).
     @State private var dragging: BarItemID?
     /// The item a dragged friend is held over, showing "let go to make a folder".
@@ -113,7 +114,7 @@ struct MainView: View {
         .sheet(item: $activeSheet) { sheet in
             switch sheet {
             case .addFriend:
-                AddFriendView(prefill: addFriendPrefill).environmentObject(model)
+                AddFriendView(prefill: addFriendPrefill, inviteToken: addFriendInvite).environmentObject(model)
             case .requests:
                 RequestsView().environmentObject(model)
             case .settings:
@@ -143,9 +144,17 @@ struct MainView: View {
         } message: { Text(model.safetyError ?? "") }
         .onAppear { showPendingFriendLink() }
         .compatOnChange(of: model.pendingFriendLink) { _ in showPendingFriendLink() }
-        .compatOnChange(of: activeSheet) { sheet in if sheet == nil { addFriendPrefill = nil } }
+        .compatOnChange(of: activeSheet) { sheet in
+            if sheet == nil {
+                addFriendPrefill = nil
+                addFriendInvite = nil
+            }
+        }
         .onAppear {
-            if !ScreenshotTour.isEnabled { model.location.requestPermission() }
+            if !ScreenshotTour.isEnabled {
+                model.location.requestPermission()
+                Task { await model.restoreLinkedContactPhotos() }
+            }
             #if DEBUG
             if ScreenshotTour.isEnabled, let loc = model.friends.first?.location {
                 mapCommand = MapCommand(kind: .focus(latitude: loc.latitude, longitude: loc.longitude))
@@ -288,6 +297,8 @@ struct MainView: View {
                 .accessibilityLabel(model.safety.visibleRequests.isEmpty ? Text("Requests") : Text("Requests, \(model.safety.visibleRequests.count) waiting"))
 
                 Button {
+                    addFriendPrefill = nil
+                    addFriendInvite = nil
                     activeSheet = .addFriend
                 } label: {
                     VStack(spacing: Spacing.tight) {
@@ -643,17 +654,19 @@ struct MainView: View {
 
 
     /// Shows the person a friend link points to: their card if they're already a friend, otherwise Add Friend with
-    /// their username filled in (the user still confirms before anything is sent). A link to yourself is ignored.
+    /// their username filled in (the user still confirms before anything is sent). A one-time link also carries its
+    /// token through to that confirmation. A link to yourself is ignored.
     private func showPendingFriendLink() {
-        guard let username = model.pendingFriendLink else { return }
+        guard let link = model.pendingFriendLink else { return }
         model.pendingFriendLink = nil
-        guard username != model.credentials.map({ Username.forLookup($0.username) }) else { return }
-        if let friend = model.friends.first(where: { $0.user.username == username }) {
+        guard link.username != model.credentials.map({ Username.forLookup($0.username) }) else { return }
+        if let friend = model.friends.first(where: { $0.user.username == link.username }) {
             activeSheet = nil
             select(friend)
             return
         }
-        addFriendPrefill = username
+        addFriendPrefill = link.username
+        addFriendInvite = link.inviteToken
         activeSheet = .addFriend
     }
     private func select(_ friend: Friend, fromPin: Bool = false) {

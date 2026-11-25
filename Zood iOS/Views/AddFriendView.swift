@@ -18,12 +18,21 @@ struct AddFriendView: View {
     /// Which invite the share sheet sends (see `inviteText`).
     @State private var inviteWithLink = true
     @State private var choosingInvite = false
+    /// The one-time link minted for this share, when the user chose to include one.
+    @State private var issuedInviteLink: URL?
+    /// Set when Add Friend was opened from a one-time invite. Nil for a username-only link.
+    private let linkToken: Data?
+    private let invitedUsername: String?
+
+    private var inviteToken: Data? { handle == invitedUsername ? linkToken : nil }
 
     /// `prefill` fills in a username from a friend link; the account check starts right away, but nothing is sent
-    /// until the user taps Continue.
-    init(preview: ZoodUser? = nil, prefill: String? = nil) {
+    /// until the user taps Share My Location or Not Now. `inviteToken` connects immediately instead of requesting.
+    init(preview: ZoodUser? = nil, prefill: String? = nil, inviteToken: Data? = nil) {
         _candidate = State(initialValue: preview)
         _username = State(initialValue: prefill ?? "")
+        linkToken = inviteToken
+        invitedUsername = prefill.map(Username.forLookup)
     }
 
     private var handle: String { Username.forLookup(username) }
@@ -32,7 +41,10 @@ struct AddFriendView: View {
         handle == model.credentials.map { Username.forLookup($0.username) }
     }
 
-    private var title: LocalizedStringKey { candidate == nil ? "Add Friend" : "Share Location?" }
+    private var title: LocalizedStringKey {
+        if candidate == nil { return "Add Friend" }
+        return inviteToken == nil ? "Share Location?" : "Connect?"
+    }
     private var backAction: (() -> Void)? { candidate == nil ? nil : { goBack() } }
 
     var body: some View {
@@ -53,16 +65,19 @@ struct AddFriendView: View {
             let entered = handle
             guard ZoodConstants.isValidUsername(entered), !isSelf, pending == nil else { return }
             await UsernameLookup.check(entered, registration: false, model: model) { lookup = $0 }
+            guard !Task.isCancelled, inviteToken != nil, candidate == nil,
+                  lookup?.username == entered, lookup?.result == .found else { return }
+            next()
         }
         .sheet(isPresented: $showingInvite) { ActivityView(items: [inviteText]) }
         // Some people want to hand out a link straight to their profile; others would rather not share their
         // username with everyone who sees the message (for example in a group chat), so it's their choice.
         .confirmationDialog("Share an Invite", isPresented: $choosingInvite, titleVisibility: .visible) {
-            Button("Include My Username Link") { shareInvite(withLink: true) }
+            Button("Include a One-Time Link") { shareInvite(withLink: true) }
             Button("Without My Username") { shareInvite(withLink: false) }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("A username link lets people send you a friend request with one tap.")
+            Text("A one-time link connects them right away. You won’t share your location unless you turn it on later.")
         }
     }
 
@@ -70,9 +85,15 @@ struct AddFriendView: View {
         VStack(alignment: .leading, spacing: Spacing.small) {
             Label("@\(user.username)", systemImage: "person.crop.circle")
                 .font(.headline)
-            Text("Send your friend request with or without sharing your location. You can change sharing later.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
+            Group {
+                if inviteToken == nil {
+                    Text("Send your friend request with or without sharing your location. You can change sharing later.")
+                } else {
+                    Text("A valid invite connects you when their app receives it. They choose when to share their location.")
+                }
+            }
+            .font(.footnote)
+            .foregroundStyle(.secondary)
             HStack(spacing: Spacing.small) {
                 Button {
                     send(to: user, sharing: true)
@@ -144,10 +165,9 @@ struct AddFriendView: View {
             && (pending != nil || (lookup?.username == handle && lookup?.result != .notFound))
     }
 
-    /// With a link, friends can tap it to open Add Friend with this username filled in. Without it, the invite
-    /// only points to Amidst, and the user can tell people their username another way.
+    /// With a link, friends can tap it once to connect. Without it, the invite only points to Amidst.
     private var inviteText: String {
-        if inviteWithLink, let link = model.myFriendLink {
+        if inviteWithLink, let link = issuedInviteLink {
             return "Add me on Amidst, private location sharing for family and friends: \(link.absoluteString)"
         }
         return "Let's share our locations privately with Amidst on iPhone or Android: \(FriendLink.homeURL.absoluteString)"
@@ -155,7 +175,16 @@ struct AddFriendView: View {
 
     private func shareInvite(withLink: Bool) {
         inviteWithLink = withLink
-        showingInvite = true
+        if withLink {
+            perform {
+                guard let link = try model.issueInviteLink() else { return }
+                issuedInviteLink = link
+                showingInvite = true
+            }
+        } else {
+            issuedInviteLink = nil
+            showingInvite = true
+        }
     }
 
     private func next() {
@@ -177,7 +206,7 @@ struct AddFriendView: View {
 
     private func send(to user: ZoodUser, sharing: Bool) {
         perform {
-            try await model.confirmAddFriend(with: user, sharing: sharing)
+            try await model.confirmAddFriend(with: user, sharing: sharing, inviteToken: Username.forLookup(user.username) == invitedUsername ? linkToken : nil)
             dismiss()
         }
     }

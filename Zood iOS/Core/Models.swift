@@ -151,6 +151,8 @@ nonisolated struct Snapshot: Codable, Sendable {
         var since: Int64
     }
     var activeDevice: ActiveDevice?
+    /// One-time invite links this account has issued (`usedBy` set once someone redeems one).
+    var invites: [InviteRecord]?
     var avatar: Data?
     var nickname: String?
     /// The backup format stays at version 1 for stock Zood and older Amidst clients.
@@ -218,6 +220,8 @@ nonisolated struct UserComm: Codable, Sendable {
     var nickname: String?
     /// A two-way removal carried in a revocation so older clients still stop receiving locations.
     var friendRemoved: Bool?
+    /// Set on a one-time invite. The inviter redeems it instead of showing a friend request.
+    var inviteToken: Data?
 
     init(type: CommType) {
         self.type = type
@@ -225,7 +229,7 @@ nonisolated struct UserComm: Codable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case type, dropBox, replyToBox, avatar, latitude, longitude, time, accuracy, speed, bearing, movement
-        case batteryLevel, batteryCharging, locationUpdateRequestAction, debugData, platform, liveRequests, nickname, friendRemoved
+        case batteryLevel, batteryCharging, locationUpdateRequestAction, debugData, platform, liveRequests, nickname, friendRemoved, inviteToken
     }
 
     /// Decodes leniently: every field is optional and a bad field is skipped instead of failing the whole message,
@@ -251,6 +255,7 @@ nonisolated struct UserComm: Codable, Sendable {
         nickname = try? c.decodeIfPresent(String.self, forKey: .nickname)
         friendRemoved = try? c.decodeIfPresent(Bool.self, forKey: .friendRemoved)
         liveRequests = try? c.decodeIfPresent(Bool.self, forKey: .liveRequests)
+        inviteToken = try? c.decodeIfPresent(Data.self, forKey: .inviteToken)
     }
 
     /// Encodes only the fields that are set, so stock Zood clients receive exactly the JSON they expect.
@@ -275,6 +280,7 @@ nonisolated struct UserComm: Codable, Sendable {
         try c.encodeIfPresent(liveRequests, forKey: .liveRequests)
         try c.encodeIfPresent(nickname, forKey: .nickname)
         try c.encodeIfPresent(friendRemoved, forKey: .friendRemoved)
+        try c.encodeIfPresent(inviteToken, forKey: .inviteToken)
     }
 
     /// True when this grant answers our own sharing offer on `box` (the friend accepted our request), as opposed

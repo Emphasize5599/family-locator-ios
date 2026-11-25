@@ -1,13 +1,14 @@
 import Foundation
 
-/// Friend links: a shareable link to someone's Amidst profile that lets the recipient send them a friend request.
+/// Friend links: a shareable link to someone's Amidst profile.
 ///
 /// The link people share is a web address, because a web link is tappable in every messaging app and still works
 /// for someone who doesn't have Amidst yet: the landing page (GitHub Pages, repository `Emphasize5599/amidst`)
 /// shows install links and an "Open in Amidst" button that uses the app's own `amidst://` scheme.
 ///
-/// A link carries only the public username. Nothing is sent or shared until the person who opens it confirms in
-/// Add Friend, so a link can never add someone or share a location by itself.
+/// A one-time link also carries `t`, a random token the inviter stored. Accepting it connects the two people
+/// immediately. A link with only the public username still asks the inviter to approve a friend request.
+/// Nothing is sent until the person who opens the link confirms in Add Friend.
 nonisolated enum FriendLink {
     /// The landing page for invites that don't name anyone (what Amidst is, with download links).
     static let homeURL = URL(string: "https://emphasize5599.github.io/amidst/")!
@@ -15,16 +16,22 @@ nonisolated enum FriendLink {
     private static let webPath = "/amidst/add"
     static let scheme = "amidst"
 
-    /// The link that opens Add Friend for `username` (e.g. `https://emphasize5599.github.io/amidst/add/?u=alex`).
-    static func url(for username: String) -> URL {
+    /// The link that opens Add Friend for `username`. `token` makes it one-time (`t`); without one it is reusable.
+    static func url(for username: String, token: Data? = nil) -> URL {
         var components = URLComponents(url: homeURL.appendingPathComponent("add/"), resolvingAgainstBaseURL: false)!
         components.queryItems = [URLQueryItem(name: "u", value: Username.forLookup(username))]
+        if let token, let encoded = InviteLedger.queryToken(token) {
+            components.fragment = "t=" + encoded
+        }
         return components.url!
     }
 
-    /// The username a link points to, or nil if it isn't a valid friend link. Accepts the web link and the app's
-    /// own forms (`amidst://add/alex` and `amidst://add?u=alex`), and only returns names the server could accept.
-    static func username(from url: URL) -> String? {
+    /// The username a link points to, or nil if it isn't a valid friend link.
+    static func username(from url: URL) -> String? { target(from: url)?.username }
+
+    /// The username and, when the link has a valid `t`, its one-time token. A broken token is ignored so the
+    /// username still opens Add Friend as an ordinary request. Accepts the web link and `amidst://add/alex?t=…`.
+    static func target(from url: URL) -> FriendLinkTarget? {
         let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
         let query = components?.queryItems?.first(where: { $0.name == "u" })?.value
         let candidate: String?
@@ -39,6 +46,23 @@ nonisolated enum FriendLink {
         }
         guard let candidate else { return nil }
         let username = Username.forLookup(candidate)
-        return ZoodConstants.isValidUsername(username) ? username : nil
+        guard ZoodConstants.isValidUsername(username) else { return nil }
+        let fragment = components?.fragment
+        let fromFragment = fragment.flatMap { $0.hasPrefix("t=") ? String($0.dropFirst(2)) : nil }
+        let rawToken = fromFragment ?? components?.queryItems?.first(where: { $0.name == "t" })?.value
+        let token = rawToken.flatMap(InviteLedger.token(fromQuery:))
+        return FriendLinkTarget(username: username, inviteToken: token)
     }
+}
+
+/// Who a friend link points to. `inviteToken` is set only for a well-formed one-time link.
+nonisolated struct FriendLinkTarget: Equatable, Sendable {
+    var username: String
+    var inviteToken: Data?
+}
+
+/// A friend link waiting for the map screen. Kept on the model so a link opened while signed out still works after sign-in.
+nonisolated struct PendingFriendLink: Equatable, Sendable {
+    var username: String
+    var inviteToken: Data?
 }

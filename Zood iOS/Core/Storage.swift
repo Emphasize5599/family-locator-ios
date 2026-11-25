@@ -178,6 +178,8 @@ nonisolated struct SafetyState: Codable, Sendable {
     var blocked: [Data: ZoodUser] = [:]
     /// A false entry awaits delivery. Existing blocks without an entry are repaired on unblock.
     var sentBlockRemovals: [Data: Bool]?
+    /// Invite links this phone has issued. Also copied into the encrypted backup so a reinstall cannot revive a used link.
+    var invites: [InviteRecord]?
 
     var visibleRequests: [PendingRequest] {
         pending.values.filter { blocked[$0.id] == nil && $0.approved != true }

@@ -1,6 +1,6 @@
 # Amidst privacy policy
 
-Effective November 24, 2026.
+Effective November 25, 2026.
 
 Amidst is an independent, open-source client for iPhone and Android for the Zood Location network, maintained through the [iOS project](https://github.com/Emphasize5599/family-locator-ios) and the [Android project](https://github.com/Emphasize5599/george/tree/family-ios-compat). It is not affiliated with Tangled Wires, LLC. The account and encrypted-message service is operated by Zood at `api.zood.xyz`; its [mobile-app privacy policy](https://www.zood.xyz/privacy/mobile-apps) also applies to that service.
 
@@ -20,7 +20,7 @@ The app contains no advertising or third-party analytics SDK and does not use ad
 
 ## Your choices and consent
 
-You can view friends without sharing your own location. Add Friend gives you a separate choice to share location or send a request without it. Both choices may include the profile photo and nickname you selected. Turn off a friend's sharing toggle or remove the friend to stop future sharing with them. Other people may retain locations or screenshots they previously received.
+You can view friends without sharing your own location. Add Friend gives you a separate choice to share your location or send a request without it. An optional one-time invite link lets the first recipient connect when the inviter’s app processes the acceptance. The inviter chooses whether to share their location later. The inviter’s device saves the link token and includes its redemption state in the next end-to-end encrypted account backup. Invitations can include the profile photo and nickname you selected. Turn off a friend’s sharing toggle or remove the friend to stop future sharing with them. Other people may retain locations or screenshots they previously received.
 
 Allow All the Time on Android or Always on iPhone enables background location sharing. Live Requests uses background location activity to remain available for requests and may use additional battery. You can switch it off in the app's Settings, change location permission in the device’s Settings, or log out. Logging out removes this app's credentials and local friend data and stops its location activity on this device; it does not delete your server account.
 

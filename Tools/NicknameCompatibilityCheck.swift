@@ -122,7 +122,60 @@ struct NicknameCompatibilityCheck {
         full.folders = [.init(id: fullFolderID.uuidString, name: "Family", members: [friendID])]
         full.barOrder = ["folder:" + fullFolderID.uuidString]
         full.activeDevice = .init(id: "ios-device", platform: "ios", since: 1_700_000_000_000)
+        full.invites = [InviteRecord(token: Data(repeating: 4, count: 16))]
         full.timestamp = 1_700_000_000_000
+        let inviteToken = Data(repeating: 7, count: 16)
+        let inviteSender = Data(repeating: 8, count: 16)
+        let inviteOther = Data(repeating: 9, count: 16)
+        var issued = InviteLedger.issued(inviteToken, into: [])
+        guard InviteLedger.authorize(inviteToken, sender: inviteSender, records: &issued),
+              issued.first?.usedBy == inviteSender,
+              !InviteLedger.authorize(inviteToken, sender: inviteSender, records: &issued),
+              !InviteLedger.authorize(inviteToken, sender: inviteOther, records: &issued),
+              !InviteLedger.authorize(Data(repeating: 1, count: 16), sender: inviteSender, records: &issued) else {
+            fatalError("One-time invite redemption failed")
+        }
+        let merged = InviteLedger.merge(local: [InviteRecord(token: inviteToken)],
+                                         remote: [InviteRecord(token: inviteToken, usedBy: inviteSender)])
+        let conflict = InviteLedger.merge(local: [InviteRecord(token: inviteToken, usedBy: inviteSender)],
+                                           remote: [InviteRecord(token: inviteToken, usedBy: inviteOther)])
+        guard merged.first?.usedBy == inviteSender, conflict.first?.usedBy == inviteSender else {
+            fatalError("Invite backup merge failed")
+        }
+        guard let encodedToken = InviteLedger.queryToken(inviteToken), encodedToken.count == 22,
+              InviteLedger.token(fromQuery: encodedToken) == inviteToken,
+              InviteLedger.token(fromQuery: inviteToken.base64EncodedString()) == inviteToken,
+              InviteLedger.token(fromQuery: "not-a-token") == nil else {
+            fatalError("Invite token link encoding failed")
+        }
+        var inviteRequest = UserComm(type: .friendRequest)
+        inviteRequest.inviteToken = inviteToken
+        let inviteJSON = try inviteRequest.jsonData()
+        guard String(decoding: inviteJSON, as: UTF8.self).contains("\"invite_token\""),
+              try ZoodJSON.decoder.decode(UserComm.self, from: inviteJSON).inviteToken == inviteToken,
+              !(try String(decoding: UserComm(type: .friendRequest).jsonData(), as: UTF8.self)).contains("invite_token") else {
+            fatalError("invite_token was not an optional friend_request field")
+        }
+        var inviteSnapshot = Snapshot()
+        inviteSnapshot.invites = [InviteRecord(token: inviteToken, usedBy: inviteSender)]
+        let inviteBackup = try ZoodJSON.encoder.encode(inviteSnapshot)
+        let inviteRestored = try ZoodJSON.decoder.decode(Snapshot.self, from: inviteBackup)
+        guard inviteRestored.schemaVersion == 1, inviteRestored.invites?.first?.usedBy == inviteSender,
+              String(decoding: inviteBackup, as: UTF8.self).contains("\"used_by\"") else {
+            fatalError("Invite backup field failed")
+        }
+        let legacyInvites = try ZoodJSON.decoder.decode(Snapshot.self, from: Data("{\"schema_version\":1,\"timestamp\":0,\"users\":[],\"friends\":[]}".utf8))
+        guard legacyInvites.invites == nil else { fatalError("Legacy backup grew an invite list") }
+        let link = FriendLink.url(for: "alexdemo", token: inviteToken)
+        guard link.fragment == "t=\(encodedToken)",
+              URLComponents(url: link, resolvingAgainstBaseURL: false)?.queryItems?.contains(where: { $0.name == "t" }) == false,
+              FriendLink.target(from: link)?.username == "alexdemo",
+              FriendLink.target(from: link)?.inviteToken == inviteToken,
+              FriendLink.target(from: FriendLink.url(for: "alexdemo"))?.inviteToken == nil,
+              FriendLink.target(from: URL(string: "amidst://add/alexdemo?t=not-a-token")!)?.inviteToken == nil,
+              FriendLink.target(from: URL(string: "amidst://add/alexdemo?t=\(encodedToken)")!)?.inviteToken == inviteToken else {
+            fatalError("Friend link did not carry a one-time token")
+        }
         let args = CommandLine.arguments
         if args.count > 1 {
             try ZoodJSON.encoder.encode(full).write(to: URL(fileURLWithPath: args[1]))  // the app's real encoder
@@ -138,11 +191,13 @@ struct NicknameCompatibilityCheck {
                   android.blocked?.first?.username == "blockedandroid",
                   android.folders?.first?.name == "Kids", android.folders?.first?.members.count == 1,
                   android.barOrder?.count == 2,
+                  android.invites?.first?.token == Data(repeating: 9, count: 16),
+                  android.invites?.first?.usedBy == Data(repeating: 2, count: 16),
                   android.activeDevice == .init(id: "android-device", platform: "android", since: 1_800_000_000_000) else {
                 fatalError("An Android-written backup didn't restore every field on iPhone")
             }
             print("Android-written backup: every field read correctly on iPhone.")
         }
-        print("Nickname precedence, explicit resets, legacy messages/backups, shared backup fields, blocked users, linked contacts, folders and bar order passed.")
+        print("Nickname precedence, explicit resets, legacy messages/backups, shared backup fields, blocked users, linked contacts, folders, bar order and one-time invites passed.")
     }
 }

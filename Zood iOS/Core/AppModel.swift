@@ -60,9 +60,9 @@ final class AppModel: ObservableObject {
     @Published private(set) var barOrder: [BarItemID] = []
     /// Set when this iPhone signed itself out because the account was signed in on another device.
     @Published var signedOutElsewhere = false
-    /// A username from a friend link that was opened (see `FriendLink`), waiting for the map screen to show it.
+    /// A friend link that was opened (see `FriendLink`), waiting for the map screen to show it.
     /// Kept here rather than in a view so a link opened while signed out is still handled right after sign-in.
-    @Published var pendingFriendLink: String?
+    @Published var pendingFriendLink: PendingFriendLink?
     /// The running timed share, if any (see `TimedShare`).
     @Published private(set) var timedShare: TimedShare?
     /// Friends whose phones we're asking "can you answer location requests?" before showing Unsupported.
@@ -77,6 +77,7 @@ final class AppModel: ObservableObject {
     private var timedShareExpiry: Task<Void, Never>?
 
     let location = LocationService()
+    private var restoringContactPhotos = false
 
     /// User setting: keep a live connection so family can ping this phone.
     @Published var liveRequestsEnabled: Bool {
@@ -138,6 +139,7 @@ final class AppModel: ObservableObject {
         // Views read permission state through the model, so forward LocationService changes.
         location.onStateChange = { [weak self] in
             self?.objectWillChange.send()
+            Task { await self?.restoreLinkedContactPhotos() }
             Task { await self?.shareCurrentLocation() }
         }
         if phase == .signedIn {
@@ -344,12 +346,14 @@ final class AppModel: ObservableObject {
         var restoredBlocks: [ZoodUser] = []
         var restoredFolders: [FriendFolder] = []
         var restoredOrder: [BarItemID] = []
+        var restoredInvites: [InviteRecord] = []
         let authed = OscarAPI(accessToken: login.accessToken)
         do {
             let encrypted = try await authed.backup()
             let json = try Crypto.secretBoxOpen(encrypted.cipherText, nonce: encrypted.nonce, key: symmetricKey)
             let snapshot = try ZoodJSON.decoder.decode(Snapshot.self, from: json)
             restored = Self.localData(from: snapshot)
+            restoredInvites = snapshot.invites ?? []
             restoredBlocks = (snapshot.blocked ?? []).map { ZoodUser(userID: $0.userId, username: $0.username, publicKey: $0.publicKey) }
             restoredFolders = (snapshot.folders ?? []).compactMap { folder in
                 UUID(uuidString: folder.id).map { FriendFolder(id: $0, name: folder.name, members: folder.members) }
@@ -362,6 +366,13 @@ final class AppModel: ObservableObject {
         try CredentialStore.save(creds)
         credentials = creds
         safety = SafetyStore.load(for: creds.userID)
+        let mergedInvites = InviteLedger.merge(local: safety.invites ?? [], remote: restoredInvites)
+        if mergedInvites != (safety.invites ?? []) {
+            var next = safety
+            next.invites = mergedInvites
+            // Keep the merge in memory even if the Keychain write fails, so the backup that follows cannot revive a used link.
+            if (try? saveSafety(next)) == nil { safety = next }
+        }
         // Blocks from the backup join any already on this iPhone; a block is never undone by a restore.
         if restoredBlocks.contains(where: { safety.blocked[$0.userID] == nil }) {
             var next = safety
@@ -466,6 +477,7 @@ final class AppModel: ObservableObject {
         startInboxPolling()
         location.startBaseline()
         applyLiveMode()
+        Task { await restoreLinkedContactPhotos() }
         Task {
             await refresh()
             await checkStillActiveDevice()
@@ -487,6 +499,7 @@ final class AppModel: ObservableObject {
         if timedShare?.isExpired == true { stopTimedShare() }
         location.setForeground(true)
         guard phase == .signedIn else { return }
+        Task { await restoreLinkedContactPhotos() }
         if returningFromBackground { socket?.stop() }
         socket?.start()
         startInboxPolling()
@@ -757,6 +770,10 @@ final class AppModel: ObservableObject {
                 Task { await refreshDeviceStatusIfNeeded(friend) }
             }
         case .friendRequest:
+            if comm.inviteToken != nil {
+                try await acceptOneTimeInvite(comm, from: user)
+                return
+            }
             guard local.friends[user.userID] == nil else { return }
             var next = safety
             if let existing = next.pending[user.userID], existing.includesLocation { return }
@@ -765,6 +782,10 @@ final class AppModel: ObservableObject {
                                                        avatar: Self.requestAvatar(comm.avatar))
             try saveSafety(next)
         case .locationSharingGrant:
+            if comm.inviteToken != nil {
+                try await acceptOneTimeInvite(comm, from: user)
+                return
+            }
             guard let box = comm.dropBox else { return }
             let existing = local.friends[user.userID]
             let pending = safety.pending[user.userID]
@@ -1104,14 +1125,22 @@ final class AppModel: ObservableObject {
 
     /// An incoming friend request from this username, if one is waiting for approval.
     /// Accepts a friend link the app was opened with. Invalid links are ignored; nothing is sent until the user
-    /// confirms in Add Friend.
+    /// confirms in Add Friend. A valid `t` is a one-time invite; a bad token falls back to a normal request.
     func open(_ url: URL) {
-        guard let username = FriendLink.username(from: url) else { return }
-        pendingFriendLink = username
+        guard let target = FriendLink.target(from: url) else { return }
+        pendingFriendLink = PendingFriendLink(username: target.username, inviteToken: target.inviteToken)
     }
 
-    /// This account's own friend link, for sharing in an invite.
-    var myFriendLink: URL? { credentials.map { FriendLink.url(for: $0.username) } }
+    /// Mints a fresh one-time invite link and stores it before returning, so a link is never shared unless this phone can redeem it.
+    func issueInviteLink() throws -> URL? {
+        guard let credentials else { return nil }
+        let token = Crypto.randomBytes(InviteLedger.tokenLength)
+        var next = safety
+        next.invites = InviteLedger.issued(token, into: next.invites ?? [])
+        do { try saveSafety(next) } catch { throw FriendError.inviteUnavailable }
+        scheduleBackup()
+        return FriendLink.url(for: credentials.username, token: token)
+    }
 
     func pendingRequest(username: String) -> PendingRequest? {
         let username = Username.forLookup(username)
@@ -1140,9 +1169,14 @@ final class AppModel: ObservableObject {
 
     /// Adds a friend after the user confirms. With `sharing` we offer our location right away; without it we send a
     /// plain friend request, so people can connect without sharing (for example, to be visible in each other's lists first).
-    func confirmAddFriend(with user: ZoodUser, sharing: Bool) async throws {
+    /// `inviteToken` is the one-time token from their link: the request carries it so their phone connects us immediately.
+    func confirmAddFriend(with user: ZoodUser, sharing: Bool, inviteToken: Data? = nil) async throws {
         guard user.userID != credentials?.userID else { throw FriendError.cantAddSelf }
         guard await syncInbox() else { throw FriendError.inboxUnavailable }
+        if let inviteToken {
+            try await sendInviteAcceptance(to: user, sharing: sharing, token: inviteToken)
+            return
+        }
         if try await acceptIncomingIfPresent(user) { return }
         if sharing {
             try await startSharing(with: user)
@@ -1158,6 +1192,54 @@ final class AppModel: ObservableObject {
         scheduleBackup()
     }
 
+    /// Redeem with one message so no later packet needs permission to reuse the invite.
+    private func sendInviteAcceptance(to user: ZoodUser, sharing: Bool, token: Data) async throws {
+        guard safety.blocked[user.userID] == nil else { throw FriendError.blocked }
+        guard let access = credentials?.accessToken else { return }
+        if sharing {
+            try await startSharing(with: user, inviteToken: token)
+            return
+        }
+        var request = UserComm(type: .friendRequest)
+        request.avatar = Self.requestAvatar(local.myAvatar)
+        request.inviteToken = token
+        try await send(request, to: user, urgent: false, transient: false)
+        guard credentials?.accessToken == access, safety.blocked[user.userID] == nil else { return }
+        guard local.friends[user.userID] == nil else { return }
+        upsertFriend(user) { $0.establishedWithoutLocation = true }
+        scheduleBackup()
+    }
+
+    /// Redeems a one-time invite. An unknown or already-used token is ignored and does not become a request.
+    /// The friend is added without our outgoing sharing. A grant only fills the receiving box.
+    private func acceptOneTimeInvite(_ comm: UserComm, from user: ZoodUser) async throws {
+        guard let token = comm.inviteToken, token.count == InviteLedger.tokenLength else { return }
+        var records = safety.invites ?? []
+        guard InviteLedger.authorize(token, sender: user.userID, records: &records) else { return }
+        var next = safety
+        next.invites = records
+        next.pending[user.userID] = nil
+        try saveSafety(next)
+        let box = comm.type == .locationSharingGrant ? comm.dropBox : nil
+        let existed = local.friends[user.userID] != nil
+        if box != nil || !existed {
+            upsertFriend(user) { friend in
+                friend.establishedWithoutLocation = true
+                if let box { friend.receivingBoxID = box }
+                if let nickname = comm.nickname { friend.sharedNickname = Nickname.normalized(nickname) }
+                if let avatar = Self.requestAvatar(comm.avatar) { friend.avatar = avatar }
+            }
+        }
+        scheduleBackup()
+        if let box {
+            socket?.watch(box)
+            Task { await fetchPackage(from: user, box: box) }
+        }
+        if !existed {
+            Task { try? await send(UserComm(type: .avatarRequest), to: user, urgent: false, transient: false) }
+        }
+    }
+
     /// If they already asked to connect with us, adding them just approves that request instead of sending a
     /// duplicate. Returns true when nothing more is needed.
     private func acceptIncomingIfPresent(_ user: ZoodUser) async throws -> Bool {
@@ -1169,19 +1251,20 @@ final class AppModel: ObservableObject {
     }
 
     enum FriendError: LocalizedError {
-        case cantAddSelf, blocked, inboxUnavailable
+        case cantAddSelf, blocked, inboxUnavailable, inviteUnavailable
         var errorDescription: String? {
             switch self {
             case .cantAddSelf: return "You can't add yourself."
             case .blocked: return "Unblock this person in Settings before sharing with them."
             case .inboxUnavailable: return "Couldn’t check for incoming requests. Try again."
+            case .inviteUnavailable: return "Couldn’t create an invite link. Try again."
             }
         }
     }
 
     /// Starts sharing our location with someone: creates (or reuses) a private drop box and sends them its ID.
     /// Reusing the existing box keeps friendships stable across retries, matching the Android client.
-    func startSharing(with user: ZoodUser) async throws {
+    func startSharing(with user: ZoodUser, inviteToken: Data? = nil) async throws {
         guard user.userID != credentials?.userID else { throw FriendError.cantAddSelf }
         guard safety.blocked[user.userID] == nil else { throw FriendError.blocked }
         // Re-send the existing box if we already have one, exactly like FriendshipManager does.
@@ -1189,6 +1272,8 @@ final class AppModel: ObservableObject {
         var grant = UserComm(type: .locationSharingGrant)
         grant.dropBox = box
         grant.replyToBox = local.friends[user.userID]?.receivingBoxID
+        if inviteToken != nil { grant.avatar = Self.requestAvatar(local.myAvatar) }
+        grant.inviteToken = inviteToken
         grant.time = Int64(Date().timeIntervalSince1970 * 1_000)
         try await send(grant, to: user, urgent: false, transient: false)
         guard safety.blocked[user.userID] == nil else {
@@ -1196,7 +1281,7 @@ final class AppModel: ObservableObject {
             throw FriendError.blocked
         }
         upsertFriend(user) {
-            if $0.acceptsLocationWithoutNewRequest { $0.establishedWithoutLocation = true }
+            if inviteToken != nil || $0.acceptsLocationWithoutNewRequest { $0.establishedWithoutLocation = true }
             $0.sendingBoxID = box
         }
         scheduleBackup()
@@ -1460,16 +1545,26 @@ final class AppModel: ObservableObject {
             }
         }
         if changed, !ScreenshotTour.isEnabled { ContactLinkStore.save(links, for: account) }
-        let missing = local.friends.values.filter {
+    }
+
+    /// Ask only when a linked card needs its local thumbnail, after the location permission flow.
+    func restoreLinkedContactPhotos() async {
+        guard !ScreenshotTour.isEnabled, !restoringContactPhotos, let account = credentials?.userID,
+              UIApplication.shared.applicationState == .active,
+              location.authorization != .notDetermined else { return }
+        let missing = friends.filter {
             $0.linkedContact?.photo == nil && $0.linkedContact?.identifier.isEmpty == false
         }.map(\.id)
-        if !missing.isEmpty, Self.canReadContacts, !ScreenshotTour.isEnabled {
-            Task { [weak self] in
-                for id in missing {
-                    guard let self, credentials?.userID == account else { break }
-                    _ = await restoreContactPhoto(for: id, requestPermission: false)
-                }
-            }
+        guard !missing.isEmpty else { return }
+        restoringContactPhotos = true
+        defer { restoringContactPhotos = false }
+        if CNContactStore.authorizationStatus(for: .contacts) == .notDetermined {
+            _ = try? await CNContactStore().requestAccess(for: .contacts)
+        }
+        guard Self.canReadContacts else { return }
+        for id in missing {
+            guard credentials?.userID == account else { break }
+            _ = await restoreContactPhoto(for: id, requestPermission: false)
         }
     }
 
@@ -1641,6 +1736,7 @@ final class AppModel: ObservableObject {
         // Blocks, folders and the bar's order ride along in the same end-to-end encrypted backup, so they come
         // back after signing in again.
         snapshot.blocked = safety.blocked.values.map { .init(userId: $0.userID, publicKey: $0.publicKey, username: $0.username) }
+        if let invites = safety.invites, !invites.isEmpty { snapshot.invites = invites }
         snapshot.folders = folders.map { .init(id: $0.id.uuidString, name: $0.name, members: $0.members) }
         snapshot.barOrder = barOrder.map(\.backupValue)
         snapshot.nickname = local.myNickname
