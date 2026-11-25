@@ -419,6 +419,10 @@ final class AppModel: ObservableObject {
     /// polling, location sharing, and a first catch-up refresh.
     private func startSession() {
         guard let credentials else { return }
+        if !UserDefaults.standard.bool(forKey: Self.thumbnailBackupKey(for: credentials.userID)),
+           local.friends.values.contains(where: { $0.avatar != nil }) {
+            scheduleBackup()
+        }
         let socket = OscarSocket(api: OscarAPI(accessToken: credentials.accessToken)) { [weak self] event in
             self?.handle(event)
         }
@@ -788,13 +792,17 @@ final class AppModel: ObservableObject {
             update.avatar = avatar
             try? await send(update, to: user, urgent: false, transient: false)
         case .avatarUpdate:
-            if var request = safety.pending[user.userID], let avatar = Self.requestAvatar(comm.avatar) {
+            guard let avatar = Self.requestAvatar(comm.avatar) else { return }
+            if var request = safety.pending[user.userID] {
                 request.avatar = avatar
                 var next = safety
                 next.pending[user.userID] = request
                 try saveSafety(next)
             }
-            updateFriend(user.userID) { $0.avatar = comm.avatar }
+            if let friend = local.friends[user.userID], friend.avatar != avatar {
+                updateFriend(user.userID) { $0.avatar = avatar }
+                scheduleBackup()
+            }
         default:
             break
         }
@@ -1495,6 +1503,7 @@ final class AppModel: ObservableObject {
         guard let credentials else { return }
         // Never overwrite the backup of an account that's now active on another device; sign out instead.
         let remote = await remoteSnapshot()
+        guard self.credentials?.accessToken == credentials.accessToken else { return }
         if DeviceSession.isSuperseded(by: remote?.activeDevice, account: credentials.userID) {
             signOutBecauseSupersededElsewhere()
             return
@@ -1502,9 +1511,16 @@ final class AppModel: ObservableObject {
         var snapshot = Snapshot()
         snapshot.activeDevice = DeviceSession.record(for: credentials.userID, remote: remote?.activeDevice)
         snapshot.users = local.users.values.map { .init(userId: $0.userID, publicKey: $0.publicKey, username: $0.username) }
-        snapshot.friends = local.friends.values.map {
-            .init(userId: $0.user.userID, sendingBoxId: $0.sendingBoxID, receivingBoxId: $0.receivingBoxID,
+        var thumbnailBytes = BackupAvatar.totalBytes
+        snapshot.friends = local.friends.values.sorted { $0.user.username < $1.user.username }.map {
+            var thumbnail = BackupAvatar.make(from: $0.avatar)
+            if let bytes = thumbnail?.count {
+                if bytes <= thumbnailBytes { thumbnailBytes -= bytes }
+                else { thumbnail = nil }
+            }
+            return .init(userId: $0.user.userID, sendingBoxId: $0.sendingBoxID, receivingBoxId: $0.receivingBoxID,
                   nickname: $0.nickname, sharedNickname: $0.sharedNickname,
+                  avatarThumbnail: thumbnail,
                   linkedContactName: $0.linkedContact?.name,
                   linkedContactId: $0.linkedContact?.identifier,
                   linkedContactPlatform: $0.linkedContact == nil ? nil : "ios",
@@ -1520,7 +1536,16 @@ final class AppModel: ObservableObject {
         snapshot.timestamp = Int64(Date().timeIntervalSince1970 * 1000)
         guard let json = try? ZoodJSON.encoder.encode(snapshot),
               let encrypted = try? Crypto.secretBox(json, key: credentials.symmetricKey) else { return }
-        try? await api.saveBackup(encrypted)
+        do {
+            try await api.saveBackup(encrypted)
+            UserDefaults.standard.set(true, forKey: Self.thumbnailBackupKey(for: credentials.userID))
+        } catch {
+            // Leave the upgrade pending so another launch can retry.
+        }
+    }
+
+    private static func thumbnailBackupKey(for account: Data) -> String {
+        "avatarThumbnailBackup." + account.base64EncodedString()
     }
 
     /// Turns a downloaded backup into local data. Linked contacts from Android keep only the name, since an Android
@@ -1530,11 +1555,16 @@ final class AppModel: ObservableObject {
         for u in snapshot.users {
             data.users[u.userId] = ZoodUser(userID: u.userId, username: u.username, publicKey: u.publicKey)
         }
+        var thumbnailBytes = BackupAvatar.totalBytes
         for f in snapshot.friends {
             guard let user = data.users[f.userId] else { continue }
             var friend = Friend(user: user, sendingBoxID: f.sendingBoxId, receivingBoxID: f.receivingBoxId,
                                 nickname: Nickname.normalized(f.nickname), sharedNickname: Nickname.normalized(f.sharedNickname),
                                 establishedWithoutLocation: f.establishedWithoutLocation)
+            if let thumbnail = BackupAvatar.validated(f.avatarThumbnail), thumbnail.count <= thumbnailBytes {
+                friend.avatar = thumbnail
+                thumbnailBytes -= thumbnail.count
+            }
             if let name = f.linkedContactName, !name.isEmpty {
                 // An Android lookup URI means nothing to iOS Contacts, so keep only the name from there.
                 friend.linkedContact = LinkedContact(identifier: f.linkedContactPlatform == "ios" ? (f.linkedContactId ?? "") : "",

@@ -116,6 +116,7 @@ nonisolated struct Snapshot: Codable, Sendable {
         var receivingBoxId: Data?
         var nickname: String?
         var sharedNickname: String?
+        var avatarThumbnail: Data?
         /// The phone contact this friend is linked to (Family Locator only; stock Zood ignores these keys).
         /// The name restores on any device; the id is a Contacts identifier on iOS or a lookup URI on
         /// Android, so it's only reused on the same platform (`linkedContactPlatform`).
