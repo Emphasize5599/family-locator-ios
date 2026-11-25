@@ -14,7 +14,8 @@ ROOT = Path(__file__).resolve().parents[1]
 BUNDLE = 'com.bensanzone.amidst'
 SCENES = ['onboarding', 'map', 'map-many-friends', 'map-folders', 'map-folders-open', 'map-folders-open-long', 'map-folders-open-rename', 'friend-overlap', 'friend', 'friend-short-name', 'friend-two-line-name', 'friend-long-name', 'friend-updated', 'friend-unsupported', 'friend-contact-photo', 'add-friend', 'add-friend-share', 'profile-nickname', 'requests', 'requests-empty',
           'safety-number', 'timed-share', 'friend-nickname', 'friend-nickname-scroll', 'account', 'settings', 'settings-support', 'settings-nickname', 'notices', 'avatar-crop',
-          'blocked-users', 'blocked-empty', 'delete-account']
+          'blocked-users', 'blocked-empty', 'delete-account', 'store-bridge-south', 'store-bridge-midspan',
+          'store-bridge-north', 'store-central-park', 'store-westminster', 'store-griffith-park', 'store-requests']
 
 
 def run(*args, env=None, check=True, timeout=60):

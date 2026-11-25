@@ -104,8 +104,10 @@ nonisolated struct Friend: Codable, Hashable, Sendable, Identifiable {
     var linkedContact: LinkedContact?
     var establishedWithoutLocation: Bool? = false
 
-    var displayName: String { nickname ?? linkedContact?.name ?? sharedNickname ?? "@\(user.username)" }
-    var avatarName: String { nickname ?? linkedContact?.name ?? sharedNickname ?? user.username }
+    private var resolvedName: String? { nickname ?? linkedContact?.name ?? sharedNickname }
+    var displaysUsername: Bool { resolvedName == nil }
+    var displayName: String { resolvedName ?? "@\(user.username)" }
+    var avatarName: String { resolvedName ?? user.username }
     /// The picture to show for this friend: their linked contact's photo, otherwise the photo they shared.
     var displayAvatar: Data? { linkedContact?.photo ?? avatar }
 

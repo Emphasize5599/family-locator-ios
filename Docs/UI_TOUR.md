@@ -44,6 +44,8 @@ Release builds ignore tour flags and contain no fixture account/view implementat
 
 Add new scenes to `ScreenshotTourView` and `SCENES` in the runner as features grow. Behavioral tests and real-device background testing remain separate from screenshot review.
 
+The `store-*` scenes place fictional friends at distinct public locations in San Francisco, New York, London, and Los Angeles. The three bridge scenes start Maya at successive points on the Golden Gate Bridge and simulate fresh fixes as she drives north. They use the ordinary friend card and map pins. The store scenes require no location permissions or account access.
+
 ## Xcode side panel
 
 When the Xcode assistant runs a tour, it also creates a named **Family Locator Screenshot Tour** device-interaction session and captures scenes through Xcode's runtime tools. This is the same side-panel presentation used by **Verify Compact Safety UI**. The assistant follows `AGENTS.md` to provide these captures; the HTML/ZIP is a portable companion.

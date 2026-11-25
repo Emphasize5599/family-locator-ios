@@ -57,7 +57,7 @@ struct MainView: View {
                 VStack(spacing: Spacing.medium) {
                     if !model.isConnected {
                         banner("Connecting to server…", systemImage: "wifi.exclamationmark")
-                    } else if !model.location.hasAnyPermission {
+                    } else if !model.location.hasAnyPermission && !ScreenshotTour.isStoreScene {
                         banner("Location access is off, so family can't see you.", systemImage: "location.slash")
                             .onTapGesture { model.location.requestPermission() }
                     }
@@ -148,6 +148,10 @@ struct MainView: View {
             #if DEBUG
             if ScreenshotTour.isEnabled, let loc = model.friends.first?.location {
                 mapCommand = MapCommand(kind: .focus(latitude: loc.latitude, longitude: loc.longitude))
+            }
+            if let scenario = ScreenshotTour.scene.flatMap(StoreTourScene.init(rawValue:)) {
+                if scenario.opensFriend, let friend = model.friends.first { select(friend) }
+                if scenario == .westminster { openFolderID = model.friendFolders.first?.id }
             }
             if ["friend", "friend-short-name", "friend-two-line-name", "friend-long-name", "friend-updated", "friend-unsupported", "friend-contact-photo", "friend-nickname"].contains(ScreenshotTour.scene ?? ""), let friend = model.friends.first { select(friend) }
             if ScreenshotTour.scene == "friend-nickname-scroll", let friend = model.friends.last { select(friend) }

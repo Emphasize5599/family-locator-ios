@@ -186,6 +186,20 @@ final class AppModel: ObservableObject {
         }
         folders = []
         barOrder = []
+        if let scenario = StoreTourScene(rawValue: scene) {
+            let friends = scenario.friends()
+            local.friends = Dictionary(uniqueKeysWithValues: friends.map { ($0.id, $0) })
+            if scenario == .westminster {
+                folders = [FriendFolder(name: "Family", members: Array(friends.prefix(2).map(\.id)))]
+            }
+            if scenario == .requests {
+                let requester = ZoodUser(userID: Data(repeating: 44, count: 16), username: "luciaortiz",
+                                         publicKey: Data(repeating: 44, count: 32))
+                safety.pending[requester.id] = PendingRequest(user: requester,
+                    boxID: Data(repeating: 45, count: 16), nickname: "Lucia Ortiz")
+            }
+            return
+        }
         if ["map-many-friends", "friend-overlap", "friend-nickname-scroll"].contains(scene) || scene.hasPrefix("map-folders") {
             // Enough friends to make the friend bar scroll, for checking its rounded-corner clipping.
             for (index, name) in ["Bailey", "Casey", "Devon", "Emerson", "Finley", "Harper"].enumerated() {
@@ -224,6 +238,19 @@ final class AppModel: ObservableObject {
                 avatar: ScreenshotTour.framingTestPhoto(tall: true))
         }
         if scene != "blocked-empty" { safety.blocked[ScreenshotTour.blocked.id] = ScreenshotTour.blocked }
+    }
+
+    func simulateBridgeDrive(_ scenario: StoreTourScene) async {
+        guard let progress = scenario.bridgeProgress, let friendID = friends.first?.id else { return }
+        let start = Date.now
+        let remaining = (1 - progress) * 150
+        while ScreenshotTour.scene == scenario.rawValue {
+            do { try await Task.sleep(nanoseconds: 1_000_000_000) } catch { return }
+            let now = Date.now
+            let elapsed = now.timeIntervalSince(start)
+            local.friends[friendID]?.location = scenario.bridgeLocation(elapsed: elapsed, now: now)
+            if elapsed >= remaining { return }
+        }
     }
     #endif
 

@@ -156,7 +156,7 @@ struct FriendPanel: View {
     private func nameAndControls(_ friend: Friend) -> some View {
         VStack(alignment: .leading, spacing: Spacing.tight) {
             if #available(iOS 16, *) {
-                FriendHeaderLayout {
+                FriendHeaderLayout(singleLineName: nicknameDraft == nil && friend.displaysUsername) {
                     avatar(friend)
                     nameContent(friend)
                     headerControls(friend)
@@ -192,7 +192,10 @@ struct FriendPanel: View {
 
     private func editableName(_ friend: Friend) -> some View {
         Button { beginNicknameEdit(friend) } label: {
-            Text(friend.displayName).font(.title2.bold())
+            Text(friend.displayName)
+                .font(.title2.bold())
+                .lineLimit(friend.displaysUsername ? 1 : nil)
+                .truncationMode(.tail)
         }
         .buttonStyle(.plain)
         .accessibilityHint("Edit friend’s nickname")
@@ -554,6 +557,12 @@ struct FriendPanel: View {
     }
 
     private func lookUpAddress(_ location: FriendLocation?) async {
+        #if DEBUG
+        if ScreenshotTour.scene.flatMap(StoreTourScene.init(rawValue:))?.bridgeProgress != nil {
+            address = "Golden Gate Bridge"
+            return
+        }
+        #endif
         guard let location else { address = nil; return }
         let placemarks = try? await CLGeocoder().reverseGeocodeLocation(
             CLLocation(latitude: location.latitude, longitude: location.longitude))
@@ -645,15 +654,21 @@ private extension Array where Element: Hashable {
 /// Lays out the avatar, name and controls without moving the name into a different view hierarchy.
 @available(iOS 16, *)
 private struct FriendHeaderLayout: Layout {
+    let singleLineName: Bool
     private let gap = Spacing.small
 
     private func sizes(width: CGFloat, subviews: Subviews) -> (avatar: CGSize, name: CGSize, controls: CGSize, below: Bool) {
         let avatar = subviews[0].sizeThatFits(.unspecified)
         let controls = subviews[2].sizeThatFits(.unspecified)
         let inlineWidth = max(0, width - avatar.width - controls.width - 2 * gap)
-        let inlineName = subviews[3].sizeThatFits(ProposedViewSize(width: inlineWidth, height: nil))
-        let twoLines = subviews[4].sizeThatFits(.unspecified).height
-        let below = inlineWidth < 44 || inlineName.height > twoLines
+        let fitsInline: Bool
+        if singleLineName {
+            fitsInline = subviews[3].sizeThatFits(.unspecified).width <= inlineWidth
+        } else {
+            let inlineName = subviews[3].sizeThatFits(ProposedViewSize(width: inlineWidth, height: nil))
+            fitsInline = inlineName.height <= subviews[4].sizeThatFits(.unspecified).height
+        }
+        let below = inlineWidth < 44 || !fitsInline
         let name = subviews[1].sizeThatFits(ProposedViewSize(width: below ? width : inlineWidth, height: nil))
         return (avatar, name, controls, below)
     }

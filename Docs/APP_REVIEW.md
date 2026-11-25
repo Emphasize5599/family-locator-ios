@@ -119,7 +119,7 @@ If the form asks what the encryption protects, paste this description.
 Amidst uses libsodium for public-key encryption, secret-box encryption, and Argon2 password-based key derivation. This protects location packages, friend messages, shared photos, and account backups. Network transport uses HTTPS.
 ```
 
-The build declares non-exempt encryption because the app does more than HTTPS. On the upload questions, describe libsodium encryption used to protect location packages, messages, and backups. The publisher chooses the exemption and completes any annual self-classification or other filing that choice requires.
+The build leaves the encryption declaration keys unset so App Store Connect can ask the publisher about each build. On the upload questions, describe libsodium encryption used to protect location packages, messages, and backups. The publisher determines the applicable classification and completes any required filings.
 
 ## Suggested App Store listing
 
