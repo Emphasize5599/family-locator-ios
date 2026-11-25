@@ -7,6 +7,7 @@ struct MainView: View {
     @EnvironmentObject private var model: AppModel
 
     @State private var mapCommand: MapCommand?
+    @State private var mapHeading = 0.0
     /// The friend whose card is showing above the friend bar (an inline card, not a sheet, so the bar stays usable).
     @State private var selectedFriendID: Data?
     @State private var nicknameDraft: FriendNicknameDraft?
@@ -48,7 +49,7 @@ struct MainView: View {
                 }, onBackgroundTap: {
                     closeFriend()
                     closeFolder()
-                })
+                }, onHeadingChanged: { mapHeading = $0 })
                 .ignoresSafeArea()
 
                 controls
@@ -192,9 +193,27 @@ struct MainView: View {
     private var controls: some View {
         VStack(alignment: .trailing, spacing: Spacing.medium) {
             HStack(spacing: Spacing.medium) {
-                circleButton("safari", label: "Reset map orientation to north") {
+                Button {
                     mapCommand = MapCommand(kind: .northUp)
+                } label: {
+                    ZStack {
+                        Circle().fill(.ultraThinMaterial)
+                        Circle().strokeBorder(Color.primary.opacity(0.16), lineWidth: 1)
+                            .padding(4)
+                        VStack(spacing: 1) {
+                            Image(systemName: "triangle.fill")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundStyle(.red)
+                            Text("N")
+                                .font(.system(size: 18, weight: .semibold, design: .rounded))
+                                .foregroundStyle(.primary)
+                        }
+                        .offset(y: -2)
+                        .rotationEffect(.degrees(-mapHeading))
+                    }
+                    .frame(width: 48, height: 48)
                 }
+                .accessibilityLabel("Reset map orientation to north")
                 circleButton("gearshape.fill", label: "Settings") { activeSheet = .settings }
             }
             circleButton("location.fill", label: "My location") {

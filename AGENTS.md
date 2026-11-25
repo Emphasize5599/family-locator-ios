@@ -5,7 +5,8 @@ Work autonomously. Don't stop to ask permission for routine next steps; do them 
 - Carry work through: fix what you find, build, verify (see Verification resources), commit, merge to `main` and push.
 - Every push gets a GitHub release (see Releases).
 - Don't end a turn with "Should I…?" when the next step is obvious. Pick the sensible default, do it, and say what you chose.
-- Still check with the user first for anything outside the repositories or hard to undo: App Store Connect or Play Console submissions, signing with their credentials, messaging testers or other people, paid services, and deleting data.
+- A request to push a new build authorizes signing with the project's existing credentials and uploading to the requested or established build destination. A repository-only update does not authorize credential use or a store upload.
+- Ask before submitting a build for App Review or production release, changing signing credentials, using existing signing credentials outside an authorized build push, messaging testers or other people, using paid services, or deleting data.
 - Also ask when a request has more than one reasonable product answer and the choice changes what users see.
 
 # Releases

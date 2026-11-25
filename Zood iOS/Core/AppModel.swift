@@ -1,4 +1,5 @@
 import Combine
+import Contacts
 import CoreLocation
 import Foundation
 import ImageIO
@@ -1418,6 +1419,49 @@ final class AppModel: ObservableObject {
             }
         }
         if changed, !ScreenshotTour.isEnabled { ContactLinkStore.save(links, for: account) }
+        let missing = local.friends.values.filter {
+            $0.linkedContact?.photo == nil && $0.linkedContact?.identifier.isEmpty == false
+        }.map(\.id)
+        if !missing.isEmpty, Self.canReadContacts, !ScreenshotTour.isEnabled {
+            Task { [weak self] in
+                for id in missing {
+                    guard let self, credentials?.userID == account else { break }
+                    _ = await restoreContactPhoto(for: id, requestPermission: false)
+                }
+            }
+        }
+    }
+
+    private static var canReadContacts: Bool {
+        let status = CNContactStore.authorizationStatus(for: .contacts)
+        if status == .authorized { return true }
+        if #available(iOS 18, *) { return status == .limited }
+        return false
+    }
+
+    /// Rehydrates only the already-linked card's thumbnail using the saved Contacts identifier.
+    func restoreContactPhoto(for id: Data, requestPermission: Bool = true) async -> Bool {
+        guard !ScreenshotTour.isEnabled, let account = credentials?.userID,
+              let link = local.friends[id]?.linkedContact, !link.identifier.isEmpty else { return false }
+        if requestPermission, CNContactStore.authorizationStatus(for: .contacts) == .notDetermined {
+            _ = try? await CNContactStore().requestAccess(for: .contacts)
+        }
+        guard Self.canReadContacts, credentials?.userID == account else { return false }
+        let identifier = link.identifier
+        let photo = await Task.detached(priority: .utility) {
+            try? CNContactStore().unifiedContact(withIdentifier: identifier,
+                keysToFetch: [CNContactThumbnailImageDataKey as CNKeyDescriptor]).thumbnailImageData
+        }.value
+        guard let photo, credentials?.userID == account,
+              var restored = local.friends[id]?.linkedContact,
+              restored.identifier == identifier else { return false }
+        if restored.photo != nil { return true }
+        restored.photo = photo
+        var links = ContactLinkStore.load(for: account)
+        links[id] = restored
+        ContactLinkStore.save(links, for: account)
+        updateFriend(id) { $0.linkedContact = restored }
+        return true
     }
 
     /// Links a friend to one of the user's contacts (or unlinks). The friend takes the contact's name, and the link is

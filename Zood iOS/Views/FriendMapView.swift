@@ -22,6 +22,7 @@ struct FriendMapView: UIViewRepresentable {
     let onSelect: (Data) -> Void
     /// Tap on the map itself (not a pin), used to close the friend card.
     var onBackgroundTap: () -> Void = {}
+    var onHeadingChanged: (Double) -> Void = { _ in }
 
     final class MapView: MKMapView {
         var onSizeChanged: (() -> Void)?
@@ -56,6 +57,7 @@ struct FriendMapView: UIViewRepresentable {
         let coordinator = context.coordinator
         coordinator.onSelect = onSelect
         coordinator.onBackgroundTap = onBackgroundTap
+        coordinator.onHeadingChanged = onHeadingChanged
         coordinator.sync(friends: friends, on: map)
         coordinator.raise(selectedID, on: map)
         let command = command
@@ -79,6 +81,8 @@ struct FriendMapView: UIViewRepresentable {
     final class Coordinator: NSObject, MKMapViewDelegate, UIGestureRecognizerDelegate {
         var onSelect: (Data) -> Void
         var onBackgroundTap: () -> Void = {}
+        var onHeadingChanged: (Double) -> Void = { _ in }
+        private var lastHeading: Double = 0
         var lastCommand: MapCommand?
         private var followedFriendID: Data?
         private var cameraSelectionID: Data?
@@ -288,6 +292,16 @@ struct FriendMapView: UIViewRepresentable {
             displayLink = nil
             flyingMap = nil
             flight = nil
+        }
+
+        func mapViewDidChangeVisibleRegion(_ mapView: MKMapView) {
+            let heading = mapView.camera.heading
+            guard heading != lastHeading else { return }
+            lastHeading = heading
+            DispatchQueue.main.async { [weak self] in
+                guard let self, lastHeading == heading else { return }
+                onHeadingChanged(heading)
+            }
         }
 
         func mapView(_ mapView: MKMapView, regionWillChangeAnimated animated: Bool) {

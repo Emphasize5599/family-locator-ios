@@ -13,6 +13,8 @@ struct ContactLinkView: View {
     let friendID: Data
     @State private var choosingContact = false
     @State private var confirmingUnlink = false
+    @State private var restoringPhoto = false
+    @State private var photoUnavailable = false
 
     var body: some View {
         ContentFittedSheet(title: "Linked Contact", showsCloseButton: true) {
@@ -21,11 +23,28 @@ struct ContactLinkView: View {
                 .foregroundStyle(.secondary)
             if let contact = model.local.friends[friendID]?.linkedContact {
                 Label(contact.name, systemImage: "person.crop.circle")
+                if contact.photo == nil, !contact.identifier.isEmpty {
+                    Button("Restore Contact Photo") {
+                        restoringPhoto = true
+                        Task {
+                            photoUnavailable = !(await model.restoreContactPhoto(for: friendID))
+                            restoringPhoto = false
+                        }
+                    }
+                    .frame(minHeight: 44)
+                    .disabled(restoringPhoto)
+                }
                 Button("Unlink Contact", role: .destructive) { confirmingUnlink = true }
                     .frame(minHeight: 44)
             }
             Button("Choose Contact") { choosingContact = true }
                 .frame(minHeight: 44)
+        }
+        .alert("Contact Photo Unavailable", isPresented: $photoUnavailable) {
+            Button("Choose Contact") { choosingContact = true }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Choose the contact again to load its current photo. This can help if the saved link came from another device or the contact isn’t accessible.")
         }
         .alert("Unlink this contact?", isPresented: $confirmingUnlink) {
             Button("Cancel", role: .cancel) {}
