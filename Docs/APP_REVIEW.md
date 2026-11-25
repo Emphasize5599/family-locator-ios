@@ -74,7 +74,7 @@ Data is collected, linked to the user, and used for app functionality. It is not
 | Precise location | Yes | Encrypted on the device for the people the user chose. |
 | Fitness | Yes | Walking, running, cycling, or driving, sent inside the encrypted location package. |
 | Contacts | Yes | Only a chosen contact's name and identifier, inside the encrypted backup. The address book is not uploaded. The contact photo stays on the device. |
-| Photos | Yes | Optional profile photo, encrypted for friends. |
+| Photos | Yes | Optional profile photo, encrypted for friends. Small copies of shared friend profile photos are stored in the encrypted account backup. |
 | Other data | Yes | Battery, platform, accuracy, speed, and direction, inside the encrypted package. Connection metadata such as IP address is described in the privacy policy. |
 
 Not collected: payment info, health records beyond the motion category above, browsing history, search history, advertising data, or the full contacts database.
