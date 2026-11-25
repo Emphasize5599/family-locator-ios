@@ -156,6 +156,17 @@ struct NicknameCompatibilityCheck {
               !(try String(decoding: UserComm(type: .friendRequest).jsonData(), as: UTF8.self)).contains("invite_token") else {
             fatalError("invite_token was not an optional friend_request field")
         }
+        for answer in [nil, false, true] as [Bool?] {
+            var confirmation = UserComm(type: .inviteRedemption)
+            confirmation.inviteToken = inviteToken
+            confirmation.inviteAccepted = answer
+            let decoded = try ZoodJSON.decoder.decode(UserComm.self, from: confirmation.jsonData())
+            guard decoded.isValid, decoded.inviteAccepted == answer, decoded.inviteToken == inviteToken else {
+                fatalError("Invite reply must preserve an explicit rejection")
+            }
+            confirmation.dropBox = inviteToken
+            guard !confirmation.isValid else { fatalError("Invite confirmation carried location sharing") }
+        }
         var inviteSnapshot = Snapshot()
         inviteSnapshot.invites = [InviteRecord(token: inviteToken, usedBy: inviteSender)]
         let inviteBackup = try ZoodJSON.encoder.encode(inviteSnapshot)

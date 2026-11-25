@@ -73,6 +73,12 @@ final class AppModel: ObservableObject {
     private var inboxSync: Task<Bool, Never>?
     private var inboxSyncID: UUID?
     private var inboxChanged = false
+    private struct InviteRedemption {
+        let userID: Data
+        let accessToken: String
+        var accepted: Bool?
+    }
+    private var inviteRedemptions: [Data: InviteRedemption] = [:]
     private var blockRemovalSends: [Data: Task<Void, Error>] = [:]
     private var timedShareExpiry: Task<Void, Never>?
 
@@ -769,6 +775,8 @@ final class AppModel: ObservableObject {
             if let friend = local.friends[user.userID], friend.device?.liveRequests == false {
                 Task { await refreshDeviceStatusIfNeeded(friend) }
             }
+        case .inviteRedemption:
+            try await handleInviteRedemption(comm, from: user)
         case .friendRequest:
             if comm.inviteToken != nil {
                 try await acceptOneTimeInvite(comm, from: user)
@@ -1192,30 +1200,64 @@ final class AppModel: ObservableObject {
         scheduleBackup()
     }
 
-    /// Redeem with one message so no later packet needs permission to reuse the invite.
+    /// Wait for the inviter to confirm before adding a friend or enabling the recipient's share.
     private func sendInviteAcceptance(to user: ZoodUser, sharing: Bool, token: Data) async throws {
         guard safety.blocked[user.userID] == nil else { throw FriendError.blocked }
-        guard let access = credentials?.accessToken else { return }
-        if sharing {
-            try await startSharing(with: user, inviteToken: token)
-            return
-        }
-        var request = UserComm(type: .friendRequest)
+        guard let access = credentials?.accessToken else { throw FriendError.inviteUnconfirmed }
+        guard inviteRedemptions[token] == nil else { throw FriendError.inviteUnconfirmed }
+        inviteRedemptions[token] = InviteRedemption(userID: user.userID, accessToken: access)
+        defer { inviteRedemptions[token] = nil }
+
+        var request = UserComm(type: .inviteRedemption)
         request.avatar = Self.requestAvatar(local.myAvatar)
         request.inviteToken = token
-        try await send(request, to: user, urgent: false, transient: false)
-        guard credentials?.accessToken == access, safety.blocked[user.userID] == nil else { return }
-        guard local.friends[user.userID] == nil else { return }
-        upsertFriend(user) { $0.establishedWithoutLocation = true }
-        scheduleBackup()
+        try await send(request, to: user, urgent: true, transient: false)
+
+        let deadline = ProcessInfo.processInfo.systemUptime + 20
+        while ProcessInfo.processInfo.systemUptime < deadline {
+            guard credentials?.accessToken == access else { throw FriendError.inviteUnconfirmed }
+            if let accepted = inviteRedemptions[token]?.accepted {
+                guard accepted else { throw FriendError.inviteExpired }
+                guard safety.blocked[user.userID] == nil else { throw FriendError.blocked }
+                upsertFriend(user) { $0.establishedWithoutLocation = true }
+                scheduleBackup()
+                if sharing { try await startSharing(with: user) }
+                return
+            }
+            try await Task.sleep(nanoseconds: 250_000_000)
+        }
+        throw FriendError.inviteUnconfirmed
+    }
+
+    private func handleInviteRedemption(_ comm: UserComm, from user: ZoodUser) async throws {
+        guard let token = comm.inviteToken else { return }
+        if let accepted = comm.inviteAccepted {
+            guard let attempt = inviteRedemptions[token], attempt.userID == user.userID,
+                  attempt.accessToken == credentials?.accessToken else { return }
+            inviteRedemptions[token]?.accepted = accepted
+            return
+        }
+        let usedBySender = (safety.invites ?? []).contains { $0.token == token && $0.usedBy == user.userID }
+        let accepted: Bool
+        if usedBySender {
+            // A retry can recover a lost reply, but cannot restore a friendship that was removed.
+            accepted = local.friends[user.userID] != nil
+        } else {
+            accepted = try await acceptOneTimeInvite(comm, from: user)
+        }
+        var reply = UserComm(type: .inviteRedemption)
+        reply.inviteToken = token
+        reply.inviteAccepted = accepted
+        try await send(reply, to: user, urgent: true, transient: false)
     }
 
     /// Redeems a one-time invite. An unknown or already-used token is ignored and does not become a request.
     /// The friend is added without our outgoing sharing. A grant only fills the receiving box.
-    private func acceptOneTimeInvite(_ comm: UserComm, from user: ZoodUser) async throws {
-        guard let token = comm.inviteToken, token.count == InviteLedger.tokenLength else { return }
+    @discardableResult
+    private func acceptOneTimeInvite(_ comm: UserComm, from user: ZoodUser) async throws -> Bool {
+        guard let token = comm.inviteToken, token.count == InviteLedger.tokenLength else { return false }
         var records = safety.invites ?? []
-        guard InviteLedger.authorize(token, sender: user.userID, records: &records) else { return }
+        guard InviteLedger.authorize(token, sender: user.userID, records: &records) else { return false }
         var next = safety
         next.invites = records
         next.pending[user.userID] = nil
@@ -1238,6 +1280,7 @@ final class AppModel: ObservableObject {
         if !existed {
             Task { try? await send(UserComm(type: .avatarRequest), to: user, urgent: false, transient: false) }
         }
+        return true
     }
 
     /// If they already asked to connect with us, adding them just approves that request instead of sending a
@@ -1251,20 +1294,22 @@ final class AppModel: ObservableObject {
     }
 
     enum FriendError: LocalizedError {
-        case cantAddSelf, blocked, inboxUnavailable, inviteUnavailable
+        case cantAddSelf, blocked, inboxUnavailable, inviteUnavailable, inviteExpired, inviteUnconfirmed
         var errorDescription: String? {
             switch self {
             case .cantAddSelf: return "You can't add yourself."
             case .blocked: return "Unblock this person in Settings before sharing with them."
             case .inboxUnavailable: return "Couldn’t check for incoming requests. Try again."
             case .inviteUnavailable: return "Couldn’t create an invite link. Try again."
+            case .inviteExpired: return "This invite has expired or already been used. Ask for a new link."
+            case .inviteUnconfirmed: return "Couldn’t confirm this invite. Ask the inviter to open an updated Amidst app, then try again."
             }
         }
     }
 
     /// Starts sharing our location with someone: creates (or reuses) a private drop box and sends them its ID.
     /// Reusing the existing box keeps friendships stable across retries, matching the Android client.
-    func startSharing(with user: ZoodUser, inviteToken: Data? = nil) async throws {
+    func startSharing(with user: ZoodUser) async throws {
         guard user.userID != credentials?.userID else { throw FriendError.cantAddSelf }
         guard safety.blocked[user.userID] == nil else { throw FriendError.blocked }
         // Re-send the existing box if we already have one, exactly like FriendshipManager does.
@@ -1272,8 +1317,6 @@ final class AppModel: ObservableObject {
         var grant = UserComm(type: .locationSharingGrant)
         grant.dropBox = box
         grant.replyToBox = local.friends[user.userID]?.receivingBoxID
-        if inviteToken != nil { grant.avatar = Self.requestAvatar(local.myAvatar) }
-        grant.inviteToken = inviteToken
         grant.time = Int64(Date().timeIntervalSince1970 * 1_000)
         try await send(grant, to: user, urgent: false, transient: false)
         guard safety.blocked[user.userID] == nil else {
@@ -1281,7 +1324,7 @@ final class AppModel: ObservableObject {
             throw FriendError.blocked
         }
         upsertFriend(user) {
-            if inviteToken != nil || $0.acceptsLocationWithoutNewRequest { $0.establishedWithoutLocation = true }
+            if $0.acceptsLocationWithoutNewRequest { $0.establishedWithoutLocation = true }
             $0.sendingBoxID = box
         }
         scheduleBackup()

@@ -185,6 +185,7 @@ nonisolated enum CommType: String, Sendable {
     case deviceStatusRequest = "device_status_request"
     case deviceStatus = "device_status"
     case nicknameUpdate = "nickname_update"
+    case inviteRedemption = "invite_redemption"
     case unknown
 }
 
@@ -222,6 +223,7 @@ nonisolated struct UserComm: Codable, Sendable {
     var friendRemoved: Bool?
     /// Set on a one-time invite. The inviter redeems it instead of showing a friend request.
     var inviteToken: Data?
+    var inviteAccepted: Bool?
 
     init(type: CommType) {
         self.type = type
@@ -229,7 +231,7 @@ nonisolated struct UserComm: Codable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case type, dropBox, replyToBox, avatar, latitude, longitude, time, accuracy, speed, bearing, movement
-        case batteryLevel, batteryCharging, locationUpdateRequestAction, debugData, platform, liveRequests, nickname, friendRemoved, inviteToken
+        case batteryLevel, batteryCharging, locationUpdateRequestAction, debugData, platform, liveRequests, nickname, friendRemoved, inviteToken, inviteAccepted
     }
 
     /// Decodes leniently: every field is optional and a bad field is skipped instead of failing the whole message,
@@ -256,6 +258,7 @@ nonisolated struct UserComm: Codable, Sendable {
         friendRemoved = try? c.decodeIfPresent(Bool.self, forKey: .friendRemoved)
         liveRequests = try? c.decodeIfPresent(Bool.self, forKey: .liveRequests)
         inviteToken = try? c.decodeIfPresent(Data.self, forKey: .inviteToken)
+        inviteAccepted = try? c.decodeIfPresent(Bool.self, forKey: .inviteAccepted)
     }
 
     /// Encodes only the fields that are set, so stock Zood clients receive exactly the JSON they expect.
@@ -281,6 +284,7 @@ nonisolated struct UserComm: Codable, Sendable {
         try c.encodeIfPresent(nickname, forKey: .nickname)
         try c.encodeIfPresent(friendRemoved, forKey: .friendRemoved)
         try c.encodeIfPresent(inviteToken, forKey: .inviteToken)
+        try c.encodeIfPresent(inviteAccepted, forKey: .inviteAccepted)
     }
 
     /// True when this grant answers our own sharing offer on `box` (the friend accepted our request), as opposed
@@ -295,6 +299,7 @@ nonisolated struct UserComm: Codable, Sendable {
     var isValid: Bool {
         switch type {
         case .avatarUpdate: return avatar != nil
+        case .inviteRedemption: return inviteToken?.count == InviteLedger.tokenLength && dropBox == nil && replyToBox == nil
         case .friendRequest: return dropBox == nil && replyToBox == nil
         case .locationSharingGrant: return dropBox?.count == ZoodConstants.dropBoxIDLength
         case .locationInfo:
