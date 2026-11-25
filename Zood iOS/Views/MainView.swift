@@ -193,27 +193,26 @@ struct MainView: View {
     private var controls: some View {
         VStack(alignment: .trailing, spacing: Spacing.medium) {
             HStack(spacing: Spacing.medium) {
-                Button {
-                    mapCommand = MapCommand(kind: .northUp)
-                } label: {
-                    ZStack {
-                        Circle().fill(.ultraThinMaterial)
-                        Circle().strokeBorder(Color.primary.opacity(0.16), lineWidth: 1)
-                            .padding(4)
-                        VStack(spacing: 1) {
-                            Image(systemName: "triangle.fill")
-                                .font(.system(size: 8, weight: .bold))
-                                .foregroundStyle(.red)
-                            Text("N")
-                                .font(.system(size: 18, weight: .semibold, design: .rounded))
-                                .foregroundStyle(.primary)
+                if abs(mapHeading.remainder(dividingBy: 360)) > 1 {
+                    circleButton(label: "Reset map orientation to north") {
+                        mapCommand = MapCommand(kind: .northUp)
+                    } content: {
+                        ZStack {
+                            Circle().strokeBorder(Color.primary.opacity(0.16), lineWidth: 1)
+                                .padding(4)
+                            VStack(spacing: 1) {
+                                Image(systemName: "triangle.fill")
+                                    .font(.system(size: 8, weight: .bold))
+                                    .foregroundStyle(.red)
+                                Text("N")
+                                    .font(.system(size: 18, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(.primary)
+                            }
+                            .offset(y: -2)
+                            .rotationEffect(.degrees(-mapHeading))
                         }
-                        .offset(y: -2)
-                        .rotationEffect(.degrees(-mapHeading))
                     }
-                    .frame(width: 48, height: 48)
                 }
-                .accessibilityLabel("Reset map orientation to north")
                 circleButton("gearshape.fill", label: "Settings") { activeSheet = .settings }
             }
             circleButton("location.fill", label: "My location") {
@@ -224,12 +223,20 @@ struct MainView: View {
     }
 
     private func circleButton(_ systemImage: String, label: LocalizedStringKey, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+        circleButton(label: label, action: action) {
             Image(systemName: systemImage)
                 .font(.title3)
+                .foregroundStyle(Color.floatingAccent)
+        }
+    }
+
+    private func circleButton<Content: View>(label: LocalizedStringKey, action: @escaping () -> Void,
+                                             @ViewBuilder content: () -> Content) -> some View {
+        Button(action: action) {
+            content()
                 .frame(width: 48, height: 48)
                 .floatingSurface(in: Circle(), interactive: true)
-                .foregroundStyle(Color.floatingAccent)
+                .contentShape(Circle())
         }
         .accessibilityLabel(Text(label))
     }
