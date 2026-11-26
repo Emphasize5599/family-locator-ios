@@ -33,6 +33,7 @@ struct MainView: View {
     @State private var sustainedDisconnect = false
     @State private var connectionNoticeHeight: CGFloat = 0
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var connectionNoticePending: Bool {
         scenePhase == .active && !model.isConnected && !ScreenshotTour.isEnabled
@@ -224,11 +225,15 @@ struct MainView: View {
         return ZStack(alignment: .bottom) {
             if showsConnectionNotice {
                 HStack(spacing: Spacing.small) {
-                    Image(systemName: "wifi.exclamationmark").accessibilityHidden(true)
+                    if !dynamicTypeSize.isAccessibilitySize {
+                        Image(systemName: "wifi.exclamationmark").accessibilityHidden(true)
+                    }
                     Text("Connecting to server…")
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
-                    Image(systemName: "wifi.exclamationmark").hidden().accessibilityHidden(true)
+                    if !dynamicTypeSize.isAccessibilitySize {
+                        Image(systemName: "wifi.exclamationmark").hidden().accessibilityHidden(true)
+                    }
                 }
                 .font(.footnote.weight(.medium))
                 .padding(.horizontal, Spacing.medium)
