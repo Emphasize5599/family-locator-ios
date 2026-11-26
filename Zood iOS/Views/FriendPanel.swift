@@ -38,6 +38,7 @@ struct FriendPanel: View {
     @State private var blockError: String?
     @State private var showingSafetyNumber = false
     @State private var linkingContact = false
+    @State private var managingPhoto = false
     @State private var dragOffset: CGFloat = 0
     @State private var contentHeight: CGFloat = 320
 
@@ -92,6 +93,9 @@ struct FriendPanel: View {
             #endif
             .sheet(isPresented: $linkingContact) {
                 ContactLinkView(friendID: friend.id).environmentObject(model)
+            }
+            .sheet(isPresented: $managingPhoto) {
+                FriendPhotoView(friendID: friend.id).environmentObject(model)
             }
             .sheet(isPresented: $showingSafetyNumber) {
                 SafetyNumberView(friend: friend).environmentObject(model)
@@ -213,7 +217,11 @@ struct FriendPanel: View {
     }
 
     private func avatar(_ friend: Friend) -> some View {
-        AvatarView(username: friend.avatarName, imageData: friend.displayAvatar, size: 56)
+        Button { managingPhoto = true } label: {
+            AvatarView(username: friend.avatarName, imageData: friend.displayAvatar, size: 56)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Manage Friend Photo")
     }
 
     /// Platform logo, ✎, ⋯ and ✕, all the same size.
@@ -229,6 +237,7 @@ struct FriendPanel: View {
             FriendMenu(linked: friend.linkedContact != nil,
                        username: friend.user.username,
                        linkContact: { linkingContact = true },
+                       managePhoto: { managingPhoto = true },
                        viewSafetyNumber: { showingSafetyNumber = true },
                        remove: { confirmingRemove = true },
                        block: { confirmingBlock = true })
@@ -573,6 +582,7 @@ private struct FriendMenu: UIViewRepresentable {
     let linked: Bool
     let username: String
     let linkContact: () -> Void
+    let managePhoto: () -> Void
     let viewSafetyNumber: () -> Void
     let remove: () -> Void
     let block: () -> Void
@@ -594,6 +604,7 @@ private struct FriendMenu: UIViewRepresentable {
     func updateUIView(_ button: UIButton, context: Context) {
         let coordinator = context.coordinator
         coordinator.linkContact = linkContact
+        coordinator.managePhoto = managePhoto
         coordinator.viewSafetyNumber = viewSafetyNumber
         coordinator.remove = remove
         coordinator.block = block
@@ -624,6 +635,9 @@ private struct FriendMenu: UIViewRepresentable {
                               image: UIImage(systemName: "person.crop.circle.badge.plus")) { [weak coordinator] _ in
             coordinator?.linkContact?()
         })
+        items.append(UIAction(title: String(localized: "Manage Friend Photo"), image: UIImage(systemName: "photo")) { [weak coordinator] _ in
+            coordinator?.managePhoto?()
+        })
         // iOS 16+ keeps this order (`.fixed`); iOS 15 lists a menu from the button outward, so reverse it there.
         if #unavailable(iOS 16) { items.reverse() }
         button.menu = UIMenu(children: items)
@@ -632,6 +646,7 @@ private struct FriendMenu: UIViewRepresentable {
     final class Coordinator {
         var builtFor: String?
         var linkContact: (() -> Void)?
+        var managePhoto: (() -> Void)?
         var viewSafetyNumber: (() -> Void)?
         var remove: (() -> Void)?
         var block: (() -> Void)?

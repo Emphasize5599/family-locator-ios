@@ -102,14 +102,18 @@ nonisolated struct Friend: Codable, Hashable, Sendable, Identifiable {
     /// Their latest name received inside encrypted messages, never used as an account identifier.
     var sharedNickname: String?
     var linkedContact: LinkedContact?
+    var avatarOverride: Data?
+    /// Older links used their contact photo automatically.
+    var useLinkedContactPhoto: Bool?
     var establishedWithoutLocation: Bool? = false
 
     private var resolvedName: String? { nickname ?? linkedContact?.name ?? sharedNickname }
     var displaysUsername: Bool { resolvedName == nil }
     var displayName: String { resolvedName ?? "@\(user.username)" }
     var avatarName: String { resolvedName ?? user.username }
-    /// The picture to show for this friend: their linked contact's photo, otherwise the photo they shared.
-    var displayAvatar: Data? { linkedContact?.photo ?? avatar }
+    var displayAvatar: Data? {
+        avatarOverride ?? (useLinkedContactPhoto == false ? nil : linkedContact?.photo) ?? avatar
+    }
 
     var id: Data { user.userID }
     var weShare: Bool { sendingBoxID != nil }
@@ -247,14 +251,12 @@ nonisolated enum Username {
     }
 }
 
-/// Only the selected contact's name and identifier are retained, on this device and in the end-to-end
-/// encrypted backup (the server can't read either). Never sent to the friend.
+/// Only the selected contact's name, identifier and thumbnail are retained for this account.
 nonisolated struct LinkedContact: Codable, Hashable, Sendable {
     var identifier: String
     /// First and last name from the contact card (company name for business cards).
     var name: String
-    /// The contact's photo as framed in Contacts (its thumbnail), shown as the friend's avatar. Kept on this
-    /// iPhone only (not in the backup), so the backup stays small; it returns when the friend is linked again.
+    /// The selected contact's framed thumbnail. Stored in the encrypted backup and never sent to the friend.
     var photo: Data?
 }
 

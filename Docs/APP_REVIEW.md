@@ -73,8 +73,8 @@ Data is collected, linked to the user, and used for app functionality. It is not
 | Email address | Yes | Optional, at registration. |
 | Precise location | Yes | Encrypted on the device for the people the user chose. |
 | Fitness | Yes | Walking, running, cycling, or driving, sent inside the encrypted location package. |
-| Contacts | Yes | Only a chosen contact's name and identifier, inside the encrypted backup. The address book is not uploaded. The contact photo stays on the device. |
-| Photos | Yes | Optional profile photo, encrypted for friends. Small copies of shared friend profile photos are stored in the encrypted account backup. |
+| Contacts | Yes | A chosen contact's name, identifier, and small photo thumbnail are stored in the encrypted backup. Amidst accesses only the selected or already-linked contacts on iOS. |
+| Photos | Yes | Optional profile photo, encrypted for friends. The encrypted account backup can contain small copies of shared avatars, linked contact thumbnails, and private friend photos the user chose. |
 | Other data | Yes | Battery, platform, accuracy, speed, and direction, inside the encrypted package. Connection metadata such as IP address is described in the privacy policy. |
 
 Not collected: payment info, health records beyond the motion category above, browsing history, search history, advertising data, or the full contacts database.
@@ -252,7 +252,7 @@ The Debug-only screenshot tour uses fictional in-memory fixtures and rejects Zoo
 
 Nickname checks passed for precedence, clearing, legacy decoding, optional backup fields, and @handle lookup. iPhone 11 captures verified nickname saving and View Username. Later keyboard, discard, and Account edits compiled, then simulator connections failed. Only the iOS 27.2 runtime was installed. Physical-device checks on older iOS remain open. Sessions were shut down.
 
-Linking uses the system contact picker. After the location prompts, Amidst can ask for optional Contacts access to restore missing photos for previously linked contacts. From 1.1.16 the chosen name and identifier also ride in the encrypted backup. From 1.1.17 the contact's name becomes the private nickname and the contact thumbnail is the avatar. The photo stays on the device. Avatars crop. They do not stretch.
+Linking uses the system contact picker. Amidst can ask for optional Contacts access to recover a missing photo for an already-linked contact. The encrypted account backup stores the selected contact name, reference, and a small thumbnail. When a friend already has a photo, the user can keep it or use the contact photo before completing the link. Manage Friend Photo lets the user pick and crop a photo privately, switch to the contact photo, or return to the friend's shared photo.
 
 Friend folders and bar order are in the encrypted backup from 1.1.17. They do not change who can see a location. Consequential actions ask for confirmation.
 

@@ -2,7 +2,7 @@ import Foundation
 import ImageIO
 import UIKit
 
-/// Small copies of profile photos friends shared through Amidst. Contact photos use separate local storage.
+/// Bounded thumbnails for shared and private friend pictures in the encrypted backup.
 enum BackupAvatar {
     static let maxDimension = 128
     static let maxBytes = 12 * 1024
@@ -31,6 +31,12 @@ enum BackupAvatar {
               let source = CGImageSourceCreateWithData(data as CFData, nil), fits(source, limit: maxDimension),
               CGImageSourceCreateImageAtIndex(source, 0, nil) != nil else { return nil }
         return data
+    }
+
+    static func take(_ data: Data?, from remaining: inout Int, restoring: Bool = false) -> Data? {
+        guard let thumbnail = restoring ? validated(data) : make(from: data), thumbnail.count <= remaining else { return nil }
+        remaining -= thumbnail.count
+        return thumbnail
     }
 
     private static func fits(_ source: CGImageSource, limit: Int) -> Bool {

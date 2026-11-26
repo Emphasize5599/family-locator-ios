@@ -31,7 +31,6 @@ struct MainView: View {
     @State private var barHeight: CGFloat = 100
     @State private var folderName = ""
     @State private var sustainedDisconnect = false
-    @State private var connectionNoticeHeight: CGFloat = 0
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
@@ -41,13 +40,21 @@ struct MainView: View {
 
     private var showsConnectionNotice: Bool {
         #if DEBUG
-        if ScreenshotTour.scene == "store-central-park-connecting" { return true }
+        if ScreenshotTour.scene == "store-central-park-connecting" ||
+            (ScreenshotTour.isEnabled && ProcessInfo.processInfo.environment["ZOOD_TOUR_CONNECTION_NOTICE"] == "1") {
+            return true
+        }
         #endif
         return sustainedDisconnect
     }
 
     private var showsTimedShareButton: Bool {
         model.timedShare == nil && selectedFriendID == nil
+    }
+
+    private var hasOpenMapCard: Bool {
+        selectedFriendID.flatMap { model.local.friends[$0] } != nil || model.timedShare != nil
+            || model.friendFolders.contains { $0.id == openFolderID }
     }
 
     private static let screenSpace = "main-screen"
@@ -86,14 +93,16 @@ struct MainView: View {
                         FriendPanel(friendID: id, nicknameDraft: $nicknameDraft,
                                     maxHeight: geometry.size.height * 0.65, onClose: closeFriend)
                             .id(id)
+                            .anchorPreference(key: MapCardBounds.self, value: .bounds) { [$0] }
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                     if model.timedShare != nil {
                         // Running: a status strip instead of the button (Android's "peeking" sheet).
                         TimedSharePeekBar { activeSheet = .timedShare }
+                            .anchorPreference(key: MapCardBounds.self, value: .bounds) { [$0] }
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
-                    if showsTimedShareButton || showsConnectionNotice {
+                    if showsTimedShareButton || (showsConnectionNotice && !hasOpenMapCard) {
                         bottomMapControls
                             .transition(.opacity)
                     }
@@ -110,8 +119,8 @@ struct MainView: View {
                             if let folder = model.friendFolders.first(where: { $0.id == openFolderID }) {
                                 folderPopup(folder, screenWidth: geometry.size.width, availableHeight: geometry.size.height)
                                     .fixedSize(horizontal: false, vertical: true)
-                                    .padding(.bottom, barHeight + Spacing.medium
-                                             + (showsConnectionNotice ? connectionNoticeHeight + Spacing.medium : 0))
+                                    .anchorPreference(key: MapCardBounds.self, value: .bounds) { [$0] }
+                                    .padding(.bottom, barHeight + Spacing.medium)
                                     // Grows out of (and shrinks back into) the folder's tile in the bar.
                                     .transition(.scale(scale: 0.2, anchor: folderAnchor(folder, screenWidth: geometry.size.width))
                                         .combined(with: .opacity))
@@ -122,6 +131,18 @@ struct MainView: View {
                 .animation(.spring(response: 0.35, dampingFraction: 0.85), value: openFolderID)
                 .animation(.spring(response: 0.35, dampingFraction: 0.85), value: selectedFriendID)
                 .animation(.spring(response: 0.35, dampingFraction: 0.85), value: model.timedShare != nil)
+            }
+            .overlayPreferenceValue(MapCardBounds.self) { bounds in
+                if showsConnectionNotice, hasOpenMapCard, !bounds.isEmpty {
+                    GeometryReader { proxy in
+                        let cardTop = bounds.map { proxy[$0].minY }.min() ?? 0
+                        connectionNotice
+                            .padding(.horizontal, Spacing.large)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                            .padding(.bottom, max(0, proxy.size.height - cardTop + Spacing.medium))
+                    }
+                    .allowsHitTesting(false)
+                }
             }
             .coordinateSpace(name: Self.screenSpace)
         }
@@ -223,24 +244,10 @@ struct MainView: View {
     private var bottomMapControls: some View {
         let sideWidth: CGFloat = 48 + Spacing.small
         return ZStack(alignment: .bottom) {
-            if showsConnectionNotice {
-                HStack(spacing: Spacing.small) {
-                    if !dynamicTypeSize.isAccessibilitySize {
-                        Image(systemName: "wifi.exclamationmark").accessibilityHidden(true)
-                    }
-                    Text("Connecting to server…")
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                    if !dynamicTypeSize.isAccessibilitySize {
-                        Image(systemName: "wifi.exclamationmark").hidden().accessibilityHidden(true)
-                    }
-                }
-                .font(.footnote.weight(.medium))
-                .padding(.horizontal, Spacing.medium)
-                .padding(.vertical, Spacing.small)
-                .floatingSurface(in: RoundedRectangle(cornerRadius: 18))
-                .padding(.horizontal, sideWidth)
-                .frame(maxWidth: .infinity)
+            if showsConnectionNotice && !hasOpenMapCard {
+                connectionNotice
+                    .padding(.horizontal, sideWidth)
+                    .frame(maxWidth: .infinity)
             }
             if showsTimedShareButton {
                 circleButton("mappin.and.ellipse", label: "Timed sharing") { activeSheet = .timedShare }
@@ -248,11 +255,24 @@ struct MainView: View {
             }
         }
         .padding(.horizontal, Spacing.large)
-        .background(GeometryReader { geometry in
-            Color.clear
-                .onAppear { connectionNoticeHeight = geometry.size.height }
-                .compatOnChange(of: geometry.size.height) { connectionNoticeHeight = $0 }
-        })
+    }
+
+    private var connectionNotice: some View {
+        HStack(spacing: Spacing.small) {
+            if !dynamicTypeSize.isAccessibilitySize {
+                Image(systemName: "wifi.exclamationmark").accessibilityHidden(true)
+            }
+            Text("Connecting to server…")
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            if !dynamicTypeSize.isAccessibilitySize {
+                Image(systemName: "wifi.exclamationmark").hidden().accessibilityHidden(true)
+            }
+        }
+        .font(.footnote.weight(.medium))
+        .padding(.horizontal, Spacing.medium)
+        .padding(.vertical, Spacing.small)
+        .floatingSurface(in: RoundedRectangle(cornerRadius: 18))
     }
 
     private var controls: some View {
@@ -741,5 +761,13 @@ struct MainView: View {
         } else {
             mapCommand = nil
         }
+    }
+}
+
+private struct MapCardBounds: PreferenceKey {
+    static let defaultValue: [Anchor<CGRect>] = []
+
+    static func reduce(value: inout [Anchor<CGRect>], nextValue: () -> [Anchor<CGRect>]) {
+        value.append(contentsOf: nextValue())
     }
 }

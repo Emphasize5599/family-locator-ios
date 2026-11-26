@@ -131,6 +131,9 @@ nonisolated struct Snapshot: Codable, Sendable {
         var linkedContactName: String?
         var linkedContactId: String?
         var linkedContactPlatform: String?
+        var linkedContactPhoto: Data? = nil
+        var useLinkedContactPhoto: Bool? = nil
+        var avatarOverride: Data? = nil
         var establishedWithoutLocation: Bool?
     }
     struct User: Codable, Sendable {

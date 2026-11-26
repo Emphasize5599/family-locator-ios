@@ -512,7 +512,7 @@ final class AppModel: ObservableObject {
     private func startSession() {
         guard let credentials else { return }
         if !UserDefaults.standard.bool(forKey: Self.thumbnailBackupKey(for: credentials.userID)),
-           local.friends.values.contains(where: { $0.avatar != nil }) {
+           local.friends.values.contains(where: { $0.avatar != nil || $0.linkedContact?.photo != nil || $0.avatarOverride != nil }) {
             scheduleBackup()
         }
         let socket = OscarSocket(api: OscarAPI(accessToken: credentials.accessToken)) { [weak self] event in
@@ -1656,7 +1656,13 @@ final class AppModel: ObservableObject {
         var links = ContactLinkStore.load(for: account)
         var changed = false
         for id in local.friends.keys {
-            if let mine = links[id] {
+            if var mine = links[id] {
+                if mine.photo == nil, let restored = local.friends[id]?.linkedContact,
+                   mine.identifier == restored.identifier, mine.name == restored.name, let photo = restored.photo {
+                    mine.photo = photo
+                    links[id] = mine
+                    changed = true
+                }
                 local.friends[id]?.linkedContact = mine
             } else if let restored = local.friends[id]?.linkedContact {
                 links[id] = restored
@@ -1716,12 +1722,13 @@ final class AppModel: ObservableObject {
         links[id] = restored
         ContactLinkStore.save(links, for: account)
         updateFriend(id) { $0.linkedContact = restored }
+        scheduleBackup()
         return true
     }
 
     /// Links a friend to one of the user's contacts (or unlinks). The friend takes the contact's name, and the link is
     /// kept on this iPhone and in the encrypted backup, never sent to the friend.
-    func setLinkedContact(_ contact: LinkedContact?, for id: Data) {
+    func setLinkedContact(_ contact: LinkedContact?, usePhoto: Bool = true, for id: Data) {
         guard let account = credentials?.userID, local.friends[id] != nil else { return }
         // Saved on this iPhone and, like nicknames, in the end-to-end encrypted backup. It's never sent to
         // the friend or readable by the server.
@@ -1732,14 +1739,31 @@ final class AppModel: ObservableObject {
         }
         updateFriend(id) { friend in
             let previous = friend.linkedContact
-            friend.linkedContact = contact
             if let contact {
-                // Linking a contact names the friend after them (first and last name).
+                if usePhoto {
+                    friend.avatarOverride = nil
+                } else if friend.avatarOverride == nil, friend.useLinkedContactPhoto != false {
+                    // Keep the displayed picture even when it came from the previously linked contact.
+                    friend.avatarOverride = previous?.photo
+                }
+                friend.useLinkedContactPhoto = usePhoto
                 friend.nickname = Nickname.normalized(contact.name)
-            } else if let previous, friend.nickname == Nickname.normalized(previous.name) {
-                // Unlinking undoes that, unless the nickname was changed since.
-                friend.nickname = nil
+            } else {
+                friend.useLinkedContactPhoto = nil
+                if let previous, friend.nickname == Nickname.normalized(previous.name) {
+                    friend.nickname = nil
+                }
             }
+            friend.linkedContact = contact
+        }
+        scheduleBackup()
+    }
+
+    /// A private photo choice; the friend's own shared avatar is retained as a fallback.
+    func setFriendPhoto(_ photo: Data? = nil, useContact: Bool = false, for id: Data) {
+        updateFriend(id) {
+            $0.avatarOverride = photo
+            $0.useLinkedContactPhoto = useContact
         }
         scheduleBackup()
     }
@@ -1838,19 +1862,19 @@ final class AppModel: ObservableObject {
         snapshot.preferences = accountPreferences
         snapshot.activeDevice = DeviceSession.record(for: credentials.userID, remote: remote?.activeDevice)
         snapshot.users = local.users.values.map { .init(userId: $0.userID, publicKey: $0.publicKey, username: $0.username) }
-        var thumbnailBytes = BackupAvatar.totalBytes
+        var sharedPhotoBytes = BackupAvatar.totalBytes
+        var privatePhotoBytes = BackupAvatar.totalBytes
         snapshot.friends = local.friends.values.sorted { $0.user.username < $1.user.username }.map {
-            var thumbnail = BackupAvatar.make(from: $0.avatar)
-            if let bytes = thumbnail?.count {
-                if bytes <= thumbnailBytes { thumbnailBytes -= bytes }
-                else { thumbnail = nil }
-            }
+            let override = BackupAvatar.take($0.avatarOverride, from: &privatePhotoBytes)
             return .init(userId: $0.user.userID, sendingBoxId: $0.sendingBoxID, receivingBoxId: $0.receivingBoxID,
                   nickname: $0.nickname, sharedNickname: $0.sharedNickname,
-                  avatarThumbnail: thumbnail,
+                  avatarThumbnail: BackupAvatar.take($0.avatar, from: &sharedPhotoBytes),
                   linkedContactName: $0.linkedContact?.name,
                   linkedContactId: $0.linkedContact?.identifier,
                   linkedContactPlatform: $0.linkedContact == nil ? nil : "ios",
+                  linkedContactPhoto: BackupAvatar.take($0.linkedContact?.photo, from: &privatePhotoBytes),
+                  useLinkedContactPhoto: $0.useLinkedContactPhoto,
+                  avatarOverride: override,
                   establishedWithoutLocation: $0.acceptsLocationWithoutNewRequest)
         }
         // Blocks, folders and the bar's order ride along in the same end-to-end encrypted backup, so they come
@@ -1873,30 +1897,29 @@ final class AppModel: ObservableObject {
     }
 
     private static func thumbnailBackupKey(for account: Data) -> String {
-        "avatarThumbnailBackup." + account.base64EncodedString()
+        "avatarThumbnailBackup.v2." + account.base64EncodedString()
     }
 
-    /// Turns a downloaded backup into local data. Linked contacts from Android keep only the name, since an Android
-    /// contact ID means nothing on iPhone.
+    /// Restores pictures and contact names independently of platform-specific Contacts identifiers.
     private static func localData(from snapshot: Snapshot) -> LocalData {
         var data = LocalData()
         for u in snapshot.users {
             data.users[u.userId] = ZoodUser(userID: u.userId, username: u.username, publicKey: u.publicKey)
         }
-        var thumbnailBytes = BackupAvatar.totalBytes
+        var sharedPhotoBytes = BackupAvatar.totalBytes
+        var privatePhotoBytes = BackupAvatar.totalBytes
         for f in snapshot.friends {
             guard let user = data.users[f.userId] else { continue }
             var friend = Friend(user: user, sendingBoxID: f.sendingBoxId, receivingBoxID: f.receivingBoxId,
                                 nickname: Nickname.normalized(f.nickname), sharedNickname: Nickname.normalized(f.sharedNickname),
                                 establishedWithoutLocation: f.establishedWithoutLocation)
-            if let thumbnail = BackupAvatar.validated(f.avatarThumbnail), thumbnail.count <= thumbnailBytes {
-                friend.avatar = thumbnail
-                thumbnailBytes -= thumbnail.count
-            }
+            friend.avatar = BackupAvatar.take(f.avatarThumbnail, from: &sharedPhotoBytes, restoring: true)
+            friend.avatarOverride = BackupAvatar.take(f.avatarOverride, from: &privatePhotoBytes, restoring: true)
+            friend.useLinkedContactPhoto = f.useLinkedContactPhoto
             if let name = f.linkedContactName, !name.isEmpty {
                 // An Android lookup URI means nothing to iOS Contacts, so keep only the name from there.
                 friend.linkedContact = LinkedContact(identifier: f.linkedContactPlatform == "ios" ? (f.linkedContactId ?? "") : "",
-                                                     name: name)
+                                                     name: name, photo: BackupAvatar.take(f.linkedContactPhoto, from: &privatePhotoBytes, restoring: true))
             }
             data.friends[f.userId] = friend
         }

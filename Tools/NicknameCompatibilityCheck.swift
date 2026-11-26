@@ -70,20 +70,29 @@ struct NicknameCompatibilityCheck {
         // Gson (LOWER_CASE_WITH_UNDERSCORES) reads, and older clients simply ignore.
         var extended = Snapshot()
         extended.users = snapshot.users
+        let contactPhoto = Data([10, 11, 12])
+        let privatePhoto = Data([13, 14, 15])
         extended.friends = [.init(userId: user.id, linkedContactName: "Alex Rivera",
-                                  linkedContactId: "ABC-123", linkedContactPlatform: "ios")]
+                                  linkedContactId: "ABC-123", linkedContactPlatform: "ios",
+                                  linkedContactPhoto: contactPhoto, useLinkedContactPhoto: false,
+                                  avatarOverride: privatePhoto)]
         extended.blocked = [.init(userId: Data(repeating: 9, count: 16), publicKey: Data(repeating: 8, count: 32), username: "blockeddemo")]
         let extendedJSON = try encoder.encode(extended)
         let text = String(decoding: extendedJSON, as: UTF8.self)
         guard text.contains("\"blocked\""), text.contains("linked_contact_name"),
-              text.contains("linked_contact_id"), text.contains("linked_contact_platform") else {
+              text.contains("linked_contact_id"), text.contains("linked_contact_platform"),
+              text.contains("linked_contact_photo"), text.contains("avatar_override"),
+              text.contains("use_linked_contact_photo") else {
             fatalError("New backup keys aren't the snake_case names Android expects")
         }
         let back = try decoder.decode(Snapshot.self, from: extendedJSON)
         guard back.blocked?.first?.username == "blockeddemo",
               back.friends.first?.linkedContactName == "Alex Rivera",
               back.friends.first?.linkedContactId == "ABC-123",
-              back.friends.first?.linkedContactPlatform == "ios" else {
+              back.friends.first?.linkedContactPlatform == "ios",
+              back.friends.first?.linkedContactPhoto == contactPhoto,
+              back.friends.first?.useLinkedContactPhoto == false,
+              back.friends.first?.avatarOverride == privatePhoto else {
             fatalError("Blocked users or linked contacts lost in the backup round trip")
         }
         // A backup written by Android: the name restores, its lookup URI is for Android only.
@@ -93,9 +102,18 @@ struct NicknameCompatibilityCheck {
                          "linked_contact_id":"content://com.android.contacts/1","linked_contact_platform":"android"}]}
             """.utf8))
         guard fromAndroid.friends.first?.linkedContactName == "Mom",
-              fromAndroid.friends.first?.linkedContactPlatform == "android" else {
+              fromAndroid.friends.first?.linkedContactPlatform == "android",
+              fromAndroid.friends.first?.useLinkedContactPhoto == nil else {
             fatalError("Android-written linked contact not readable")
         }
+        let sharedPhoto = Data([16, 17, 18])
+        friend.avatar = sharedPhoto
+        friend.linkedContact = LinkedContact(identifier: "ABC-123", name: "Alex Rivera", photo: contactPhoto)
+        guard friend.displayAvatar == contactPhoto else { fatalError("Legacy contact photo stopped displaying") }
+        friend.useLinkedContactPhoto = back.friends.first?.useLinkedContactPhoto
+        guard friend.displayAvatar == sharedPhoto else { fatalError("Keep Current Photo was ignored") }
+        friend.avatarOverride = back.friends.first?.avatarOverride
+        guard friend.displayAvatar == privatePhoto else { fatalError("Private photo did not override the shared photo") }
         // Folders and the bar's order.
         var arranged = Snapshot()
         let folderID = UUID()
