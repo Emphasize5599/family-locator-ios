@@ -109,6 +109,14 @@ nonisolated struct OscarErrorBody: Decodable, Sendable {
 }
 
 /// Encrypted backup of the user's social graph. Field-for-field compatible with george's `Snapshot`.
+nonisolated struct AccountPreferences: Codable, Equatable, Sendable {
+    var shareWithNewFriends: Bool?
+    var liveRequestsEnabled: Bool?
+    var folderColumns: Int?
+    var folderRows: Int?
+    var completedOnboarding: Bool?
+}
+
 nonisolated struct Snapshot: Codable, Sendable {
     struct Friend: Codable, Sendable {
         var userId: Data
@@ -153,6 +161,7 @@ nonisolated struct Snapshot: Codable, Sendable {
     var activeDevice: ActiveDevice?
     /// One-time invite links this account has issued (`usedBy` set once someone redeems one).
     var invites: [InviteRecord]?
+    var preferences: AccountPreferences?
     var avatar: Data?
     var nickname: String?
     /// The backup format stays at version 1 for stock Zood and older Amidst clients.

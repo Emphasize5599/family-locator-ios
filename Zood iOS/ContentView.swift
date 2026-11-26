@@ -5,7 +5,6 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.scenePhase) private var scenePhase
-    @AppStorage("completedWelcomeTour") private var completedWelcomeTour = false
 
     var body: some View {
         Group {
@@ -32,8 +31,8 @@ struct ContentView: View {
         case .signedOut:
             OnboardingView()
         case .signedIn:
-            if completedWelcomeTour { MainView() }
-            else { WelcomeTourView { completedWelcomeTour = true } }
+            if model.accountPreferences.completedOnboarding == true { MainView() }
+            else { WelcomeTourView { model.accountPreferences.completedOnboarding = true } }
         }
     }
 }

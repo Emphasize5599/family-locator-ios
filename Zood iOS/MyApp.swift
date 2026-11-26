@@ -6,6 +6,7 @@ let maxTextSize = DynamicTypeSize.accessibility1
 
 /// App entry point. Creates the single shared `AppModel` (all account state and syncing) and hands it to every screen.
 @main struct MyApp: App {
+    @AppStorage("amidstAppearance") private var appearance: AmidstAppearance = .system
     @UIApplicationDelegateAdaptor(RefreshDelegate.self) private var delegate
 
     var body: some Scene {
@@ -13,6 +14,7 @@ let maxTextSize = DynamicTypeSize.accessibility1
             ContentView()
                 .environmentObject(delegate.model)
                 .tint(.zoodBlue)
+                .preferredColorScheme(appearance.colorScheme)
                 // Text grows with the person's setting up to the first accessibility size. The largest
                 // accessibility sizes pushed the map's floating cards and buttons on top of each other, and
                 // App Review doesn't require supporting every size; Larger Text up to here still applies.

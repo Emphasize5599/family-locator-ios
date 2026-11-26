@@ -199,7 +199,7 @@ private struct InviteModeView: View {
     var body: some View {
         ContentFittedSheet(title: "Invite a Friend", showsCloseButton: true) {
             let sharesLocation = model.sharesWithNewFriends
-            modeCard("One-Time Link", icon: "link", description: sharesLocation
+            modeCard(sharesLocation ? "One-Time Link & Share Location" : "One-Time Link", icon: "link", description: sharesLocation
                 ? "The person who uses this link can see your location after connecting, while Share with New Friends is on."
                 : "The person who uses this link can connect with you. You can share your location afterward.") {
                 do {

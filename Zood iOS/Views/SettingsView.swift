@@ -6,8 +6,8 @@ struct SettingsView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
-    @AppStorage(FolderGrid.columnsKey) private var folderColumns = FolderGrid.defaultColumns
-    @AppStorage(FolderGrid.rowsKey) private var folderRows = FolderGrid.defaultRows
+    private var folderColumns: Int { model.accountPreferences.folderColumns ?? FolderGrid.defaultColumns }
+    private var folderRows: Int { model.accountPreferences.folderRows ?? FolderGrid.defaultRows }
 
     var body: some View {
         CompatNavigationStack {
@@ -35,17 +35,14 @@ struct SettingsView: View {
 
                 Section {
                     DefaultSharingToggle()
+                    Toggle("Live Requests", isOn: $model.liveRequestsEnabled).tint(.zoodBlue)
                 } header: {
                     Text("Location Sharing")
                 } footer: {
-                    Text(DefaultSharingToggle.explanation)
+                    Text(DefaultSharingToggle.explanation + " " + DefaultSharingToggle.liveExplanation)
                 }
 
                 Section {
-                    Toggle(isOn: $model.liveRequestsEnabled) {
-                        Label("Live Requests", systemImage: "antenna.radiowaves.left.and.right")
-                    }
-                    .tint(.zoodBlue)
                     if !model.deviceSupportsLiveRequests {
                         Label("Live Requests needs iOS 17 or later. Your location still updates as you move.", systemImage: "info.circle")
                             .font(.footnote)
@@ -59,10 +56,12 @@ struct SettingsView: View {
                         }
                     }
                 } header: {
-                    Text("Location Requests")
+                    Text("Live Requests Availability")
                 } footer: {
                     Text("Keeps a low-power connection open in the background so family can tap Refresh to get your current location. Uses a bit more battery. Don't swipe the app closed, or requests will stop until you open it again.")
                 }
+
+                Section("Appearance") { AppearancePicker() }
 
                 Section("Background App Refresh") {
                     BackgroundRefreshView(showsStatus: true)
@@ -82,10 +81,10 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    Stepper(value: $folderColumns, in: FolderGrid.columnRange) {
+                    Stepper(value: Binding(get: { folderColumns }, set: { model.accountPreferences.folderColumns = $0 }), in: FolderGrid.columnRange) {
                         LabeledContentCompat("Folder Columns", value: "\(folderColumns)")
                     }
-                    Stepper(value: $folderRows, in: FolderGrid.rowRange) {
+                    Stepper(value: Binding(get: { folderRows }, set: { model.accountPreferences.folderRows = $0 }), in: FolderGrid.rowRange) {
                         LabeledContentCompat("Folder Rows", value: "\(folderRows)")
                     }
                 } header: {

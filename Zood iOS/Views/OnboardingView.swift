@@ -1,4 +1,5 @@
 import SwiftUI
+import MapKit
 
 /// Sign in to an existing Zood account (shared with Android) or create a new one.
 struct OnboardingView: View {
@@ -193,7 +194,8 @@ struct WelcomeTourView: View {
         ("person.crop.circle.badge.plus", "Add Friends", "Find people by username or share an invite with people you trust."),
         ("location.fill", "Share Location", "See where friends are when they choose to share. You can change your own sharing for each friend."),
         ("lock.shield", "Private by Design", "Your shared locations are end-to-end encrypted. Only the people you share with can read them."),
-        ("location.circle", "Location Access", "Allow location access to share with friends you choose. Background access lets updates continue when Amidst isn’t open.")
+        ("circle.lefthalf.filled", "Appearance", "Choose how the map and controls look on this iPhone."),
+        ("location.circle", "Location Setup", "Choose how to share with new friends and respond to requests. You can change both settings later.")
     ]
 
     var body: some View {
@@ -210,8 +212,17 @@ struct WelcomeTourView: View {
                                     }
                                     Section {
                                         DefaultSharingToggle()
+                                        Toggle("Live Requests", isOn: $model.liveRequestsEnabled).tint(.zoodBlue)
                                     } footer: {
-                                        Text(DefaultSharingToggle.explanation)
+                                        Text(DefaultSharingToggle.explanation + " " + DefaultSharingToggle.liveExplanation)
+                                    }
+                                }
+                            } else if index == slides.count - 2 {
+                                Form {
+                                    Section {
+                                        slideIntro(index).listRowBackground(Color.clear)
+                                        CentralParkAppearancePreview().listRowInsets(EdgeInsets())
+                                        AppearancePicker()
                                     }
                                 }
                             } else {
@@ -233,7 +244,7 @@ struct WelcomeTourView: View {
                         .buttonStyle(.borderedProminent)
                     } else {
                         if model.location.authorization == .notDetermined {
-                            Button("Set Up Location") {
+                            Button("Continue with Location") {
                                 model.location.requestPermission()
                                 onFinish()
                             }
@@ -280,12 +291,69 @@ struct WelcomeTourView: View {
 struct DefaultSharingToggle: View {
     @EnvironmentObject private var model: AppModel
 
-    static let explanation = "Share when you approve a request or someone uses a one-time link you create while this is on. Change sharing for any friend on their card."
+    static let explanation = "Share when you choose Approve & Share or someone uses a one-time link you create with sharing on. You can turn off sharing on any friend’s card."
+    static let liveExplanation = "Live Requests lets friends you already share with ask your phone for a fresh location. Location and background permissions are managed on this phone."
 
     var body: some View {
         Toggle(isOn: Binding(get: { model.sharesWithNewFriends }, set: { model.sharesWithNewFriends = $0 })) {
             Text("Share with New Friends")
         }
         .tint(.zoodGreen)
+    }
+}
+
+
+enum AmidstAppearance: String, CaseIterable {
+    case system, light, dark
+
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .system: return nil
+        case .light: return .light
+        case .dark: return .dark
+        }
+    }
+}
+
+struct AppearancePicker: View {
+    @AppStorage("amidstAppearance") private var appearance: AmidstAppearance = .system
+
+    var body: some View {
+        Picker("Appearance", selection: $appearance) {
+            Text("System").tag(AmidstAppearance.system)
+            Text("Light").tag(AmidstAppearance.light)
+            Text("Dark").tag(AmidstAppearance.dark)
+        }
+        .pickerStyle(.segmented)
+    }
+}
+
+private struct CentralParkAppearancePreview: View {
+    @State private var region = MKCoordinateRegion(
+        center: CLLocationCoordinate2D(latitude: 40.778, longitude: -73.969),
+        latitudinalMeters: 2_500, longitudinalMeters: 2_500
+    )
+
+    var body: some View {
+        Map(coordinateRegion: $region, interactionModes: [])
+            .frame(height: 174)
+            .overlay(alignment: .topTrailing) {
+                VStack(spacing: Spacing.small) {
+                    previewButton("gearshape.fill")
+                    previewButton("location.fill")
+                }
+                .padding(Spacing.medium)
+            }
+            .allowsHitTesting(false)
+            .accessibilityLabel("Central Park map appearance preview")
+    }
+
+    private func previewButton(_ symbol: String) -> some View {
+        Image(systemName: symbol)
+            .font(.headline)
+            .foregroundStyle(Color.floatingAccent)
+            .frame(width: 42, height: 42)
+            .floatingSurface(in: Circle())
+            .accessibilityHidden(true)
     }
 }

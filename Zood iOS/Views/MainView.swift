@@ -21,8 +21,8 @@ struct MainView: View {
     @State private var folderTarget: BarItemID?
     /// The folder open above the bar.
     @State private var openFolderID: UUID?
-    @AppStorage(FolderGrid.columnsKey) private var folderColumns = FolderGrid.defaultColumns
-    @AppStorage(FolderGrid.rowsKey) private var folderRows = FolderGrid.defaultRows
+    private var folderColumns: Int { model.accountPreferences.folderColumns ?? FolderGrid.defaultColumns }
+    private var folderRows: Int { model.accountPreferences.folderRows ?? FolderGrid.defaultRows }
     @State private var renamingFolderID: UUID?
     @State private var confirmingUngroup: FriendFolder?
     /// Where the open folder's tile sits horizontally on screen, so its card can open centered above it.

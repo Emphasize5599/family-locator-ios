@@ -85,33 +85,58 @@ final class AppModel: ObservableObject {
     let location = LocationService()
     private var restoringContactPhotos = false
 
-    private var shareByDefaultKey: String? {
-        credentials.map { "shareWithNewFriends." + $0.userID.base64EncodedString() }
+    @Published var accountPreferences = AccountPreferences() {
+        didSet {
+            guard accountPreferences != oldValue, let account = credentials?.userID,
+                  !ScreenshotTour.isEnabled else { return }
+            if let data = try? JSONEncoder().encode(accountPreferences) {
+                UserDefaults.standard.set(data, forKey: Self.preferencesKey(account))
+            }
+            if oldValue.liveRequestsEnabled != accountPreferences.liveRequestsEnabled {
+                applyLiveMode()
+                if phase == .signedIn { Task { await shareCurrentLocation() } }
+            }
+            if phase == .signedIn { scheduleBackup() }
+        }
     }
 
     var sharesWithNewFriends: Bool {
-        get { shareByDefaultKey.map { UserDefaults.standard.bool(forKey: $0) } ?? false }
-        set {
-            guard let key = shareByDefaultKey, !ScreenshotTour.isEnabled else { return }
-            objectWillChange.send()
-            UserDefaults.standard.set(newValue, forKey: key)
-        }
+        get { accountPreferences.shareWithNewFriends ?? true }
+        set { accountPreferences.shareWithNewFriends = newValue }
     }
 
-    /// User setting: keep a live connection so family can ping this phone.
-    @Published var liveRequestsEnabled: Bool {
-        didSet {
-            UserDefaults.standard.set(liveRequestsEnabled, forKey: Self.liveKey)
-            applyLiveMode()
-            Task { await shareCurrentLocation() }
-        }
+    var liveRequestsEnabled: Bool {
+        get { accountPreferences.liveRequestsEnabled ?? true }
+        set { accountPreferences.liveRequestsEnabled = newValue }
+    }
+
+    private static func preferencesKey(_ account: Data) -> String {
+        "accountPreferences." + account.base64EncodedString()
+    }
+
+    private func loadPreferences(for account: Data, from backup: AccountPreferences? = nil) {
+        let defaults = UserDefaults.standard
+        let id = account.base64EncodedString()
+        let saved = defaults.data(forKey: Self.preferencesKey(account))
+            .flatMap { try? JSONDecoder().decode(AccountPreferences.self, from: $0) }
+        var preferences = backup ?? saved ?? AccountPreferences()
+        preferences.shareWithNewFriends = preferences.shareWithNewFriends ?? saved?.shareWithNewFriends
+            ?? defaults.object(forKey: "shareWithNewFriends." + id) as? Bool ?? true
+        preferences.liveRequestsEnabled = preferences.liveRequestsEnabled ?? saved?.liveRequestsEnabled
+            ?? defaults.object(forKey: "liveRequestsEnabled") as? Bool ?? true
+        preferences.folderColumns = preferences.folderColumns ?? saved?.folderColumns
+            ?? defaults.object(forKey: FolderGrid.columnsKey) as? Int ?? FolderGrid.defaultColumns
+        preferences.folderRows = preferences.folderRows ?? saved?.folderRows
+            ?? defaults.object(forKey: FolderGrid.rowsKey) as? Int ?? FolderGrid.defaultRows
+        preferences.completedOnboarding = preferences.completedOnboarding ?? saved?.completedOnboarding
+            ?? defaults.object(forKey: "completedWelcomeTour") as? Bool ?? false
+        accountPreferences = preferences
     }
 
     private var socket: OscarSocket?
     private var processedMessageIDs: Set<Int64> = []
     private var backupTask: Task<Void, Never>?
     private var isForeground = true
-    private static let liveKey = "liveRequestsEnabled"
 
     /// Kept out of the published `local` data: it changes on every upload, and republishing everything for it made
     /// open menus and sheets redraw constantly.
@@ -123,8 +148,6 @@ final class AppModel: ObservableObject {
     /// Restores the signed-in account from the Keychain (or starts signed out) and starts syncing.
     /// Blocked people are filtered out on load so a block can never be undone by stale data on disk.
     init() {
-        UserDefaults.standard.register(defaults: [Self.liveKey: true])
-        liveRequestsEnabled = UserDefaults.standard.bool(forKey: Self.liveKey)
         #if DEBUG
         if ScreenshotTour.isEnabled {
             phase = .signedIn
@@ -144,6 +167,7 @@ final class AppModel: ObservableObject {
             local = LocalDataStore.load()
             safety = SafetyStore.load(for: saved.userID)
             phase = .signedIn
+            loadPreferences(for: saved.userID)
             local.friends = local.friends.filter { safety.blocked[$0.key] == nil }
         } else {
             phase = .signedOut
@@ -366,6 +390,7 @@ final class AppModel: ObservableObject {
         var restoredFolders: [FriendFolder] = []
         var restoredOrder: [BarItemID] = []
         var restoredInvites: [InviteRecord] = []
+        var restoredPreferences: AccountPreferences?
         let authed = OscarAPI(accessToken: login.accessToken)
         do {
             let encrypted = try await authed.backup()
@@ -373,6 +398,7 @@ final class AppModel: ObservableObject {
             let snapshot = try ZoodJSON.decoder.decode(Snapshot.self, from: json)
             restored = Self.localData(from: snapshot)
             restoredInvites = snapshot.invites ?? []
+            restoredPreferences = snapshot.preferences
             restoredBlocks = (snapshot.blocked ?? []).map { ZoodUser(userID: $0.userId, username: $0.username, publicKey: $0.publicKey) }
             restoredFolders = (snapshot.folders ?? []).compactMap { folder in
                 UUID(uuidString: folder.id).map { FriendFolder(id: $0, name: folder.name, members: folder.members) }
@@ -384,6 +410,7 @@ final class AppModel: ObservableObject {
 
         try CredentialStore.save(creds)
         credentials = creds
+        loadPreferences(for: creds.userID, from: restoredPreferences)
         safety = SafetyStore.load(for: creds.userID)
         let mergedInvites = InviteLedger.merge(local: safety.invites ?? [], remote: restoredInvites)
         if mergedInvites != (safety.invites ?? []) {
@@ -434,7 +461,8 @@ final class AppModel: ObservableObject {
     func deleteAccount() async throws {
         try await api.deleteAccount()
         if let id = credentials?.userID {
-            if let key = shareByDefaultKey { UserDefaults.standard.removeObject(forKey: key) }
+            UserDefaults.standard.removeObject(forKey: Self.preferencesKey(id))
+            UserDefaults.standard.removeObject(forKey: "shareWithNewFriends." + id.base64EncodedString())
             SafetyStore.delete(for: id)
             ContactLinkStore.delete(for: id)
             FriendFolderStore.delete(for: id)
@@ -463,6 +491,7 @@ final class AppModel: ObservableObject {
         CredentialStore.delete()
         LocalDataStore.delete()
         credentials = nil
+        accountPreferences = AccountPreferences()
         local = LocalData()
         safety = SafetyState()
         safetyError = nil
@@ -1806,6 +1835,7 @@ final class AppModel: ObservableObject {
             return
         }
         var snapshot = Snapshot()
+        snapshot.preferences = accountPreferences
         snapshot.activeDevice = DeviceSession.record(for: credentials.userID, remote: remote?.activeDevice)
         snapshot.users = local.users.values.map { .init(userId: $0.userID, publicKey: $0.publicKey, username: $0.username) }
         var thumbnailBytes = BackupAvatar.totalBytes

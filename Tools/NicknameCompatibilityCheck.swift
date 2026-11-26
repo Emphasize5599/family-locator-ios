@@ -189,6 +189,15 @@ struct NicknameCompatibilityCheck {
               InviteLedger.merge(local: [], remote: restoredSharing) == restoredSharing else {
             fatalError("Sharing permission must be specific to links created with consent")
         }
+        var settingsSnapshot = Snapshot()
+        settingsSnapshot.preferences = AccountPreferences(shareWithNewFriends: false, liveRequestsEnabled: true,
+                                                          folderColumns: 4, folderRows: 5, completedOnboarding: true)
+        let settingsData = try ZoodJSON.encoder.encode(settingsSnapshot)
+        let decodedSettings = try ZoodJSON.decoder.decode(Snapshot.self, from: settingsData)
+        guard decodedSettings.preferences == settingsSnapshot.preferences,
+              String(decoding: settingsData, as: UTF8.self).contains("\"share_with_new_friends\"") else {
+            fatalError("Account preferences must preserve explicit off and use the shared backup field names")
+        }
         var inviteSnapshot = Snapshot()
         inviteSnapshot.invites = [InviteRecord(token: inviteToken, usedBy: inviteSender)]
         let inviteBackup = try ZoodJSON.encoder.encode(inviteSnapshot)
