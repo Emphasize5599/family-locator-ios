@@ -30,12 +30,19 @@ struct MainView: View {
     /// The friend bar's height, so an open folder can float just above it.
     @State private var barHeight: CGFloat = 100
     @State private var folderName = ""
-    @State private var showsConnectionNotice = false
+    @State private var sustainedDisconnect = false
     @State private var connectionNoticeHeight: CGFloat = 0
     @Environment(\.scenePhase) private var scenePhase
 
     private var connectionNoticePending: Bool {
         scenePhase == .active && !model.isConnected && !ScreenshotTour.isEnabled
+    }
+
+    private var showsConnectionNotice: Bool {
+        #if DEBUG
+        if ScreenshotTour.scene == "store-central-park-connecting" { return true }
+        #endif
+        return sustainedDisconnect
     }
 
     private var showsTimedShareButton: Bool {
@@ -119,11 +126,11 @@ struct MainView: View {
         }
         .task(id: connectionNoticePending) {
             guard connectionNoticePending else {
-                showsConnectionNotice = false
+                sustainedDisconnect = false
                 return
             }
             do { try await Task.sleep(nanoseconds: 7_000_000_000) } catch { return }
-            showsConnectionNotice = true
+            sustainedDisconnect = true
         }
         .sheet(item: $activeSheet) { sheet in
             switch sheet {
@@ -214,30 +221,26 @@ struct MainView: View {
 
     private var bottomMapControls: some View {
         let sideWidth: CGFloat = 48 + Spacing.small
-        return HStack(alignment: .bottom, spacing: 0) {
-            Color.clear.frame(width: sideWidth, height: 1).accessibilityHidden(true)
-            Group {
-                if showsConnectionNotice {
-                    HStack(spacing: Spacing.small) {
-                        Image(systemName: "wifi.exclamationmark").accessibilityHidden(true)
-                        Text("Connecting to server…")
-                            .multilineTextAlignment(.center)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Image(systemName: "wifi.exclamationmark").hidden().accessibilityHidden(true)
-                    }
-                    .font(.footnote.weight(.medium))
-                    .padding(.horizontal, Spacing.medium)
-                    .padding(.vertical, Spacing.small)
-                    .floatingSurface(in: RoundedRectangle(cornerRadius: 18))
+        return ZStack(alignment: .bottom) {
+            if showsConnectionNotice {
+                HStack(spacing: Spacing.small) {
+                    Image(systemName: "wifi.exclamationmark").accessibilityHidden(true)
+                    Text("Connecting to server…")
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Image(systemName: "wifi.exclamationmark").hidden().accessibilityHidden(true)
                 }
+                .font(.footnote.weight(.medium))
+                .padding(.horizontal, Spacing.medium)
+                .padding(.vertical, Spacing.small)
+                .floatingSurface(in: RoundedRectangle(cornerRadius: 18))
+                .padding(.horizontal, sideWidth)
+                .frame(maxWidth: .infinity)
             }
-            .frame(maxWidth: .infinity)
-            Group {
-                if showsTimedShareButton {
-                    circleButton("mappin.and.ellipse", label: "Timed sharing") { activeSheet = .timedShare }
-                }
+            if showsTimedShareButton {
+                circleButton("mappin.and.ellipse", label: "Timed sharing") { activeSheet = .timedShare }
+                    .frame(maxWidth: .infinity, alignment: .trailing)
             }
-            .frame(width: sideWidth, alignment: .trailing)
         }
         .padding(.horizontal, Spacing.large)
         .background(GeometryReader { geometry in
