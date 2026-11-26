@@ -33,7 +33,7 @@ struct SettingsView: View {
                     }
                 }
 
-                Section("Location Sharing") {
+                Section {
                     HStack {
                         SettingsHelpLabel(title: "Share with New Friends", detail: DefaultSharingToggle.explanation)
                         Spacer(minLength: 0)
@@ -44,12 +44,14 @@ struct SettingsView: View {
                         Spacer(minLength: 0)
                         Toggle("Live Requests", isOn: $model.liveRequestsEnabled).labelsHidden().tint(.zoodBlue)
                     }
+                } header: {
+                    Text("Location Sharing").settingsHeaderStyle()
                 }
 
                 Section {
                     BackgroundRefreshView(showsStatus: true)
                 } header: {
-                    BackgroundRefreshHelp()
+                    BackgroundRefreshHelp().settingsHeaderStyle()
                 }
 
                 Section {
@@ -66,15 +68,17 @@ struct SettingsView: View {
                 } header: {
                     SettingsHelpLabel(title: "Location Access",
                                       detail: "Choose Always in iPhone Settings to share while Amidst is in the background. You can see friends who share with you even with your own location turned off.")
+                        .settingsHeaderStyle()
                 }
 
                 Section {
                     AppearancePicker()
                 } header: {
                     SettingsHelpLabel(title: "Appearance", detail: "System follows the iPhone’s appearance. Light and Dark apply only to Amidst on this device.")
+                        .settingsHeaderStyle()
                 }
 
-                Section("Friend Bar") {
+                Section {
                     HStack {
                         SettingsHelpLabel(title: "Folder Columns", detail: "Sets how many people appear across an open folder. Long-press a person in the friend bar and drag them onto another to create a folder.")
                         Spacer(minLength: 0)
@@ -91,21 +95,27 @@ struct SettingsView: View {
                             .labelsHidden()
                             .accessibilityValue("\(folderRows)")
                     }
+                } header: {
+                    Text("Friend Bar").settingsHeaderStyle()
                 }
 
-                Section("Privacy & Support") {
+                Section {
                     Link("Contact & Support (Public)", destination: AppInformation.issuesURL)
                     Link("Report a Problem", destination: AppInformation.issuesURL)
                     Link("Privacy Policy", destination: AppInformation.privacyPolicyURL)
+                } header: {
+                    Text("Privacy & Support").settingsHeaderStyle()
                 }
 
                 .id("support")
 
-                Section("About") {
+                Section {
                     // Open-Source Licenses lives inside Notices & Trademarks.
                     NavigationLink("Notices & Trademarks") { NoticesView() }
                     // The Zood relationship and other rights notices are in Notices & Trademarks.
                     Link("Source Code (AGPL-3.0)", destination: AppInformation.sourceURL)
+                } header: {
+                    Text("About").settingsHeaderStyle()
                 }
             }
             .task {
@@ -145,6 +155,17 @@ struct SettingsView: View {
     }
 }
 
+extension View {
+    func settingsHeaderStyle() -> some View {
+        self
+            .textCase(nil)
+            .font(.subheadline.bold())
+            .foregroundStyle(.primary)
+            .accessibilityAddTraits(.isHeader)
+            .listRowInsets(EdgeInsets())
+    }
+}
+
 struct SettingsHelpLabel: View {
     let title: LocalizedStringKey
     let detail: String
@@ -153,22 +174,46 @@ struct SettingsHelpLabel: View {
     var body: some View {
         HStack(spacing: Spacing.tight) {
             Text(title).fixedSize(horizontal: false, vertical: true)
-            Button {
-                showingHelp = true
-            } label: {
-                Image(systemName: "questionmark.circle")
-                    .font(.footnote)
-                    .frame(width: 24, height: 44)
-                    .contentShape(Rectangle())
+            if #available(iOS 16.4, *) {
+                helpButton.popover(isPresented: $showingHelp, arrowEdge: .bottom) {
+                    explanation.presentationCompactAdaptation(.popover)
+                }
+            } else {
+                helpButton.popover(isPresented: $showingHelp) {
+                    explanation
+                }
             }
-            .buttonStyle(.borderless)
-            .accessibilityLabel(Text("About \(Text(title))"))
         }
-        .alert(title, isPresented: $showingHelp) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(detail)
+    }
+
+    private var helpButton: some View {
+        Button {
+            showingHelp.toggle()
+        } label: {
+            Image(systemName: showingHelp ? "questionmark.circle.fill" : "questionmark.circle")
+                .font(.footnote)
+                .foregroundStyle(Color.zoodBlueDark)
+                .padding(8)
+                .contentShape(Rectangle())
+                .padding(-8)
         }
+        .buttonStyle(.borderless)
+        .accessibilityLabel(Text("About \(Text(title))"))
+    }
+
+    private var explanation: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: Spacing.small) {
+                Text(title).font(.headline).accessibilityAddTraits(.isHeader)
+                Text(detail).font(.subheadline)
+            }
+            .textCase(nil)
+            .foregroundStyle(.primary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(Spacing.large)
+        }
+        .frame(idealWidth: 300, idealHeight: 220, maxHeight: 320)
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 
