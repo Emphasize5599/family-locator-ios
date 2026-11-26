@@ -33,35 +33,16 @@ struct SettingsView: View {
                     }
                 }
 
-                Section {
-                    DefaultSharingToggle()
-                    Toggle("Live Requests", isOn: $model.liveRequestsEnabled).tint(.zoodBlue)
-                } header: {
-                    Text("Location Sharing")
-                } footer: {
-                    Text(DefaultSharingToggle.explanation + " " + DefaultSharingToggle.liveExplanation)
-                }
-
-                Section {
-                    if !model.deviceSupportsLiveRequests {
-                        Label("Live Requests needs iOS 17 or later. Your location still updates as you move.", systemImage: "info.circle")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    } else if model.liveRequestsEnabled && !model.location.hasAlwaysPermission {
-                        Button {
-                            openURL(URL(string: UIApplication.openSettingsURLString)!)
-                        } label: {
-                            Label("Allow location access \"Always\" for Live Requests to work", systemImage: "exclamationmark.triangle.fill")
-                                .foregroundStyle(Color.zoodOrange)
-                        }
+                Section("Location Sharing") {
+                    HStack {
+                        DefaultSharingToggle()
+                        SettingsHelpButton(title: "Share with New Friends", detail: DefaultSharingToggle.explanation)
                     }
-                } header: {
-                    Text("Live Requests Availability")
-                } footer: {
-                    Text("Keeps a low-power connection open in the background so family can tap Refresh to get your current location. Uses a bit more battery. Don't swipe the app closed, or requests will stop until you open it again.")
+                    HStack {
+                        Toggle("Live Requests", isOn: $model.liveRequestsEnabled).tint(.zoodBlue)
+                        SettingsHelpButton(title: "Live Requests", detail: liveRequestsHelp)
+                    }
                 }
-
-                Section("Appearance") { AppearancePicker() }
 
                 Section("Background App Refresh") {
                     BackgroundRefreshView(showsStatus: true)
@@ -69,9 +50,9 @@ struct SettingsView: View {
 
                 Section("Location Access") {
                     HStack {
-                        Text("Permission")
-                        Spacer()
-                        Text(permissionDescription).foregroundStyle(.secondary)
+                        LabeledContentCompat("Permission", value: permissionDescription)
+                        SettingsHelpButton(title: "Location Access",
+                                           detail: "Choose Always in iPhone Settings to share while Amidst is in the background. You can see friends who share with you even with your own location turned off.")
                     }
                     if !model.location.hasAlwaysPermission {
                         Button("Open Settings") {
@@ -80,26 +61,30 @@ struct SettingsView: View {
                     }
                 }
 
-                Section {
-                    Stepper(value: Binding(get: { folderColumns }, set: { model.accountPreferences.folderColumns = $0 }), in: FolderGrid.columnRange) {
-                        LabeledContentCompat("Folder Columns", value: "\(folderColumns)")
+                Section("Appearance") {
+                    HStack {
+                        AppearancePicker()
+                        SettingsHelpButton(title: "Appearance", detail: "System follows the iPhone’s appearance. Light and Dark apply only to Amidst on this device.")
                     }
-                    Stepper(value: Binding(get: { folderRows }, set: { model.accountPreferences.folderRows = $0 }), in: FolderGrid.rowRange) {
-                        LabeledContentCompat("Folder Rows", value: "\(folderRows)")
+                }
+
+                Section("Friend Bar") {
+                    HStack {
+                        Stepper(value: Binding(get: { folderColumns }, set: { model.accountPreferences.folderColumns = $0 }), in: FolderGrid.columnRange) {
+                            LabeledContentCompat("Folder Columns", value: "\(folderColumns)")
+                        }
+                        SettingsHelpButton(title: "Folder Columns", detail: "Sets how many people appear across an open folder. Long-press a person in the friend bar and drag them onto another to create a folder.")
                     }
-                } header: {
-                    Text("Friend Bar")
-                } footer: {
-                    Text("Folders open as a \(folderColumns) × \(folderRows) grid; bigger folders scroll. Long-press anyone in the bar to move them, or hold them over someone to make a folder.")
+                    HStack {
+                        Stepper(value: Binding(get: { folderRows }, set: { model.accountPreferences.folderRows = $0 }), in: FolderGrid.rowRange) {
+                            LabeledContentCompat("Folder Rows", value: "\(folderRows)")
+                        }
+                        SettingsHelpButton(title: "Folder Rows", detail: "Sets how many rows are visible in an open folder. Scroll to see additional people.")
+                    }
                 }
 
                 Section("Privacy & Support") {
-                    Link(destination: AppInformation.issuesURL) {
-                        VStack(alignment: .leading, spacing: Spacing.hairline) {
-                            Text("Contact & Support")
-                            Text("GitHub Issues (public)").font(.caption).foregroundStyle(.secondary)
-                        }
-                    }
+                    Link("Contact & Support (Public)", destination: AppInformation.issuesURL)
                     Link("Report a Problem", destination: AppInformation.issuesURL)
                     Link("Privacy Policy", destination: AppInformation.privacyPolicyURL)
                 }
@@ -110,7 +95,7 @@ struct SettingsView: View {
                     // Open-Source Licenses lives inside Notices & Trademarks.
                     NavigationLink("Notices & Trademarks") { NoticesView() }
                     // The Zood relationship and other rights notices are in Notices & Trademarks.
-                    Link("Source Code (AGPL-3.0)", destination: URL(string: "https://github.com/Emphasize5599/family-locator-ios")!)
+                    Link("Source Code (AGPL-3.0)", destination: AppInformation.sourceURL)
                 }
             }
             .task {
@@ -133,6 +118,13 @@ struct SettingsView: View {
         .compatFullHeightSheet()
     }
 
+    private var liveRequestsHelp: String {
+        if !model.deviceSupportsLiveRequests {
+            return String(localized: "Live Requests requires iOS 17 or later. Your location can still update as you move.")
+        }
+        return DefaultSharingToggle.liveExplanation + " " + String(localized: "Allow Always location access and leave Amidst running to receive requests in the background.")
+    }
+
     private var permissionDescription: String {
         switch model.location.authorization {
         case .authorizedAlways: return String(localized: "Always")
@@ -143,12 +135,36 @@ struct SettingsView: View {
     }
 }
 
+struct SettingsHelpButton: View {
+    let title: LocalizedStringKey
+    let detail: String
+    @State private var showingHelp = false
+
+    var body: some View {
+        Button {
+            showingHelp = true
+        } label: {
+            Image(systemName: "questionmark.circle")
+                .frame(minWidth: 44, minHeight: 44)
+        }
+        .buttonStyle(.borderless)
+        .accessibilityLabel(Text(title))
+        .accessibilityHint("Shows information about this setting")
+        .alert(title, isPresented: $showingHelp) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(detail)
+        }
+    }
+}
+
 /// Account submenu: change photo, nickname, blocked users, log out and account deletion, entered from the profile tile in Settings.
 struct AccountView: View {
     @EnvironmentObject private var model: AppModel
     /// Closes Settings after logging out.
     let onLogOut: () -> Void
     @State private var confirmingLogOut = false
+    @State private var showingDeleteAccount = false
     @State private var showingPhotoPicker = false
     /// A picked photo waiting for the picker to close before its Move and Scale screen opens.
     @State private var pickedPhoto: UIImage?
@@ -189,11 +205,9 @@ struct AccountView: View {
                         }
                         .buttonStyle(.borderless)
                     }
-                    Button(action: beginNicknameEdit) {
-                        Image(systemName: "pencil").frame(width: 44, height: 44)
-                    }
-                    .buttonStyle(.borderless)
-                    .accessibilityLabel("Edit Nickname")
+                    PanelIconButton(systemName: "pencil.circle", tint: UIColor(Color.zoodBlueDark),
+                                    accessibilityLabel: String(localized: "Edit Nickname"), action: beginNicknameEdit)
+                        .frame(width: 44, height: 44)
                 }
                 if nicknameDraft != nil {
                     InlineNameActions(onSave: saveNickname, onCancel: { nicknameDraft = nil })
@@ -207,12 +221,27 @@ struct AccountView: View {
             Section {
                 Button { confirmingLogOut = true } label: {
                     Label("Log Out", systemImage: "rectangle.portrait.and.arrow.right")
+                        .frame(maxWidth: .infinity, minHeight: 32)
                 }
-                NavigationLink {
-                    DeleteAccountView().environmentObject(model)
-                } label: {
-                    Label("Delete Account", systemImage: "trash").foregroundStyle(Color.zoodRed)
+                .buttonStyle(.borderedProminent)
+                .tint(.zoodBlue)
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+
+                Button { showingDeleteAccount = true } label: {
+                    Label("Delete Account", systemImage: "trash")
+                        .frame(maxWidth: .infinity, minHeight: 32)
                 }
+                .buttonStyle(.borderedProminent)
+                .tint(.zoodRed)
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+                .background(
+                    NavigationLink(isActive: $showingDeleteAccount) {
+                        DeleteAccountView().environmentObject(model)
+                    } label: { EmptyView() }
+                    .hidden()
+                )
             }
         }
         .onAppear {
@@ -236,7 +265,7 @@ struct AccountView: View {
         }
         .navigationTitle(model.local.myNickname ?? model.credentials.map { "@\($0.username)" } ?? String(localized: "Account"))
         .navigationBarTitleDisplayMode(.inline)
-        .confirmationDialog("Log out?", isPresented: $confirmingLogOut, titleVisibility: .visible) {
+        .alert("Log out?", isPresented: $confirmingLogOut) {
             Button("Cancel", role: .cancel) {}
             Button("Log Out", role: .destructive) {
                 model.logOut()

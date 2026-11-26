@@ -144,8 +144,11 @@ struct AddFriendView: View {
         .tint(pending == nil ? Color.zoodBlue : Color.zoodGreen)
         .disabled(!canContinue)
         Button { choosingInvite = true } label: {
-            Label("Invite Someone", systemImage: "square.and.arrow.up").frame(minHeight: 44)
+            Label("Invite Someone", systemImage: "square.and.arrow.up")
+                .frame(maxWidth: .infinity, minHeight: 44)
         }
+        .buttonStyle(.borderedProminent)
+        .tint(.zoodBlue)
     }
 
     private var canContinue: Bool {

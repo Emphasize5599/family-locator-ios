@@ -5,13 +5,13 @@ import MapKit
 struct OnboardingView: View {
     @EnvironmentObject private var model: AppModel
 
-    private enum Mode: String, CaseIterable, Identifiable {
+    enum Mode: String, CaseIterable, Identifiable {
         case signIn = "Sign In"
         case signUp = "Create Account"
         var id: Self { self }
     }
 
-    @State private var mode: Mode = .signIn
+    @State private var mode: Mode
     @State private var username = ""
     @State private var nickname = ""
     @State private var password = ""
@@ -20,17 +20,14 @@ struct OnboardingView: View {
     @State private var isWorking = false
     @State private var errorMessage: String?
     @State private var usernameLookup: UsernameLookup?
+    private let onBack: () -> Void
 
-    var body: some View {
-        content
-            .alert("Signed Out", isPresented: $model.signedOutElsewhere) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text("Your account was signed in on another device, so it was signed out here. Your friends and settings are in your account backup.")
-            }
+    init(mode: Mode, onBack: @escaping () -> Void) {
+        _mode = State(initialValue: mode)
+        self.onBack = onBack
     }
 
-    private var content: some View {
+    var body: some View {
         CompatNavigationStack {
             Form {
                 Section {
@@ -125,7 +122,9 @@ struct OnboardingView: View {
                             Spacer()
                         }
                     }
+                    .buttonStyle(.borderedProminent)
                     .tint(mode == .signUp ? .zoodGreen : .zoodBlue)
+                    .listRowBackground(Color.clear)
                     .disabled(!canSubmit)
                 }
                 Section {
@@ -141,6 +140,14 @@ struct OnboardingView: View {
                 await UsernameLookup.check(entered, registration: true, model: model) { usernameLookup = $0 }
             }
             .disabled(isWorking)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(action: onBack) {
+                        Label("Back", systemImage: "chevron.left")
+                            .labelStyle(.iconOnly)
+                    }
+                }
+            }
             .compatOnChange(of: mode) { _ in errorMessage = nil }
             // An error like "That username is already taken" is about what was submitted; drop it once the person
             // starts fixing it (but not while a request is in flight).
@@ -183,102 +190,160 @@ struct OnboardingView: View {
     }
 }
 
-/// A brief, skippable tour after sign-in. Location access is optional.
+/// Introduces Amidst and previews device appearance before asking for an account.
 struct WelcomeTourView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selection = 0
-    let onFinish: () -> Void
-
-    private let slides = [
-        ("person.crop.circle.badge.plus", "Add Friends", "Find people by username or share an invite with people you trust."),
-        ("location.fill", "Share Location", "See where friends are when they choose to share. You can change your own sharing for each friend."),
-        ("lock.shield", "Private by Design", "Your shared locations are end-to-end encrypted. Only the people you share with can read them."),
-        ("circle.lefthalf.filled", "Appearance", "Choose how the map and controls look on this iPhone."),
-        ("location.circle", "Location Setup", "Choose how to share with new friends and respond to requests. You can change both settings later.")
-    ]
+    @State private var authMode: OnboardingView.Mode?
 
     var body: some View {
-        CompatNavigationStack {
-            VStack(spacing: Spacing.large) {
-                TabView(selection: $selection) {
-                    ForEach(slides.indices, id: \.self) { index in
-                        Group {
-                            if index == slides.count - 1 {
-                                Form {
-                                    Section {
-                                        slideIntro(index)
-                                            .listRowBackground(Color.clear)
-                                    }
-                                    Section {
-                                        DefaultSharingToggle()
-                                        Toggle("Live Requests", isOn: $model.liveRequestsEnabled).tint(.zoodBlue)
-                                    } footer: {
-                                        Text(DefaultSharingToggle.explanation + " " + DefaultSharingToggle.liveExplanation)
-                                    }
-                                }
-                            } else if index == slides.count - 2 {
-                                Form {
-                                    Section {
-                                        slideIntro(index).listRowBackground(Color.clear)
-                                        CentralParkAppearancePreview().listRowInsets(EdgeInsets())
-                                        AppearancePicker()
-                                    }
-                                }
-                            } else {
-                                ScrollView { slideIntro(index).padding(Spacing.large) }
+        content
+            .alert("Signed Out", isPresented: $model.signedOutElsewhere) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("Your account was signed in on another device, so it was signed out here. Your friends and settings are in your account backup.")
+            }
+    }
+
+    @ViewBuilder private var content: some View {
+        if let authMode {
+            OnboardingView(mode: authMode) { self.authMode = nil }
+        } else {
+            CompatNavigationStack {
+                VStack(spacing: Spacing.large) {
+                    TabView(selection: $selection) {
+                        ScrollView {
+                            OnboardingIntro(
+                                symbol: "location.circle.fill",
+                                title: "Stay close, wherever you are",
+                                detail: "See at a glance whether your people are still on the road or safely home. Share your location with family and friends you choose."
+                            )
+                            .padding(.horizontal, Spacing.large)
+                        }
+                        .padding(.bottom, 36)
+                        .tag(0)
+
+                        ScrollView {
+                            OnboardingIntro(
+                                symbol: "lock.shield",
+                                title: "Your location is yours",
+                                detail: "Your phone encrypts the locations you share with friends before sending them. Only the people you share with hold the keys to read them. Amidst and the server can’t decrypt them."
+                            )
+                            .padding(.horizontal, Spacing.large)
+                            VStack(spacing: Spacing.small) {
+                                Text("Anyone can audit the source code.")
+                                    .foregroundStyle(.secondary)
+                                Link("Amidst App Source Code", destination: AppInformation.sourceURL)
+                                Link("Zood Server Source Code", destination: AppInformation.serverSourceURL)
+                            }
+                            .font(.subheadline)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, Spacing.large)
+                        }
+                        .padding(.bottom, 36)
+                        .tag(1)
+
+                        Form {
+                            Section {
+                                OnboardingIntro(
+                                    symbol: "circle.lefthalf.filled",
+                                    title: "Appearance",
+                                    detail: "Choose how the map and controls look on this iPhone."
+                                )
+                                .listRowBackground(Color.clear)
+                                CentralParkAppearancePreview().listRowInsets(EdgeInsets())
+                                AppearancePicker()
                             }
                         }
                         .padding(.bottom, 36)
-                        .tag(index)
+                        .tag(2)
                     }
-                }
-                .tabViewStyle(.page(indexDisplayMode: .always))
-                .indexViewStyle(.page(backgroundDisplayMode: .always))
+                    .tabViewStyle(.page(indexDisplayMode: .always))
+                    .indexViewStyle(.page(backgroundDisplayMode: .always))
 
-                VStack(spacing: Spacing.small) {
-                    if selection < slides.count - 1 {
-                        Button("Continue") {
-                            withAnimation(reduceMotion ? nil : .easeInOut) { selection += 1 }
-                        }
-                        .buttonStyle(.borderedProminent)
-                    } else {
-                        if model.location.authorization == .notDetermined {
-                            Button("Continue with Location") {
-                                model.location.requestPermission()
-                                onFinish()
+                    VStack(spacing: Spacing.small) {
+                        if selection < 2 {
+                            Button("Continue") {
+                                withAnimation(reduceMotion ? nil : .easeInOut) { selection += 1 }
                             }
                             .buttonStyle(.borderedProminent)
-                            Button("Not Now", action: onFinish)
                         } else {
-                            Button("Get Started", action: onFinish)
+                            Button("Create Account") { authMode = .signUp }
                                 .buttonStyle(.borderedProminent)
                         }
+
+                        Button("I Already Have an Account") { authMode = .signIn }
                     }
+                    .tint(.zoodBlue)
+                    .padding(.bottom, Spacing.large)
                 }
-                .tint(.zoodBlue)
-                .padding(.bottom, Spacing.large)
-            }
-            .navigationTitle("Welcome to Amidst")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Skip", action: onFinish)
-                }
+                .navigationTitle("Welcome to Amidst")
+                .navigationBarTitleDisplayMode(.inline)
             }
         }
     }
+}
 
-    private func slideIntro(_ index: Int) -> some View {
+/// Account-backed preferences are available once the user signs in.
+struct LocationSetupView: View {
+    @EnvironmentObject private var model: AppModel
+    let onFinish: () -> Void
+
+    var body: some View {
+        CompatNavigationStack {
+            Form {
+                Section {
+                    OnboardingIntro(
+                        symbol: "location.circle",
+                        title: "Location Setup",
+                        detail: "Choose how to share with new friends and respond to requests. You can change both settings later."
+                    )
+                    .listRowBackground(Color.clear)
+                }
+
+                Section {
+                    DefaultSharingToggle()
+                    Toggle("Live Requests", isOn: $model.liveRequestsEnabled).tint(.zoodBlue)
+                } footer: {
+                    Text(DefaultSharingToggle.explanation + " " + DefaultSharingToggle.liveExplanation)
+                }
+
+                Section {
+                    Button {
+                        if model.location.authorization == .notDetermined {
+                            model.location.requestPermission()
+                        }
+                        onFinish()
+                    } label: {
+                        Text("Continue").frame(maxWidth: .infinity, minHeight: 32)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.zoodBlue)
+                    .listRowBackground(Color.clear)
+                }
+            }
+            .navigationTitle("Setup")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+}
+
+private struct OnboardingIntro: View {
+    let symbol: String
+    let title: LocalizedStringKey
+    let detail: LocalizedStringKey
+
+    var body: some View {
         VStack(spacing: Spacing.medium) {
-            Image(systemName: slides[index].0)
+            Image(systemName: symbol)
                 .font(.system(size: 48))
                 .foregroundStyle(Color.zoodBlue)
                 .accessibilityHidden(true)
-            Text(slides[index].1)
+            Text(title)
                 .font(.largeTitle.bold())
                 .accessibilityAddTraits(.isHeader)
-            Text(slides[index].2)
+            Text(detail)
                 .font(.body)
                 .foregroundStyle(.secondary)
         }
@@ -317,14 +382,41 @@ enum AmidstAppearance: String, CaseIterable {
 
 struct AppearancePicker: View {
     @AppStorage("amidstAppearance") private var appearance: AmidstAppearance = .system
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var currentScheme
 
     var body: some View {
-        Picker("Appearance", selection: $appearance) {
+        Picker("Appearance", selection: Binding(get: { appearance }, set: changeAppearance)) {
             Text("System").tag(AmidstAppearance.system)
             Text("Light").tag(AmidstAppearance.light)
             Text("Dark").tag(AmidstAppearance.dark)
         }
         .pickerStyle(.segmented)
+    }
+
+    private func changeAppearance(_ newAppearance: AmidstAppearance) {
+        guard newAppearance != appearance else { return }
+        let window = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first { $0.activationState == .foregroundActive }?.keyWindow
+        let systemScheme = window.flatMap { ColorScheme($0.windowScene?.traitCollection.userInterfaceStyle ?? .unspecified) }
+        let targetScheme = newAppearance.colorScheme ?? systemScheme
+        guard !reduceMotion, targetScheme != currentScheme,
+              let window, let snapshot = window.snapshotView(afterScreenUpdates: false) else {
+            appearance = newAppearance
+            return
+        }
+
+        snapshot.frame = window.bounds
+        snapshot.isUserInteractionEnabled = false
+        snapshot.accessibilityElementsHidden = true
+        window.addSubview(snapshot)
+        appearance = newAppearance
+        DispatchQueue.main.async {
+            UIView.animate(withDuration: 0.28, animations: {
+                snapshot.alpha = 0
+            }, completion: { _ in snapshot.removeFromSuperview() })
+        }
     }
 }
 

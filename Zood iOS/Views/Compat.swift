@@ -175,6 +175,7 @@ private struct FittedDetent: ViewModifier {
 struct ContentFittedSheet<Content: View>: View {
     let title: LocalizedStringKey
     var showsCloseButton = false
+    var showsFilledDoneButton = false
     var backAction: (() -> Void)?
     @ViewBuilder var content: () -> Content
     @Environment(\.dismiss) private var dismiss
@@ -205,6 +206,11 @@ struct ContentFittedSheet<Content: View>: View {
                         Spacer()
                         if showsCloseButton {
                             CloseButton { dismiss() }.frame(minWidth: 44, minHeight: 44)
+                        } else if showsFilledDoneButton {
+                            Button("Done") { dismiss() }
+                                .buttonStyle(.borderedProminent)
+                                .tint(.zoodBlue)
+                                .frame(minHeight: 44)
                         } else {
                             Button("Done") { dismiss() }.frame(minHeight: 44)
                         }

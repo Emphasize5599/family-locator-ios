@@ -17,14 +17,14 @@ struct BackgroundRefreshView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.small) {
-            if status == .restricted {
-                // Apple advises against warning users who cannot enable refresh themselves.
-                if showsStatus {
-                    Label("Background App Refresh is restricted by iOS.", systemImage: "info.circle")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+            if showsStatus {
+                HStack {
+                    Text("Status")
+                    Spacer()
+                    Text(statusDescription).foregroundStyle(.secondary)
+                    SettingsHelpButton(title: "Background App Refresh", detail: helpText)
                 }
-            } else if lowPowerMode || status == .denied {
+            } else if status != .restricted && (lowPowerMode || status == .denied) {
                 Button {
                     showingExplanation = true
                 } label: {
@@ -38,8 +38,8 @@ struct BackgroundRefreshView: View {
                     .foregroundStyle(Color.zoodOrange)
                 }
                 .buttonStyle(.plain)
-                .padding(.horizontal, showsStatus ? 0 : Spacing.large)
-                .padding(.vertical, showsStatus ? 0 : Spacing.small)
+                .padding(.horizontal, Spacing.large)
+                .padding(.vertical, Spacing.small)
                 .floatingSurface(in: RoundedRectangle(cornerRadius: 16))
                 .alert("Background App Refresh", isPresented: $showingExplanation) {
                     Button("Open Settings") {
@@ -49,16 +49,8 @@ struct BackgroundRefreshView: View {
                     }
                     Button("Cancel", role: .cancel) {}
                 } message: {
-                    if lowPowerMode {
-                        Text("Low Power Mode temporarily turns off Background App Refresh. Turn off Low Power Mode in Settings > Battery to restore it. iOS does not offer a permission prompt for this setting.")
-                    } else {
-                        Text("Enable Background App Refresh for Amidst in Settings. If it is unavailable there, go to Settings > General > Background App Refresh and enable it for the system and this app. This helps background updates, but does not guarantee that iOS will keep the app running. Keep Location access set to Always and do not swipe the app closed.")
-                    }
+                    Text(helpText)
                 }
-            } else if showsStatus {
-                Label("Background App Refresh is on", systemImage: "checkmark.circle")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
             }
         }
         .onAppear { refreshStatus() }
@@ -75,6 +67,22 @@ struct BackgroundRefreshView: View {
                 refreshStatus()
             }
         }
+    }
+
+    private var statusDescription: LocalizedStringKey {
+        if status == .restricted { return "Restricted" }
+        if lowPowerMode { return "Paused" }
+        return status == .available ? "On" : "Off"
+    }
+
+    private var helpText: String {
+        if status == .restricted {
+            return String(localized: "iOS has restricted Background App Refresh on this device.")
+        }
+        if lowPowerMode {
+            return String(localized: "Low Power Mode pauses Background App Refresh. Turn off Low Power Mode in Settings > Battery to restore it.")
+        }
+        return String(localized: "Background App Refresh helps Amidst catch up when iOS gives it time in the background. Manage it in Settings > General > Background App Refresh.")
     }
 
     private var warningTitle: LocalizedStringKey {

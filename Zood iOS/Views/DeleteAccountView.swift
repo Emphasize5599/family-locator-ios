@@ -35,8 +35,11 @@ struct DeleteAccountView: View {
                 Button(role: .destructive) {
                     showingConfirmation = true
                 } label: {
-                    Label("Delete Account", systemImage: "trash")
+                    Label("Delete Account", systemImage: "trash").frame(maxWidth: .infinity, minHeight: 32)
                 }
+                .buttonStyle(.borderedProminent)
+                .tint(.zoodRed)
+                .listRowBackground(Color.clear)
                 .disabled(isDeleting || model.credentials?.username != Username.forLookup(confirmation))
                 if isDeleting {
                     ProgressView("Deleting account…")

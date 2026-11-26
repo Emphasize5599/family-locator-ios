@@ -164,7 +164,7 @@ private struct ScreenshotTourSceneView: View {
 
     var body: some View {
         ZStack {
-            if scene == "onboarding" { OnboardingView() }
+            if scene == "onboarding" { WelcomeTourView() }
             else { MainView().id(request.token) }
         }
         .sheet(isPresented: $showingSheet) {

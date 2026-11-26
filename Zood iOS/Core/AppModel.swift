@@ -539,7 +539,7 @@ final class AppModel: ObservableObject {
         location.setLive(phase == .signedIn && liveRequestsEnabled)
     }
 
-    /// The app came to the foreground: reconnect (a socket from before suspension is likely dead), catch up on
+    /// The app came to the foreground: recover a stale socket, catch up on
     /// anything missed, and check we weren't signed in on another phone meanwhile.
     func sceneDidBecomeActive() {
         guard !ScreenshotTour.isEnabled else { return }
@@ -549,7 +549,7 @@ final class AppModel: ObservableObject {
         location.setForeground(true)
         guard phase == .signedIn else { return }
         Task { await restoreLinkedContactPhotos() }
-        if returningFromBackground { socket?.stop() }
+        if returningFromBackground { socket?.recoverIfStale() }
         socket?.start()
         startInboxPolling()
         applyLiveMode()

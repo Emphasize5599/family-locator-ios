@@ -10,7 +10,7 @@ Amidst shows where your family and friends are. It talks to the existing Zood se
 
 | Folder / file | What it's for |
 | --- | --- |
-| `MyApp.swift`, `ContentView.swift` | App entry point. Creates the single `AppModel` and switches between onboarding and the map. |
+| `MyApp.swift`, `ContentView.swift` | App entry point. Creates the single `AppModel` and switches between the signed-out welcome, account location setup, and the map. |
 | `Core/AppModel.swift` | The heart of the app. Owns the signed-in account, friends, requests and blocks, and coordinates everything else. Screens read from it and call its methods. |
 | `Core/Crypto.swift` | The only place that encrypts or decrypts (libsodium). |
 | `Core/OscarAPI.swift` | REST calls to the Zood server (`api.zood.xyz`). |
@@ -23,6 +23,8 @@ Amidst shows where your family and friends are. It talks to the existing Zood se
 | `Core/FriendFolders.swift`, `Core/TimedShare.swift` | Friend-bar folders, and temporary links for people without the app. |
 | `Views/` | SwiftUI screens. `MainView` is the map, `FriendPanel` the friend card, `SettingsView` settings. |
 | `Core/ScreenshotTour.swift` | Debug only: fictional data for screenshots. Compiled out of release builds. |
+
+The signed-out welcome tour previews the device’s appearance before account creation. After sign-in, Location Setup edits account-backed sharing preferences and can request iOS location access. The foreground reconnect notice appears after seven continuous seconds without the live socket. On resume, iOS keeps a healthy socket and reconnects a stale one while the inbox and location catch-up still run.
 
 ## How a location gets from my phone to yours
 

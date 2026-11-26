@@ -14,7 +14,7 @@ struct TimedShareView: View {
 
     var body: some View {
         // Shared sheet chrome (title, Done, measured height), like Pending Requests.
-        ContentFittedSheet(title: "Timed Sharing") {
+        ContentFittedSheet(title: "Timed Sharing", showsFilledDoneButton: true) {
                 VStack(spacing: Spacing.xLarge) {
                     VStack(spacing: Spacing.small) {
                         Text("Temporarily share your location with someone that doesn't have the app by sending them a link.")

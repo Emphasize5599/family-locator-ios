@@ -30,6 +30,17 @@ struct MainView: View {
     /// The friend bar's height, so an open folder can float just above it.
     @State private var barHeight: CGFloat = 100
     @State private var folderName = ""
+    @State private var showsConnectionNotice = false
+    @State private var connectionNoticeHeight: CGFloat = 0
+    @Environment(\.scenePhase) private var scenePhase
+
+    private var connectionNoticePending: Bool {
+        scenePhase == .active && !model.isConnected && !ScreenshotTour.isEnabled
+    }
+
+    private var showsTimedShareButton: Bool {
+        model.timedShare == nil && selectedFriendID == nil
+    }
 
     private static let screenSpace = "main-screen"
 
@@ -57,9 +68,7 @@ struct MainView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
 
                 VStack(spacing: Spacing.medium) {
-                    if !model.isConnected {
-                        banner("Connecting to server…", systemImage: "wifi.exclamationmark")
-                    } else if !model.location.hasAnyPermission && !ScreenshotTour.isStoreScene {
+                    if model.isConnected && !model.location.hasAnyPermission && !ScreenshotTour.isStoreScene {
                         banner("Location access is off, so family can't see you.", systemImage: "location.slash")
                             .onTapGesture { model.location.requestPermission() }
                     }
@@ -75,14 +84,10 @@ struct MainView: View {
                         // Running: a status strip instead of the button (Android's "peeking" sheet).
                         TimedSharePeekBar { activeSheet = .timedShare }
                             .transition(.move(edge: .bottom).combined(with: .opacity))
-                    } else if selectedFriendID == nil {
-                        // Android's location-pin button, bottom right above the friend bar.
-                        HStack {
-                            Spacer()
-                            circleButton("mappin.and.ellipse", label: "Timed sharing") { activeSheet = .timedShare }
-                        }
-                        .padding(.horizontal, Spacing.large)
-                        .transition(.opacity)
+                    }
+                    if showsTimedShareButton || showsConnectionNotice {
+                        bottomMapControls
+                            .transition(.opacity)
                     }
                     friendsBar
                         .zIndex(1)  // the open folder below draws above the friend card
@@ -97,7 +102,8 @@ struct MainView: View {
                             if let folder = model.friendFolders.first(where: { $0.id == openFolderID }) {
                                 folderPopup(folder, screenWidth: geometry.size.width, availableHeight: geometry.size.height)
                                     .fixedSize(horizontal: false, vertical: true)
-                                    .padding(.bottom, barHeight + Spacing.medium)
+                                    .padding(.bottom, barHeight + Spacing.medium
+                                             + (showsConnectionNotice ? connectionNoticeHeight + Spacing.medium : 0))
                                     // Grows out of (and shrinks back into) the folder's tile in the bar.
                                     .transition(.scale(scale: 0.2, anchor: folderAnchor(folder, screenWidth: geometry.size.width))
                                         .combined(with: .opacity))
@@ -110,6 +116,14 @@ struct MainView: View {
                 .animation(.spring(response: 0.35, dampingFraction: 0.85), value: model.timedShare != nil)
             }
             .coordinateSpace(name: Self.screenSpace)
+        }
+        .task(id: connectionNoticePending) {
+            guard connectionNoticePending else {
+                showsConnectionNotice = false
+                return
+            }
+            do { try await Task.sleep(nanoseconds: 7_000_000_000) } catch { return }
+            showsConnectionNotice = true
         }
         .sheet(item: $activeSheet) { sheet in
             switch sheet {
@@ -196,6 +210,41 @@ struct MainView: View {
             nicknameDraft?.text = "River"
         }
         #endif
+    }
+
+    private var bottomMapControls: some View {
+        let sideWidth: CGFloat = 48 + Spacing.small
+        return HStack(alignment: .bottom, spacing: 0) {
+            Color.clear.frame(width: sideWidth, height: 1).accessibilityHidden(true)
+            Group {
+                if showsConnectionNotice {
+                    HStack(spacing: Spacing.small) {
+                        Image(systemName: "wifi.exclamationmark").accessibilityHidden(true)
+                        Text("Connecting to server…")
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Image(systemName: "wifi.exclamationmark").hidden().accessibilityHidden(true)
+                    }
+                    .font(.footnote.weight(.medium))
+                    .padding(.horizontal, Spacing.medium)
+                    .padding(.vertical, Spacing.small)
+                    .floatingSurface(in: RoundedRectangle(cornerRadius: 18))
+                }
+            }
+            .frame(maxWidth: .infinity)
+            Group {
+                if showsTimedShareButton {
+                    circleButton("mappin.and.ellipse", label: "Timed sharing") { activeSheet = .timedShare }
+                }
+            }
+            .frame(width: sideWidth, alignment: .trailing)
+        }
+        .padding(.horizontal, Spacing.large)
+        .background(GeometryReader { geometry in
+            Color.clear
+                .onAppear { connectionNoticeHeight = geometry.size.height }
+                .compatOnChange(of: geometry.size.height) { connectionNoticeHeight = $0 }
+        })
     }
 
     private var controls: some View {
@@ -516,7 +565,7 @@ struct MainView: View {
         let titleWidth = title.components(separatedBy: .newlines)
             .map { ($0 as NSString).size(withAttributes: [.font: font]).width }.max() ?? 0
         let headerWidth = ceil(titleWidth) + 2 + 3 * Spacing.tight + Spacing.small + 2 * 44
-        return min(max(gridWidth, headerWidth, 140) + 2 * Spacing.large, screenWidth - 2 * Spacing.medium)
+        return min(max(gridWidth, headerWidth, editing ? 180 : 140) + 2 * Spacing.large, screenWidth - 2 * Spacing.medium)
     }
 
     private func folderPopup(_ folder: FriendFolder, screenWidth: CGFloat, availableHeight: CGFloat) -> some View {
@@ -536,10 +585,7 @@ struct MainView: View {
         let centerX = folderCenterX(width: width, screenWidth: screenWidth)
         return VStack(alignment: .leading, spacing: Spacing.small) {
             HStack(alignment: .center, spacing: Spacing.tight) {
-                if editing {
-                    InlineNameField(label: String(localized: "Folder name"), text: $folderName,
-                                    style: .headline, onSave: { saveFolderName(folder) }, onCancel: { renamingFolderID = nil })
-                } else {
+                if !editing {
                     Button { beginRename(folder) } label: {
                         Text(title).font(.headline).fixedSize(horizontal: false, vertical: true)
                     }
@@ -552,7 +598,13 @@ struct MainView: View {
                 CloseButton { closeFolder() }.frame(width: 44, height: 44)
             }
             if editing {
-                InlineNameActions(onSave: { saveFolderName(folder) }, onCancel: { renamingFolderID = nil })
+                HStack(alignment: .center, spacing: Spacing.tight) {
+                    InlineNameField(label: String(localized: "Folder name"), text: $folderName,
+                                    style: .headline, onSave: { saveFolderName(folder) }, onCancel: { renamingFolderID = nil })
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    InlineNameActions(onSave: { saveFolderName(folder) }, onCancel: { renamingFolderID = nil })
+                        .fixedSize(horizontal: true, vertical: false)
+                }
             }
             ScrollView(.vertical, showsIndicators: members.count > columns * rows) {
                 LazyVGrid(columns: Array(repeating: GridItem(.fixed(barItemWidth), spacing: Spacing.large), count: usedColumns),

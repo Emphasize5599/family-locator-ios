@@ -29,10 +29,10 @@ struct ContentView: View {
     @ViewBuilder private var appContent: some View {
         switch model.phase {
         case .signedOut:
-            OnboardingView()
+            WelcomeTourView()
         case .signedIn:
             if model.accountPreferences.completedOnboarding == true { MainView() }
-            else { WelcomeTourView { model.accountPreferences.completedOnboarding = true } }
+            else { LocationSetupView { model.accountPreferences.completedOnboarding = true } }
         }
     }
 }
