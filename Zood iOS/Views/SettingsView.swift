@@ -35,51 +35,61 @@ struct SettingsView: View {
 
                 Section("Location Sharing") {
                     HStack {
-                        DefaultSharingToggle()
-                        SettingsHelpButton(title: "Share with New Friends", detail: DefaultSharingToggle.explanation)
+                        SettingsHelpLabel(title: "Share with New Friends", detail: DefaultSharingToggle.explanation)
+                        Spacer(minLength: 0)
+                        DefaultSharingToggle().labelsHidden()
                     }
                     HStack {
-                        Toggle("Live Requests", isOn: $model.liveRequestsEnabled).tint(.zoodBlue)
-                        SettingsHelpButton(title: "Live Requests", detail: liveRequestsHelp)
+                        SettingsHelpLabel(title: "Live Requests", detail: liveRequestsHelp)
+                        Spacer(minLength: 0)
+                        Toggle("Live Requests", isOn: $model.liveRequestsEnabled).labelsHidden().tint(.zoodBlue)
                     }
                 }
 
-                Section("Background App Refresh") {
+                Section {
                     BackgroundRefreshView(showsStatus: true)
+                } header: {
+                    BackgroundRefreshHelp()
                 }
 
-                Section("Location Access") {
+                Section {
                     HStack {
-                        LabeledContentCompat("Permission", value: permissionDescription)
-                        SettingsHelpButton(title: "Location Access",
-                                           detail: "Choose Always in iPhone Settings to share while Amidst is in the background. You can see friends who share with you even with your own location turned off.")
+                        Text("Permission")
+                        Spacer()
+                        Text(permissionDescription).foregroundStyle(.secondary)
                     }
                     if !model.location.hasAlwaysPermission {
                         Button("Open Settings") {
                             openURL(URL(string: UIApplication.openSettingsURLString)!)
                         }
                     }
+                } header: {
+                    SettingsHelpLabel(title: "Location Access",
+                                      detail: "Choose Always in iPhone Settings to share while Amidst is in the background. You can see friends who share with you even with your own location turned off.")
                 }
 
-                Section("Appearance") {
-                    HStack {
-                        AppearancePicker()
-                        SettingsHelpButton(title: "Appearance", detail: "System follows the iPhone’s appearance. Light and Dark apply only to Amidst on this device.")
-                    }
+                Section {
+                    AppearancePicker()
+                } header: {
+                    SettingsHelpLabel(title: "Appearance", detail: "System follows the iPhone’s appearance. Light and Dark apply only to Amidst on this device.")
                 }
 
                 Section("Friend Bar") {
                     HStack {
-                        Stepper(value: Binding(get: { folderColumns }, set: { model.accountPreferences.folderColumns = $0 }), in: FolderGrid.columnRange) {
-                            LabeledContentCompat("Folder Columns", value: "\(folderColumns)")
-                        }
-                        SettingsHelpButton(title: "Folder Columns", detail: "Sets how many people appear across an open folder. Long-press a person in the friend bar and drag them onto another to create a folder.")
+                        SettingsHelpLabel(title: "Folder Columns", detail: "Sets how many people appear across an open folder. Long-press a person in the friend bar and drag them onto another to create a folder.")
+                        Spacer(minLength: 0)
+                        Text("\(folderColumns)").foregroundStyle(.secondary).monospacedDigit().accessibilityHidden(true)
+                        Stepper("Folder Columns", value: Binding(get: { folderColumns }, set: { model.accountPreferences.folderColumns = $0 }), in: FolderGrid.columnRange)
+                            .labelsHidden()
+                            .accessibilityValue("\(folderColumns)")
                     }
                     HStack {
-                        Stepper(value: Binding(get: { folderRows }, set: { model.accountPreferences.folderRows = $0 }), in: FolderGrid.rowRange) {
-                            LabeledContentCompat("Folder Rows", value: "\(folderRows)")
-                        }
-                        SettingsHelpButton(title: "Folder Rows", detail: "Sets how many rows are visible in an open folder. Scroll to see additional people.")
+                        SettingsHelpLabel(title: "Folder Rows", detail: "Sets how many rows are visible in an open folder. Scroll to see additional people.")
+                        Spacer(minLength: 0)
+                        Text("\(folderRows)").foregroundStyle(.secondary).monospacedDigit().accessibilityHidden(true)
+                        Stepper("Folder Rows", value: Binding(get: { folderRows }, set: { model.accountPreferences.folderRows = $0 }), in: FolderGrid.rowRange)
+                            .labelsHidden()
+                            .accessibilityValue("\(folderRows)")
                     }
                 }
 
@@ -135,21 +145,25 @@ struct SettingsView: View {
     }
 }
 
-struct SettingsHelpButton: View {
+struct SettingsHelpLabel: View {
     let title: LocalizedStringKey
     let detail: String
     @State private var showingHelp = false
 
     var body: some View {
-        Button {
-            showingHelp = true
-        } label: {
-            Image(systemName: "questionmark.circle")
-                .frame(minWidth: 44, minHeight: 44)
+        HStack(spacing: Spacing.tight) {
+            Text(title).fixedSize(horizontal: false, vertical: true)
+            Button {
+                showingHelp = true
+            } label: {
+                Image(systemName: "questionmark.circle")
+                    .font(.footnote)
+                    .frame(width: 24, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel(Text("About \(Text(title))"))
         }
-        .buttonStyle(.borderless)
-        .accessibilityLabel(Text(title))
-        .accessibilityHint("Shows information about this setting")
         .alert(title, isPresented: $showingHelp) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -316,24 +330,5 @@ struct NoticesView: View {
             .font(.footnote)
             .foregroundStyle(.secondary)
             .padding(.vertical, Spacing.tight)
-    }
-}
-
-/// A title with a trailing value, like `LabeledContent` (iOS 16+), back to iOS 15.
-private struct LabeledContentCompat: View {
-    let title: LocalizedStringKey
-    let value: String
-
-    init(_ title: LocalizedStringKey, value: String) {
-        self.title = title
-        self.value = value
-    }
-
-    var body: some View {
-        HStack {
-            Text(title)
-            Spacer()
-            Text(value).foregroundStyle(.secondary).monospacedDigit()
-        }
     }
 }

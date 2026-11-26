@@ -22,7 +22,6 @@ struct BackgroundRefreshView: View {
                     Text("Status")
                     Spacer()
                     Text(statusDescription).foregroundStyle(.secondary)
-                    SettingsHelpButton(title: "Background App Refresh", detail: helpText)
                 }
             } else if status != .restricted && (lowPowerMode || status == .denied) {
                 Button {
@@ -49,7 +48,7 @@ struct BackgroundRefreshView: View {
                     }
                     Button("Cancel", role: .cancel) {}
                 } message: {
-                    Text(helpText)
+                    Text(Self.helpText(status: status, lowPowerMode: lowPowerMode))
                 }
             }
         }
@@ -75,7 +74,7 @@ struct BackgroundRefreshView: View {
         return status == .available ? "On" : "Off"
     }
 
-    private var helpText: String {
+    static func helpText(status: UIBackgroundRefreshStatus, lowPowerMode: Bool) -> String {
         if status == .restricted {
             return String(localized: "iOS has restricted Background App Refresh on this device.")
         }
@@ -92,5 +91,14 @@ struct BackgroundRefreshView: View {
     private func refreshStatus() {
         status = UIApplication.shared.backgroundRefreshStatus
         lowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled
+    }
+}
+
+struct BackgroundRefreshHelp: View {
+    var body: some View {
+        SettingsHelpLabel(title: "Background App Refresh", detail: BackgroundRefreshView.helpText(
+            status: UIApplication.shared.backgroundRefreshStatus,
+            lowPowerMode: ProcessInfo.processInfo.isLowPowerModeEnabled
+        ))
     }
 }
