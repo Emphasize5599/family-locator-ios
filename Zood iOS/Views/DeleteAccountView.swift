@@ -35,7 +35,7 @@ struct DeleteAccountView: View {
                 Button(role: .destructive) {
                     showingConfirmation = true
                 } label: {
-                    Label("Delete Account", systemImage: "trash").frame(maxWidth: .infinity, minHeight: 32)
+                    Text("Delete Account").frame(maxWidth: .infinity, minHeight: 32)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.zoodRed)

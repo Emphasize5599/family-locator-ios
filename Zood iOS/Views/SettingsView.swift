@@ -6,6 +6,7 @@ struct SettingsView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
+    @AppStorage("amidstAppearance") private var appearance: AmidstAppearance = .system
     private var folderColumns: Int { model.accountPreferences.folderColumns ?? FolderGrid.defaultColumns }
     private var folderRows: Int { model.accountPreferences.folderRows ?? FolderGrid.defaultRows }
 
@@ -135,6 +136,8 @@ struct SettingsView: View {
                 }
             }
         }
+        // A sheet resolves its own color-scheme preference independently of the presenting map.
+        .preferredColorScheme(appearance.colorScheme)
         .compatFullHeightSheet()
     }
 
@@ -279,7 +282,7 @@ struct AccountView: View {
             }
             Section {
                 Button { confirmingLogOut = true } label: {
-                    Label("Log Out", systemImage: "rectangle.portrait.and.arrow.right")
+                    Text("Log Out")
                         .frame(maxWidth: .infinity, minHeight: 32)
                 }
                 .buttonStyle(.borderedProminent)
@@ -288,7 +291,7 @@ struct AccountView: View {
                 .listRowSeparator(.hidden)
 
                 Button { showingDeleteAccount = true } label: {
-                    Label("Delete Account", systemImage: "trash")
+                    Text("Delete Account")
                         .frame(maxWidth: .infinity, minHeight: 32)
                 }
                 .buttonStyle(.borderedProminent)
